@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: paradise
+      POSTGRES_USER: paradise
+      POSTGRES_PASSWORD: paradise
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paradise"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - paradise
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://paradise:paradise@db:5432/paradise
+      DOCKER_HOST: unix:///var/run/docker.sock
+      PARADISE_NETWORK: paradise_paradise
+      NANOBOT_IMAGE: paradise-nanobot
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - paradise
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - paradise
+
+  nanobot-image:
+    build:
+      context: ./nanobot
+      additional_contexts:
+        nanobot-src: /root/nanobot
+    image: paradise-nanobot
+    entrypoint: ["true"]
+    restart: "no"
+
+volumes:
+  pgdata:
+
+networks:
+  paradise:
+    driver: bridge
