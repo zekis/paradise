@@ -1,5 +1,6 @@
 """Node CRUD and nanobot container lifecycle."""
 
+import json
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -48,6 +49,9 @@ class NodeRead(BaseModel):
     width: float
     height: float
     config: dict | None
+    identity: dict | None = None
+    agent_status: str | None = None
+    agent_status_message: str | None = None
     created_at: str | None
     updated_at: str | None
 
@@ -136,6 +140,61 @@ async def delete_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
     await db.delete(node)
     await db.commit()
     return {"ok": True}
+
+
+@router.post("/nodes/{node_id}/clone", response_model=NodeRead)
+async def clone_node(node_id: UUID, payload: dict, db: AsyncSession = Depends(get_db)):
+    """Clone a node: create a new container with the same config and workspace files."""
+    source = await db.get(Node, node_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Source node not found")
+
+    new_id = uuid4()
+    pos_x = payload.get("position_x", source.position_x + 120)
+    pos_y = payload.get("position_y", source.position_y + 60)
+
+    node = Node(
+        id=new_id,
+        name=f"{source.name}-clone",
+        position_x=pos_x,
+        position_y=pos_y,
+    )
+
+    try:
+        container_id = create_nanobot_container(str(new_id), node.name)
+        node.container_id = container_id
+        node.container_status = "running"
+
+        # Copy nanobot config
+        if source.config:
+            write_nanobot_config(container_id, source.config)
+            node.config = source.config
+
+        # Copy identity
+        if source.identity:
+            node.identity = source.identity
+
+        # Copy workspace files from source container
+        if source.container_id:
+            files_to_copy = set(ALLOWED_WORKSPACE_FILES)
+            if source.identity and isinstance(source.identity, dict):
+                for tab in source.identity.get("tabs", []):
+                    if isinstance(tab, dict) and isinstance(tab.get("file"), str):
+                        fname = tab["file"]
+                        if "/" not in fname and "\\" not in fname and ".." not in fname:
+                            files_to_copy.add(fname)
+            for filename in files_to_copy:
+                content = read_workspace_file(source.container_id, filename)
+                if content:
+                    write_workspace_file(container_id, filename, content)
+    except Exception as exc:
+        node.container_status = "error"
+        node.config = {"error": str(exc)}
+
+    db.add(node)
+    await db.commit()
+    await db.refresh(node)
+    return node
 
 
 @router.get("/nodes/{node_id}/logs")
@@ -250,7 +309,26 @@ async def get_node_stats(node_id: UUID, db: AsyncSession = Depends(get_db)):
     }
 
 
-ALLOWED_WORKSPACE_FILES = {"SOUL.md", "AGENTS.md", "USER.md", "HEARTBEAT.md", "TOOLS.md"}
+ALLOWED_WORKSPACE_FILES = {
+    "SOUL.md", "AGENTS.md", "USER.md", "HEARTBEAT.md", "TOOLS.md", "identity.json",
+    "dashboard.html", "config.html", "commands.html", "children.html",
+    "settings.json", "api.py",
+}
+
+
+def _allowed_files_for_node(node: Node) -> set[str]:
+    """Return allowed workspace filenames: defaults + files declared in identity tabs."""
+    allowed = set(ALLOWED_WORKSPACE_FILES)
+    if node.identity and isinstance(node.identity, dict):
+        tabs = node.identity.get("tabs")
+        if isinstance(tabs, list):
+            for tab in tabs:
+                if isinstance(tab, dict) and isinstance(tab.get("file"), str):
+                    fname = tab["file"]
+                    # Security: only allow simple filenames, no path traversal
+                    if "/" not in fname and "\\" not in fname and ".." not in fname:
+                        allowed.add(fname)
+    return allowed
 
 DEFAULT_TEMPLATES: dict[str, str] = {
     "SOUL.md": """# Soul
@@ -355,14 +433,14 @@ If this file has no tasks (only headers and comments), the agent will skip the h
 
 @router.get("/nodes/{node_id}/files/{filename}")
 async def get_workspace_file(node_id: UUID, filename: str, db: AsyncSession = Depends(get_db)):
-    if filename not in ALLOWED_WORKSPACE_FILES:
-        raise HTTPException(status_code=400, detail="File not allowed")
     node = await db.get(Node, node_id)
     if not node or not node.container_id:
         raise HTTPException(status_code=404, detail="Node or container not found")
+    if filename not in _allowed_files_for_node(node):
+        raise HTTPException(status_code=400, detail="File not allowed")
     content = read_workspace_file(node.container_id, filename)
-    # Fall back to stored defaults, then hardcoded defaults
-    if not content and filename in ALLOWED_WORKSPACE_FILES:
+    # Fall back to stored defaults, then hardcoded defaults (only for default files)
+    if not content and filename in DEFAULT_TEMPLATES:
         canvas_state = await db.get(CanvasState, "default")
         templates = (
             canvas_state.default_agent_templates
@@ -370,7 +448,6 @@ async def get_workspace_file(node_id: UUID, filename: str, db: AsyncSession = De
             else DEFAULT_TEMPLATES
         )
         content = templates.get(filename, "")
-        # Write it into the container so the nanobot agent can use it
         if content:
             write_workspace_file(node.container_id, filename, content)
     return {"filename": filename, "content": content}
@@ -378,10 +455,48 @@ async def get_workspace_file(node_id: UUID, filename: str, db: AsyncSession = De
 
 @router.put("/nodes/{node_id}/files/{filename}")
 async def put_workspace_file(node_id: UUID, filename: str, payload: dict, db: AsyncSession = Depends(get_db)):
-    if filename not in ALLOWED_WORKSPACE_FILES:
-        raise HTTPException(status_code=400, detail="File not allowed")
     node = await db.get(Node, node_id)
     if not node or not node.container_id:
         raise HTTPException(status_code=404, detail="Node or container not found")
+    if filename not in _allowed_files_for_node(node):
+        raise HTTPException(status_code=400, detail="File not allowed")
     write_workspace_file(node.container_id, filename, payload.get("content", ""))
     return {"ok": True}
+
+
+@router.put("/nodes/{node_id}/agent-status")
+async def set_agent_status(node_id: UUID, payload: dict, db: AsyncSession = Depends(get_db)):
+    """Set agent-reported status (ok, warning, error) from PARADISE.setStatus()."""
+    node = await db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    status = payload.get("status", "").strip().lower()
+    if status not in ("ok", "warning", "error", ""):
+        raise HTTPException(status_code=400, detail="Status must be ok, warning, or error")
+    node.agent_status = status or None
+    node.agent_status_message = payload.get("message", "")[:200] or None
+    await db.commit()
+    return {"ok": True, "agent_status": node.agent_status}
+
+
+@router.get("/nodes/{node_id}/identity")
+async def get_node_identity(node_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Read identity.json from the nanobot container and cache in DB."""
+    node = await db.get(Node, node_id)
+    if not node or not node.container_id:
+        raise HTTPException(status_code=404, detail="Node or container not found")
+
+    content = read_workspace_file(node.container_id, "identity.json")
+    if not content:
+        return {"identity": None}
+
+    try:
+        identity = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return {"identity": None}
+
+    # Cache in DB for fast canvas loads
+    node.identity = identity
+    await db.commit()
+
+    return {"identity": identity}

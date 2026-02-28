@@ -22,6 +22,7 @@ import Icon from "@mdi/react";
 import { mdiCog, mdiPlus } from "@mdi/js";
 import { NanobotNode } from "./NanobotNode";
 import { DefaultConfigPanel } from "./DefaultConfigPanel";
+import { GenesisModal } from "./GenesisModal";
 import { useCanvasStore } from "@/store/canvasStore";
 
 const nodeTypes = {
@@ -42,7 +43,8 @@ function CanvasInner() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [loaded, setLoaded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const { setApi, setToggleExpanded, setRemoveNode } = useCanvasStore();
+  const [showGenesis, setShowGenesis] = useState(false);
+  const { setApi, setToggleExpanded, setRemoveNode, setUpdateNodeIdentity, setUpdateNodeName, setUpdateNodeAgentStatus, setAddNode } = useCanvasStore();
   const { setViewport } = useReactFlow();
   const viewportTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -89,6 +91,45 @@ function CanvasInner() {
       setNodes((nds) => nds.filter((n) => n.id !== nodeId));
       setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
     });
+    setUpdateNodeIdentity((nodeId: string, identity: any) => {
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === nodeId
+            ? { ...n, data: { ...n.data, identity, genesisActive: false, genesisPrompt: undefined } }
+            : n
+        )
+      );
+    });
+    setUpdateNodeName((nodeId: string, name: string) => {
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === nodeId
+            ? { ...n, data: { ...n.data, label: name } }
+            : n
+        )
+      );
+    });
+    setUpdateNodeAgentStatus((nodeId: string, status: string | null, message?: string) => {
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === nodeId
+            ? { ...n, data: { ...n.data, agentStatus: status, agentStatusMessage: message } }
+            : n
+        )
+      );
+    });
+    setAddNode((node: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => {
+      setNodes((nds) => [
+        ...nds,
+        {
+          id: node.id,
+          type: "nanobot",
+          position: node.position,
+          data: node.data,
+          style: { width: 80, height: 92 },
+        },
+      ]);
+    });
     loadCanvas();
   }, []);
 
@@ -112,6 +153,9 @@ function CanvasInner() {
           nodeId: n.id,
           containerStatus: n.container_status,
           expanded: false,
+          identity: n.identity || null,
+          agentStatus: n.agent_status || null,
+          agentStatusMessage: n.agent_status_message || null,
         },
         style: { width: 80, height: 92 },
       }));
@@ -199,7 +243,9 @@ function CanvasInner() {
     []
   );
 
-  const addNode = useCallback(async () => {
+  const handleGenesis = useCallback(async (genesisPrompt: string | null) => {
+    setShowGenesis(false);
+
     const adj = ["swift","bright","silent","cosmic","neon","vivid","lucid","bold","keen","calm","wild","cool","warm","deft","sly","apt","zen","raw","odd","wry"];
     const noun = ["fox","owl","lynx","wolf","bear","hawk","pike","crab","moth","wasp","yak","eel","cod","ant","bat","ram","elk","jay","koi","pug"];
     const pick = (a: string[]) => a[Math.floor(Math.random() * a.length)];
@@ -216,6 +262,9 @@ function CanvasInner() {
         }),
       });
       const node = await res.json();
+
+      // If genesis prompt provided, create expanded with genesis data
+      const hasGenesis = !!genesisPrompt;
       setNodes((nds) => [
         ...nds,
         {
@@ -226,9 +275,15 @@ function CanvasInner() {
             label: node.name,
             nodeId: node.id,
             containerStatus: node.container_status,
-            expanded: false,
+            expanded: hasGenesis,
+            genesisPrompt: genesisPrompt || undefined,
+            genesisActive: hasGenesis,
+            identity: null,
+            ...(hasGenesis ? { homeX: node.position_x, homeY: node.position_y } : {}),
           },
-          style: { width: 80, height: 92 },
+          style: hasGenesis
+            ? { width: 320, height: 380 }
+            : { width: 80, height: 92 },
         },
       ]);
     } catch (err) {
@@ -328,7 +383,7 @@ function CanvasInner() {
           <Icon path={mdiCog} size={0.9} />
         </button>
         <button
-          onClick={addNode}
+          onClick={() => setShowGenesis(true)}
           style={{
             width: 44,
             height: 44,
@@ -354,6 +409,14 @@ function CanvasInner() {
       {/* Default config panel */}
       {showSettings && (
         <DefaultConfigPanel api={API} onClose={() => setShowSettings(false)} />
+      )}
+
+      {/* Genesis modal */}
+      {showGenesis && (
+        <GenesisModal
+          onClose={() => setShowGenesis(false)}
+          onCreate={handleGenesis}
+        />
       )}
 
       {/* Title */}

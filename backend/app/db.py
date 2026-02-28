@@ -33,6 +33,9 @@ class Node(Base):
     width = Column(Float, nullable=False, default=320.0)
     height = Column(Float, nullable=False, default=400.0)
     config = Column(JSONB, nullable=True)
+    identity = Column(JSONB, nullable=True)
+    agent_status = Column(String(20), nullable=True)  # ok, warning, error
+    agent_status_message = Column(Text, nullable=True)
     created_at = Column(
         String, default=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -74,6 +77,12 @@ class CanvasState(Base):
 async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # Migrate existing tables (add columns that may not exist yet)
+    from sqlalchemy import text
+    async with engine.begin() as conn:
+        await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS identity JSONB"))
+        await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS agent_status VARCHAR(20)"))
+        await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS agent_status_message TEXT"))
 
 
 async def get_db():
