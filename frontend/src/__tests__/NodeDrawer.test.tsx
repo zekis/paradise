@@ -8,6 +8,7 @@ vi.mock("@/store/canvasStore", () => ({
     updateNodeIdentity: vi.fn(),
     updateNodeName: vi.fn(),
     updateNodeAgentStatus: vi.fn(),
+    updateNodeGauge: vi.fn(),
   }),
 }));
 

@@ -36,6 +36,8 @@ class Node(Base):
     identity = Column(JSONB, nullable=True)
     agent_status = Column(String(20), nullable=True)  # ok, warning, error
     agent_status_message = Column(Text, nullable=True)
+    gauge_value = Column(Float, nullable=True)
+    gauge_label = Column(Text, nullable=True)
     created_at = Column(
         String, default=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -139,6 +141,8 @@ async def create_tables():
         await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS display_content TEXT"))
         await conn.execute(text("ALTER TABLE edges ADD COLUMN IF NOT EXISTS source_handle VARCHAR(30)"))
         await conn.execute(text("ALTER TABLE edges ADD COLUMN IF NOT EXISTS target_handle VARCHAR(30)"))
+        await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_value DOUBLE PRECISION"))
+        await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_label TEXT"))
 
 
 async def get_db():

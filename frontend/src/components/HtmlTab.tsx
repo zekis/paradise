@@ -76,6 +76,16 @@ const PARADISE = {
     const res = await fetch(this.api + "/api/nodes/" + this.nodeId + "/network/config/" + encodeURIComponent(peerId));
     if (!res.ok) throw new Error("getPeerConfig failed: " + res.status);
     return await res.json();
+  },
+
+  async setGauge(value, label) {
+    const res = await fetch(this.api + "/api/nodes/" + this.nodeId + "/gauge", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: value, label: label || "" })
+    });
+    if (!res.ok) throw new Error("setGauge failed: " + res.status);
+    window.parent.postMessage({ type: "paradise:gauge", nodeId: this.nodeId, value: value, label: label || "" }, "*");
   }
 };
 </script>
