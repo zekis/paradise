@@ -27,6 +27,11 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
     if (store.selectedNodeId === nodeId) store.setSelectedNodeId(null);
   });
 
+  store.setRemoveEdge((edgeId: string) => {
+    setEdges((eds) => eds.filter((e) => e.id !== edgeId));
+    fetch(`${API}/api/edges/${edgeId}`, { method: "DELETE" }).catch(() => {});
+  });
+
   store.setUpdateNodeIdentity((nodeId: string, identity: Record<string, unknown>) => {
     setNodes((nds) =>
       nds.map((n) =>

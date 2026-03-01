@@ -8,6 +8,8 @@ interface CanvasStore {
   setSelectedNodeId: (id: string | null) => void;
   removeNode: (nodeId: string) => void;
   setRemoveNode: (fn: (nodeId: string) => void) => void;
+  removeEdge: (edgeId: string) => void;
+  setRemoveEdge: (fn: (edgeId: string) => void) => void;
   updateNodeIdentity: (nodeId: string, identity: NodeIdentity) => void;
   setUpdateNodeIdentity: (fn: (nodeId: string, identity: NodeIdentity) => void) => void;
   updateNodeName: (nodeId: string, name: string) => void;
@@ -25,6 +27,8 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
   setSelectedNodeId: (id) => set({ selectedNodeId: id }),
   removeNode: () => {},
   setRemoveNode: (fn) => set({ removeNode: fn }),
+  removeEdge: () => {},
+  setRemoveEdge: (fn) => set({ removeEdge: fn }),
   updateNodeIdentity: () => {},
   setUpdateNodeIdentity: (fn) => set({ updateNodeIdentity: fn }),
   updateNodeName: () => {},
