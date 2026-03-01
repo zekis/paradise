@@ -55,8 +55,8 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
       }}
       onClick={() => setSelectedNodeId(nodeId)}
     >
-      <Handle type="target" position={Position.Top} id="top-t" />
-      <Handle type="source" position={Position.Top} id="top-s" />
+      <Handle type="target" position={Position.Top} id="top-t" style={{ top: -8 }} />
+      <Handle type="source" position={Position.Top} id="top-s" style={{ top: -8 }} />
       <Handle type="target" position={Position.Bottom} id="bottom-t" />
       <Handle type="source" position={Position.Bottom} id="bottom-s" />
       <Handle type="target" position={Position.Left} id="left-t" />
