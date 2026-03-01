@@ -16,6 +16,8 @@ class EdgeCreate(BaseModel):
     source_id: UUID
     target_id: UUID
     edge_type: str = "connection"
+    source_handle: str | None = None
+    target_handle: str | None = None
 
 
 class EdgeRead(BaseModel):
@@ -23,6 +25,8 @@ class EdgeRead(BaseModel):
     source_id: UUID
     target_id: UUID
     edge_type: str
+    source_handle: str | None
+    target_handle: str | None
     created_at: str | None
 
     model_config = {"from_attributes": True}

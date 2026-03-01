@@ -106,6 +106,8 @@ async function fetchCanvas(
         source: e.source_id,
         target: e.target_id,
         type: "smoothstep",
+        sourceHandle: e.source_handle || undefined,
+        targetHandle: e.target_handle || undefined,
       }))
     );
 
@@ -148,7 +150,7 @@ export function useCanvasSync() {
       const res = await fetch(`${API}/api/edges`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source_id: connection.source, target_id: connection.target }),
+        body: JSON.stringify({ source_id: connection.source, target_id: connection.target, source_handle: connection.sourceHandle, target_handle: connection.targetHandle }),
       });
       if (!res.ok) return;
       const edge = await res.json();
