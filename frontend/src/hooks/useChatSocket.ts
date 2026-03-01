@@ -6,6 +6,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   streaming?: boolean;
+  message_type?: string;
 }
 
 interface ChatSocketOptions {
@@ -64,9 +65,13 @@ export function useChatSocket({
       try {
         const res = await fetch(`${api}/api/nodes/${nodeId}/messages`);
         if (!res.ok || cancelled) return;
-        const data: { role: "user" | "assistant"; content: string }[] = await res.json();
+        const data: { role: "user" | "assistant"; content: string; message_type?: string; display_content?: string }[] = await res.json();
         if (cancelled) return;
-        setMessages(data.map((m) => ({ role: m.role, content: m.content })));
+        setMessages(data.map((m) => ({
+          role: m.role,
+          content: m.display_content || m.content,
+          message_type: m.message_type,
+        })));
       } catch {
         // Start empty if history fetch fails
       }
@@ -128,8 +133,12 @@ export function useChatSocket({
             setGenesisInProgress(true);
             setThinking(true);
             const genesisMessage = genesisTemplateRef.current(genesisPromptRef.current);
-            setMessages((prev) => [...prev, { role: "user", content: `Genesis: ${genesisPromptRef.current}` }]);
-            ws.send(JSON.stringify({ type: "chat", content: genesisMessage, session_key: `paradise:${nodeId}` }));
+            const displayText = `Genesis: ${genesisPromptRef.current}`;
+            setMessages((prev) => [...prev, { role: "user", content: displayText, message_type: "genesis" }]);
+            ws.send(JSON.stringify({
+              type: "chat", content: genesisMessage, session_key: `paradise:${nodeId}`,
+              message_type: "genesis", display_content: displayText,
+            }));
           }
 
           if (!msg.ready) {
@@ -156,10 +165,15 @@ export function useChatSocket({
             }
             return [...prev, { role: "assistant", content: msg.content }];
           });
+        } else if (msg.type === "tool_call") {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: msg.content, message_type: "tool_call" },
+          ]);
         } else if (msg.type === "error") {
           const isConnectError = /cannot connect|connection refused|name resolution/i.test(msg.message || "");
           if (!isConnectError) {
-            setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${msg.message}` }]);
+            setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${msg.message}`, message_type: "error" }]);
           }
         }
       } catch {
@@ -169,11 +183,27 @@ export function useChatSocket({
 
     ws.onclose = () => {
       setConnected(false);
+      // Reload history from DB to catch messages saved while disconnected
+      (async () => {
+        try {
+          const res = await fetch(`${api}/api/nodes/${nodeId}/messages`);
+          if (res.ok) {
+            const data: { role: "user" | "assistant"; content: string; message_type?: string; display_content?: string }[] = await res.json();
+            setMessages(data.map((m) => ({
+              role: m.role,
+              content: m.display_content || m.content,
+              message_type: m.message_type,
+            })));
+          }
+        } catch {
+          // Keep existing messages if fetch fails
+        }
+      })();
       setTimeout(connect, 2000);
     };
 
     ws.onerror = () => ws.close();
-  }, [wsUrl, nodeId, setThinking]);
+  }, [wsUrl, nodeId, api, setThinking]);
 
   useEffect(() => {
     connect();
@@ -193,8 +223,12 @@ export function useChatSocket({
     setGenesisInProgress(true);
     setThinking(true);
     const genesisMessage = genesisTemplateRef.current(prompt);
-    setMessages((prev) => [...prev, { role: "user", content: `Genesis: ${prompt}` }]);
-    wsRef.current.send(JSON.stringify({ type: "chat", content: genesisMessage, session_key: `paradise:${nodeId}` }));
+    const displayText = `Genesis: ${prompt}`;
+    setMessages((prev) => [...prev, { role: "user", content: displayText, message_type: "genesis" }]);
+    wsRef.current.send(JSON.stringify({
+      type: "chat", content: genesisMessage, session_key: `paradise:${nodeId}`,
+      message_type: "genesis", display_content: displayText,
+    }));
   }, [nodeId, setThinking]);
 
   return {

@@ -187,9 +187,12 @@ async def handle_client(websocket):
 
             session_key = msg.get("session_key", "paradise:default")
 
-            async def on_progress(text: str, **_kw) -> None:
+            async def on_progress(text: str, **kw) -> None:
                 try:
-                    await websocket.send(json.dumps({"type": "progress", "content": text}))
+                    if kw.get("tool_hint"):
+                        await websocket.send(json.dumps({"type": "tool_call", "content": text}))
+                    else:
+                        await websocket.send(json.dumps({"type": "progress", "content": text}))
                 except Exception:
                     pass
 

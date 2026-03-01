@@ -81,6 +81,8 @@ class ChatMessage(Base):
     node_id = Column(UUID(as_uuid=True), ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
+    message_type = Column(String(20), nullable=True, default="chat")
+    display_content = Column(Text, nullable=True)
     created_at = Column(
         String, default=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -95,6 +97,8 @@ async def create_tables():
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS identity JSONB"))
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS agent_status VARCHAR(20)"))
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS agent_status_message TEXT"))
+        await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(20) DEFAULT 'chat'"))
+        await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS display_content TEXT"))
 
 
 async def get_db():

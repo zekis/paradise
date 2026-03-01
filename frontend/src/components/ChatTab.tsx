@@ -234,26 +234,34 @@ export function ChatTab({
           fontSize: 12,
         }}
       >
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              padding: "4px 8px",
-              borderRadius: 6,
-              background:
-                m.role === "user"
-                  ? "rgba(99, 102, 241, 0.15)"
-                  : "rgba(255, 255, 255, 0.05)",
-              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-              maxWidth: "85%",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              opacity: m.streaming ? 0.7 : 1,
-            }}
-          >
-            {m.content}
-          </div>
-        ))}
+        {messages.map((m, i) => {
+          const isToolCall = m.message_type === "tool_call";
+          return (
+            <div
+              key={i}
+              style={{
+                padding: isToolCall ? "2px 8px" : "4px 8px",
+                borderRadius: 6,
+                background:
+                  isToolCall
+                    ? "rgba(255, 255, 255, 0.02)"
+                    : m.role === "user"
+                      ? "rgba(99, 102, 241, 0.15)"
+                      : "rgba(255, 255, 255, 0.05)",
+                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                maxWidth: "85%",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                opacity: m.streaming ? 0.7 : isToolCall ? 0.6 : 1,
+                fontFamily: isToolCall ? "monospace" : undefined,
+                fontSize: isToolCall ? 10 : undefined,
+                color: isToolCall ? "var(--text-muted)" : undefined,
+              }}
+            >
+              {m.content}
+            </div>
+          );
+        })}
         {thinking && (
           <div
             style={{
