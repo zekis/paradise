@@ -5,21 +5,27 @@
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "@mdi/js": "^7.4.0",
+    "@mdi/react": "^1.6.0",
+    "@xyflow/react": "^12.4.0",
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@xyflow/react": "^12.4.0",
-    "@mdi/js": "^7.4.0",
-    "@mdi/react": "^1.6.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^28.1.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
   }
 }

@@ -1,22 +1,11 @@
 import { create } from "zustand";
-
-interface NodeIdentityTab {
-  name: string;
-  file: string;
-}
-
-interface NodeIdentity {
-  emoji?: string;
-  color?: string;
-  description?: string;
-  tabs?: NodeIdentityTab[];
-}
+import type { NodeIdentity } from "@/types";
 
 interface CanvasStore {
   api: string;
   setApi: (url: string) => void;
-  toggleExpanded: (nodeId: string) => void;
-  setToggleExpanded: (fn: (nodeId: string) => void) => void;
+  selectedNodeId: string | null;
+  setSelectedNodeId: (id: string | null) => void;
   removeNode: (nodeId: string) => void;
   setRemoveNode: (fn: (nodeId: string) => void) => void;
   updateNodeIdentity: (nodeId: string, identity: NodeIdentity) => void;
@@ -32,8 +21,8 @@ interface CanvasStore {
 export const useCanvasStore = create<CanvasStore>((set) => ({
   api: "",
   setApi: (url) => set({ api: url }),
-  toggleExpanded: () => {},
-  setToggleExpanded: (fn) => set({ toggleExpanded: fn }),
+  selectedNodeId: null,
+  setSelectedNodeId: (id) => set({ selectedNodeId: id }),
   removeNode: () => {},
   setRemoveNode: (fn) => set({ removeNode: fn }),
   updateNodeIdentity: () => {},

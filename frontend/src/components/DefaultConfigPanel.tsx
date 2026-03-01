@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Icon from "@mdi/react";
 import { mdiClose, mdiCog, mdiRobot } from "@mdi/js";
+import { useAsyncForm } from "@/hooks/useAsyncForm";
 
 type SettingsTab = "config" | "templates";
 type TemplateKey = "SOUL.md" | "AGENTS.md" | "USER.md" | "HEARTBEAT.md";
@@ -23,12 +24,28 @@ export function DefaultConfigPanel({
 }) {
   const [tab, setTab] = useState<SettingsTab>("config");
 
-  // ─── Config state ───
-  const [config, setConfig] = useState("");
-  const [configLoading, setConfigLoading] = useState(true);
-  const [configSaving, setConfigSaving] = useState(false);
-  const [configError, setConfigError] = useState<string | null>(null);
-  const [configSuccess, setConfigSuccess] = useState(false);
+  // ─── Config form ───
+  const configForm = useAsyncForm({
+    loadFn: useCallback(async () => {
+      const res = await fetch(`${api}/api/settings/default-config`);
+      const data = await res.json();
+      return JSON.stringify(data.config || {}, null, 2);
+    }, [api]),
+    saveFn: useCallback(async (value: string) => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(value);
+      } catch {
+        throw new Error("Invalid JSON");
+      }
+      const res = await fetch(`${api}/api/settings/default-config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: parsed }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+    }, [api]),
+  });
 
   // ─── Templates state ───
   const [templates, setTemplates] = useState<Record<string, string>>({});
@@ -38,22 +55,6 @@ export function DefaultConfigPanel({
   const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [templatesSuccess, setTemplatesSuccess] = useState(false);
 
-  // ─── Load config ───
-  const loadConfig = useCallback(async () => {
-    setConfigLoading(true);
-    try {
-      const res = await fetch(`${api}/api/settings/default-config`);
-      const data = await res.json();
-      setConfig(JSON.stringify(data.config || {}, null, 2));
-      setConfigError(null);
-    } catch {
-      setConfigError("Failed to load default config");
-    } finally {
-      setConfigLoading(false);
-    }
-  }, [api]);
-
-  // ─── Load templates ───
   const loadTemplates = useCallback(async () => {
     setTemplatesLoading(true);
     try {
@@ -69,33 +70,10 @@ export function DefaultConfigPanel({
   }, [api]);
 
   useEffect(() => {
-    loadConfig();
+    configForm.load();
     loadTemplates();
-  }, [loadConfig, loadTemplates]);
+  }, [configForm.load, loadTemplates]);
 
-  // ─── Save config ───
-  const saveConfig = async () => {
-    setConfigSaving(true);
-    setConfigError(null);
-    setConfigSuccess(false);
-    try {
-      const parsed = JSON.parse(config);
-      const res = await fetch(`${api}/api/settings/default-config`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ config: parsed }),
-      });
-      if (!res.ok) throw new Error("Save failed");
-      setConfigSuccess(true);
-      setTimeout(() => setConfigSuccess(false), 2000);
-    } catch (err: any) {
-      setConfigError(err.message || "Invalid JSON");
-    } finally {
-      setConfigSaving(false);
-    }
-  };
-
-  // ─── Save templates ───
   const saveTemplates = async () => {
     setTemplatesSaving(true);
     setTemplatesError(null);
@@ -109,15 +87,11 @@ export function DefaultConfigPanel({
       if (!res.ok) throw new Error("Save failed");
       setTemplatesSuccess(true);
       setTimeout(() => setTemplatesSuccess(false), 2000);
-    } catch (err: any) {
-      setTemplatesError(err.message || "Save failed");
+    } catch (err) {
+      setTemplatesError(err instanceof Error ? err.message : "Save failed");
     } finally {
       setTemplatesSaving(false);
     }
-  };
-
-  const updateTemplate = (key: TemplateKey, content: string) => {
-    setTemplates((prev) => ({ ...prev, [key]: content }));
   };
 
   const btnBase: React.CSSProperties = {
@@ -177,7 +151,7 @@ export function DefaultConfigPanel({
         </button>
       </div>
 
-      {/* Top tabs: Config / Agent Templates */}
+      {/* Top tabs */}
       <div
         style={{
           display: "flex",
@@ -207,20 +181,20 @@ export function DefaultConfigPanel({
         </button>
       </div>
 
-      {/* ─── Config Tab ─── */}
+      {/* Config Tab */}
       <div style={{ flex: 1, padding: 16, flexDirection: "column", gap: 8, overflow: "hidden", display: tab === "config" ? "flex" : "none" }}>
         <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>
           JSON config applied to every new nanobot (provider, model, etc).
         </div>
-        {configError && <div style={{ color: "var(--red)", fontSize: 11 }}>{configError}</div>}
-        {configSuccess && <div style={{ color: "var(--green)", fontSize: 11 }}>Saved</div>}
-        {configLoading ? (
+        {configForm.error && <div style={{ color: "var(--red)", fontSize: 11 }}>{configForm.error}</div>}
+        {configForm.success && <div style={{ color: "var(--green)", fontSize: 11 }}>Saved</div>}
+        {configForm.loading ? (
           <div style={{ color: "var(--text-muted)" }}>Loading...</div>
         ) : (
           <>
             <textarea
-              value={config}
-              onChange={(e) => setConfig(e.target.value)}
+              value={configForm.value}
+              onChange={(e) => configForm.setValue(e.target.value)}
               spellCheck={false}
               style={{
                 flex: 1,
@@ -237,11 +211,11 @@ export function DefaultConfigPanel({
             />
             <div style={{ display: "flex", gap: 6 }}>
               <button
-                onClick={saveConfig}
-                disabled={configSaving}
+                onClick={configForm.save}
+                disabled={configForm.saving}
                 style={{
                   background: "var(--accent)",
-                  color: "#fff",
+                  color: "var(--text)",
                   border: "none",
                   borderRadius: 4,
                   padding: "6px 16px",
@@ -249,10 +223,10 @@ export function DefaultConfigPanel({
                   cursor: "pointer",
                 }}
               >
-                {configSaving ? "Saving..." : "Save"}
+                {configForm.saving ? "Saving..." : "Save"}
               </button>
               <button
-                onClick={loadConfig}
+                onClick={configForm.load}
                 style={{
                   background: "transparent",
                   color: "var(--text-muted)",
@@ -270,13 +244,12 @@ export function DefaultConfigPanel({
         )}
       </div>
 
-      {/* ─── Agent Templates Tab ─── */}
+      {/* Agent Templates Tab */}
       <div style={{ flex: 1, flexDirection: "column", overflow: "hidden", display: tab === "templates" ? "flex" : "none" }}>
         <div style={{ fontSize: 11, color: "var(--text-muted)", padding: "8px 16px" }}>
           Default .md files written to every new nanobot's workspace.
         </div>
 
-        {/* Template sub-tabs */}
         <div
           style={{
             display: "flex",
@@ -317,7 +290,7 @@ export function DefaultConfigPanel({
           <div style={{ flex: 1, padding: "8px 16px 16px", display: "flex", flexDirection: "column", gap: 8, overflow: "hidden" }}>
             <textarea
               value={templates[activeTemplate] || ""}
-              onChange={(e) => updateTemplate(activeTemplate, e.target.value)}
+              onChange={(e) => setTemplates((prev) => ({ ...prev, [activeTemplate]: e.target.value }))}
               spellCheck={false}
               placeholder={`Default content for ${activeTemplate}...\nLeave empty to use built-in defaults.`}
               style={{
@@ -339,7 +312,7 @@ export function DefaultConfigPanel({
                 disabled={templatesSaving}
                 style={{
                   background: "var(--accent)",
-                  color: "#fff",
+                  color: "var(--text)",
                   border: "none",
                   borderRadius: 4,
                   padding: "6px 16px",

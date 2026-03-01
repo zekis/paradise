@@ -1,12 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-  streaming?: boolean;
-}
+import { useEffect, useRef, useState } from "react";
+import { useChatSocket } from "@/hooks/useChatSocket";
 
 const GENESIS_TEMPLATE = (prompt: string) =>
   `You are being initialized as: "${prompt}"
@@ -110,195 +105,53 @@ After building, your **dashboard.html** should:
 
 Start with Step 1 now — ask your clarifying questions.`;
 
-// Module-level set — survives component remounts caused by React Flow re-renders
-const genesisSentNodes = new Set<string>();
-
 export function ChatTab({
   nodeId,
   api,
   genesisPrompt,
   onGenesisComplete,
+  onIdentityUpdate,
   onThinkingChange,
 }: {
   nodeId: string;
   api: string;
   genesisPrompt?: string;
   onGenesisComplete?: () => void;
+  onIdentityUpdate?: (identity: Record<string, unknown>) => void;
   onThinkingChange?: (thinking: boolean) => void;
 }) {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [connected, setConnected] = useState(false);
-  const [agentReady, setAgentReady] = useState<boolean | null>(null);
-  const [statusMsg, setStatusMsg] = useState("");
-  const [initializing, setInitializing] = useState(true);
-  const [thinking, _setThinking] = useState(false);
-  const setThinking = useCallback((v: boolean) => {
-    _setThinking(v);
-    onThinkingChange?.(v);
-  }, [onThinkingChange]);
-  const [genesisInProgress, setGenesisInProgress] = useState(
-    !!genesisPrompt && !genesisSentNodes.has(nodeId)
-  );
-  const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
   const wsUrl = api.replace(/^http/, "ws") + `/api/nodes/${nodeId}/chat`;
 
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setConnected(true);
-      setInitializing(false);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-
-        if (msg.type === "status") {
-          setAgentReady(msg.ready);
-          setStatusMsg(msg.message || "");
-
-          // Auto-send genesis prompt when agent is ready
-          if (
-            msg.ready &&
-            genesisPrompt &&
-            !genesisSentNodes.has(nodeId) &&
-            ws.readyState === WebSocket.OPEN
-          ) {
-            genesisSentNodes.add(nodeId);
-            setGenesisInProgress(true);
-            setThinking(true);
-            const genesisMessage = GENESIS_TEMPLATE(genesisPrompt);
-            setMessages((prev) => [
-              ...prev,
-              { role: "user", content: `Genesis: ${genesisPrompt}` },
-            ]);
-            ws.send(
-              JSON.stringify({
-                type: "chat",
-                content: genesisMessage,
-                session_key: `paradise:${nodeId}`,
-              })
-            );
-          }
-
-          if (!msg.ready) {
-            setMessages((prev) => [
-              ...prev,
-              { role: "assistant", content: msg.message || "Agent not ready" },
-            ]);
-          }
-          return;
-        }
-
-        if (msg.type === "progress") {
-          setThinking(false);
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            if (last?.streaming) {
-              return [...prev.slice(0, -1), { ...last, content: msg.content }];
-            }
-            return [
-              ...prev,
-              { role: "assistant", content: msg.content, streaming: true },
-            ];
-          });
-        } else if (msg.type === "response") {
-          setThinking(false);
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            if (last?.streaming) {
-              return [
-                ...prev.slice(0, -1),
-                { role: "assistant", content: msg.content },
-              ];
-            }
-            return [...prev, { role: "assistant", content: msg.content }];
-          });
-
-          // During genesis, check if identity.json exists after each response
-          if (genesisSentNodes.has(nodeId) && genesisInProgress) {
-            tryFetchIdentity();
-          }
-        } else if (msg.type === "error") {
-          // Suppress connection errors during startup
-          const isConnectError = /cannot connect|connection refused|name resolution/i.test(msg.message || "");
-          if (!isConnectError) {
-            setMessages((prev) => [
-              ...prev,
-              { role: "assistant", content: `Error: ${msg.message}` },
-            ]);
-          }
-        }
-      } catch {
-        // ignore parse errors
-      }
-    };
-
-    ws.onclose = () => {
-      setConnected(false);
-      // Reconnect after a delay
-      setTimeout(connect, 2000);
-    };
-
-    ws.onerror = () => ws.close();
-  }, [wsUrl, genesisPrompt, nodeId, onGenesisComplete, genesisInProgress]);
-
-  useEffect(() => {
-    connect();
-    return () => {
-      wsRef.current?.close();
-    };
-  }, [connect]);
+  const {
+    messages,
+    connected,
+    agentReady,
+    initializing,
+    thinking,
+    genesisInProgress,
+    sendMessage,
+    sendGenesis,
+  } = useChatSocket({
+    wsUrl,
+    nodeId,
+    api,
+    genesisPrompt,
+    onGenesisComplete,
+    onIdentityUpdate,
+    onThinkingChange,
+    genesisTemplate: GENESIS_TEMPLATE,
+  });
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const tryFetchIdentity = async () => {
-    try {
-      const res = await fetch(`${api}/api/nodes/${nodeId}/identity`);
-      const data = await res.json();
-      if (data.identity) {
-        setGenesisInProgress(false);
-        onGenesisComplete?.();
-      }
-    } catch {
-      // ignore — identity not ready yet
-    }
-  };
-
-  const sendGenesis = (prompt: string) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-    genesisSentNodes.add(nodeId);
-    setGenesisInProgress(true);
-    setThinking(true);
-    const genesisMessage = GENESIS_TEMPLATE(prompt);
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: `Genesis: ${prompt}` },
-    ]);
-    wsRef.current.send(
-      JSON.stringify({
-        type: "chat",
-        content: genesisMessage,
-        session_key: `paradise:${nodeId}`,
-      })
-    );
-  };
-
   const send = () => {
     const text = input.trim();
-    if (!text || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
-      return;
+    if (!text) return;
 
-    // /genesis <prompt> command triggers re-genesis
     const genesisMatch = text.match(/^\/genesis\s+(.+)/i);
     if (genesisMatch) {
       sendGenesis(genesisMatch[1]);
@@ -306,11 +159,7 @@ export function ChatTab({
       return;
     }
 
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
-    setThinking(true);
-    wsRef.current.send(
-      JSON.stringify({ type: "chat", content: text, session_key: `paradise:${nodeId}` })
-    );
+    sendMessage(text);
     setInput("");
   };
 
@@ -457,7 +306,7 @@ export function ChatTab({
           onClick={send}
           style={{
             background: "var(--accent)",
-            color: "#fff",
+            color: "var(--text)",
             border: "none",
             borderRadius: 4,
             padding: "6px 12px",

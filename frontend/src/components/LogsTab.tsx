@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export function LogsTab({ nodeId, api }: { nodeId: string; api: string }) {
   const [logs, setLogs] = useState("");
-  const [tail, setTail] = useState(100);
+  const tail = 100;
   const logRef = useRef<HTMLPreElement>(null);
 
   const load = useCallback(async () => {

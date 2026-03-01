@@ -84,13 +84,16 @@ export function HtmlTab({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const prevVisible = useRef(false);
+  const prevNodeId = useRef(nodeId);
 
   useEffect(() => {
-    if (visible && !prevVisible.current) {
+    const nodeChanged = nodeId !== prevNodeId.current;
+    if (visible && (!prevVisible.current || nodeChanged)) {
       loadHtml();
     }
     prevVisible.current = !!visible;
-  }, [visible]);
+    prevNodeId.current = nodeId;
+  }, [visible, nodeId]);
 
   async function loadHtml() {
     setLoading(true);
@@ -144,7 +147,7 @@ export function HtmlTab({
         height: "100%",
         border: "none",
         borderRadius: 4,
-        background: "#0a0a0a",
+        background: "var(--bg)",
       }}
     />
   );

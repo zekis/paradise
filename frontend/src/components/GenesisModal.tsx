@@ -129,7 +129,7 @@ export function GenesisModal({ onClose, onCreate }: GenesisModalProps) {
             disabled={!prompt.trim()}
             style={{
               background: prompt.trim() ? "var(--accent)" : "rgba(255,255,255,0.1)",
-              color: prompt.trim() ? "#fff" : "var(--text-muted)",
+              color: prompt.trim() ? "var(--text)" : "var(--text-muted)",
               border: "none",
               borderRadius: 6,
               padding: "8px 16px",
