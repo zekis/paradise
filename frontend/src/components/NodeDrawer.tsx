@@ -39,6 +39,7 @@ const AGENT_SUBS: { key: string; label: string; file: string }[] = [
   { key: "agents", label: "Agents", file: "AGENTS.md" },
   { key: "user", label: "User", file: "USER.md" },
   { key: "heartbeat", label: "Heartbeat", file: "HEARTBEAT.md" },
+  { key: "identity", label: "Identity", file: "identity.json" },
 ];
 
 type ObjectSubTab = "dashboard" | "obj-config" | "commands" | "children";
