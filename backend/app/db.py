@@ -55,6 +55,8 @@ class Edge(Base):
     source_id = Column(UUID(as_uuid=True), ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
     target_id = Column(UUID(as_uuid=True), ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
     edge_type = Column(String(30), default="connection")
+    source_handle = Column(String(30), nullable=True)
+    target_handle = Column(String(30), nullable=True)
     created_at = Column(
         String, default=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -99,6 +101,8 @@ async def create_tables():
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS agent_status_message TEXT"))
         await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(20) DEFAULT 'chat'"))
         await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS display_content TEXT"))
+        await conn.execute(text("ALTER TABLE edges ADD COLUMN IF NOT EXISTS source_handle VARCHAR(30)"))
+        await conn.execute(text("ALTER TABLE edges ADD COLUMN IF NOT EXISTS target_handle VARCHAR(30)"))
 
 
 async def get_db():
