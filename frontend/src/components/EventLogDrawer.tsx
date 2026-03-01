@@ -52,10 +52,11 @@ function formatTime(isoString: string): string {
 
 interface EventLogDrawerProps {
   drawerOpen: boolean;
+  treeDrawerOpen: boolean;
   onFocusNode: (nodeId: string) => void;
 }
 
-export function EventLogDrawer({ drawerOpen, onFocusNode }: EventLogDrawerProps) {
+export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: EventLogDrawerProps) {
   const events = useEventLogStore((s) => s.events);
   const api = useCanvasStore((s) => s.api);
   const clearEvents = useEventLogStore((s) => s.clearEvents);
@@ -126,11 +127,11 @@ export function EventLogDrawer({ drawerOpen, onFocusNode }: EventLogDrawerProps)
       style={{
         position: "fixed",
         bottom: 0,
-        left: 0,
+        left: treeDrawerOpen ? 240 : 0,
         right: drawerOpen ? 420 : 0,
         height: DRAWER_HEIGHT,
         transform: `translateY(${translateY}px)`,
-        transition: "transform 0.25s ease, right 0.15s ease",
+        transition: "transform 0.25s ease, right 0.15s ease, left 0.15s ease",
         background: "var(--bg-card)",
         borderTop: "1px solid var(--border)",
         zIndex: 2000,
