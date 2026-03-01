@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "@mdi/react";
 import {
   mdiChat,
@@ -39,6 +39,7 @@ const AGENT_SUBS: { key: string; label: string; file: string }[] = [
   { key: "agents", label: "Agents", file: "AGENTS.md" },
   { key: "user", label: "User", file: "USER.md" },
   { key: "heartbeat", label: "Heartbeat", file: "HEARTBEAT.md" },
+  { key: "identity", label: "Identity", file: "identity.json" },
 ];
 
 type ObjectSubTab = "dashboard" | "obj-config" | "commands" | "children";
@@ -79,6 +80,7 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
   const [editingName, setEditingName] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [thinking, setThinking] = useState(false);
+  const skipBlurSave = useRef(false);
   const { api, updateNodeIdentity, updateNodeName, updateNodeAgentStatus } = useCanvasStore();
 
   const handleIdentityUpdate = useCallback(
@@ -131,11 +133,13 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
   const allAgentSubs = [...AGENT_SUBS, ...customAgentTabs];
 
   const saveName = async (newName: string) => {
+    if (skipBlurSave.current) return;
     const trimmed = newName.trim();
     if (!trimmed || trimmed === data.label) {
       setEditing(false);
       return;
     }
+    skipBlurSave.current = true;
     const res = await fetch(`${api}/api/nodes/${nodeId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -143,6 +147,7 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
     });
     if (res.ok) updateNodeName(nodeId, trimmed);
     setEditing(false);
+    skipBlurSave.current = false;
   };
 
   const label = editing ? editingName : data.label;
@@ -213,7 +218,11 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
               onBlur={(e) => saveName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") saveName(editingName);
-                if (e.key === "Escape") setEditing(false);
+                if (e.key === "Escape") {
+                  skipBlurSave.current = true;
+                  setEditing(false);
+                  setTimeout(() => { skipBlurSave.current = false; }, 0);
+                }
               }}
               autoFocus
               style={{

@@ -1,5 +1,6 @@
 """Node CRUD and nanobot container lifecycle."""
 
+import asyncio
 import json
 from uuid import UUID, uuid4
 
@@ -117,15 +118,41 @@ async def get_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
     return node
 
 
+async def _sync_identity_name(container_id: str, new_name: str) -> None:
+    """Update the name field in identity.json inside a container."""
+    content = await asyncio.to_thread(read_workspace_file, container_id, "identity.json")
+    if not content:
+        return
+    try:
+        identity = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return
+    if not isinstance(identity, dict):
+        return
+    identity["name"] = new_name
+    await asyncio.to_thread(
+        write_workspace_file, container_id, "identity.json", json.dumps(identity, indent=2)
+    )
+
+
 @router.patch("/nodes/{node_id}", response_model=NodeRead)
 async def update_node(node_id: UUID, payload: NodeUpdate, db: AsyncSession = Depends(get_db)):
     node = await db.get(Node, node_id)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
         setattr(node, field, value)
     await db.commit()
     await db.refresh(node)
+
+    # Keep container identity.json in sync when the node is renamed
+    if "name" in updates and node.container_id:
+        try:
+            await _sync_identity_name(node.container_id, updates["name"])
+        except Exception:
+            pass  # Don't fail the rename if identity sync fails
+
     return node
 
 
@@ -494,6 +521,16 @@ async def get_node_identity(node_id: UUID, db: AsyncSession = Depends(get_db)):
         identity = json.loads(content)
     except (json.JSONDecodeError, TypeError):
         return {"identity": None}
+
+    # Sync DB node name back into identity if it has drifted
+    if isinstance(identity, dict) and "name" in identity and identity["name"] != node.name:
+        identity["name"] = node.name
+        try:
+            write_workspace_file(
+                node.container_id, "identity.json", json.dumps(identity, indent=2)
+            )
+        except Exception:
+            pass
 
     # Cache in DB for fast canvas loads
     node.identity = identity
