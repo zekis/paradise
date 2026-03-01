@@ -94,6 +94,8 @@ Install any pip packages you need: \`await PARADISE.run("pip install requests")\
 - \`await PARADISE.readFile("file")\` / \`PARADISE.writeFile("file", content)\` — workspace files
 - \`await PARADISE.rename("new-name")\` — rename this node on the canvas (e.g. "pve-01", "weather-home")
 - \`await PARADISE.setStatus("ok"|"warning"|"error", "optional message")\` — set the node's status indicator. The dot on the canvas reflects this: green=ok, yellow=warning, red=error. Use this to signal faults!
+- \`await PARADISE.getNetwork()\` — get your network topology: {self, parents, children, siblings} with names, identities, and statuses of connected nodes
+- \`await PARADISE.getPeerConfig(peerId)\` — get a connected peer's config and workspace files (identity.json, SOUL.md, AGENTS.md, dashboard.html, etc.)
 
 **Persistence**: config.html saves settings to \`settings.json\` via PARADISE.writeFile(). api.py reads settings.json for connection params.
 

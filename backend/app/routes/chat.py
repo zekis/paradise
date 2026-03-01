@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import ChatMessage, Node, async_session, get_db
+from app.db import ChatMessage, Edge, Node, async_session, get_db
 from app.docker_ops import read_workspace_file
 
 DOCKER_CLIENT = docker.from_env()
@@ -56,6 +56,56 @@ async def _check_identity(
         pass
 
 
+async def _get_network_context(node_id: UUID) -> dict:
+    """Fetch network topology for a node from the database."""
+    async with async_session() as db:
+        node = await db.get(Node, node_id)
+        if not node:
+            return {}
+
+        edges_out = (await db.execute(
+            select(Edge).where(Edge.source_id == node_id)
+        )).scalars().all()
+        edges_in = (await db.execute(
+            select(Edge).where(Edge.target_id == node_id)
+        )).scalars().all()
+
+        child_ids = [e.target_id for e in edges_out]
+        parent_ids = [e.source_id for e in edges_in]
+
+        sibling_ids: set = set()
+        if parent_ids:
+            sibling_edges = (await db.execute(
+                select(Edge).where(
+                    Edge.source_id.in_(parent_ids),
+                    Edge.target_id != node_id,
+                )
+            )).scalars().all()
+            sibling_ids = {e.target_id for e in sibling_edges}
+
+        all_ids = set(child_ids) | set(parent_ids) | sibling_ids
+        related: dict = {}
+        if all_ids:
+            result = await db.execute(select(Node).where(Node.id.in_(all_ids)))
+            related = {n.id: n for n in result.scalars().all()}
+
+        def _summary(n: Node) -> dict:
+            return {
+                "id": str(n.id),
+                "name": n.name,
+                "identity": n.identity,
+                "agent_status": n.agent_status,
+                "agent_status_message": n.agent_status_message,
+            }
+
+        return {
+            "self": _summary(node),
+            "parents": [_summary(related[p]) for p in parent_ids if p in related],
+            "children": [_summary(related[c]) for c in child_ids if c in related],
+            "siblings": [_summary(related[s]) for s in sibling_ids if s in related],
+        }
+
+
 @router.websocket("/nodes/{node_id}/chat")
 async def chat_relay(websocket: WebSocket, node_id: UUID):
     """Relay chat messages between the frontend and a nanobot container.
@@ -98,6 +148,13 @@ async def chat_relay(websocket: WebSocket, node_id: UUID):
                                         display_content=parsed.get("display_content"),
                                     ))
                                     await db.commit()
+                                # Inject network context into message for the nanobot
+                                try:
+                                    network = await _get_network_context(node_id)
+                                    parsed["network"] = network
+                                    data = json.dumps(parsed)
+                                except Exception:
+                                    pass  # Don't block chat if network fetch fails
                         except Exception:
                             pass
                         await nanobot_ws.send(data)
@@ -207,12 +264,17 @@ async def exec_command(node_id: UUID, payload: dict):
             if not status.get("ready"):
                 raise HTTPException(status_code=503, detail=status.get("message", "Agent not ready"))
 
-            # Send command
-            await ws.send(json.dumps({
+            # Send command with network context
+            msg = {
                 "type": "chat",
                 "content": content,
                 "session_key": session_key,
-            }))
+            }
+            try:
+                msg["network"] = await _get_network_context(node_id)
+            except Exception:
+                pass
+            await ws.send(json.dumps(msg))
 
             # Wait for response (skip progress messages)
             while True:

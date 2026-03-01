@@ -500,3 +500,114 @@ async def get_node_identity(node_id: UUID, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     return {"identity": identity}
+
+
+def _node_summary(node: Node, edge_type: str | None = None) -> dict:
+    """Build a summary dict for a node."""
+    summary: dict = {
+        "id": str(node.id),
+        "name": node.name,
+        "identity": node.identity,
+        "agent_status": node.agent_status,
+        "agent_status_message": node.agent_status_message,
+    }
+    if edge_type is not None:
+        summary["edge_type"] = edge_type
+    return summary
+
+
+@router.get("/nodes/{node_id}/network")
+async def get_node_network(node_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Get the network topology from this node's perspective.
+
+    Parents = nodes with edges pointing into this node (source->this).
+    Children = nodes this node points to (this->target).
+    Siblings = other children of the same parents.
+    """
+    node = await db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    # Edges out (this -> children) and in (parents -> this)
+    edges_out = (await db.execute(
+        select(Edge).where(Edge.source_id == node_id)
+    )).scalars().all()
+    edges_in = (await db.execute(
+        select(Edge).where(Edge.target_id == node_id)
+    )).scalars().all()
+
+    child_ids = [e.target_id for e in edges_out]
+    parent_ids = [e.source_id for e in edges_in]
+    child_edge_types = {e.target_id: e.edge_type for e in edges_out}
+    parent_edge_types = {e.source_id: e.edge_type for e in edges_in}
+
+    # Siblings = other children of our parents
+    sibling_ids: set[UUID] = set()
+    if parent_ids:
+        sibling_edges = (await db.execute(
+            select(Edge).where(
+                Edge.source_id.in_(parent_ids),
+                Edge.target_id != node_id,
+            )
+        )).scalars().all()
+        sibling_ids = {e.target_id for e in sibling_edges}
+
+    # Fetch all related nodes in one query
+    all_related_ids = set(child_ids) | set(parent_ids) | sibling_ids
+    related: dict[UUID, Node] = {}
+    if all_related_ids:
+        result = await db.execute(select(Node).where(Node.id.in_(all_related_ids)))
+        related = {n.id: n for n in result.scalars().all()}
+
+    return {
+        "self": _node_summary(node),
+        "parents": [
+            _node_summary(related[pid], parent_edge_types.get(pid, "connection"))
+            for pid in parent_ids if pid in related
+        ],
+        "children": [
+            _node_summary(related[cid], child_edge_types.get(cid, "connection"))
+            for cid in child_ids if cid in related
+        ],
+        "siblings": [
+            _node_summary(related[sid])
+            for sid in sibling_ids if sid in related
+        ],
+    }
+
+
+@router.get("/nodes/{node_id}/network/config/{peer_id}")
+async def get_peer_config(node_id: UUID, peer_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Get config and workspace files from a peer node (must be connected by an edge)."""
+    node = await db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    peer = await db.get(Node, peer_id)
+    if not peer:
+        raise HTTPException(status_code=404, detail="Peer not found")
+
+    # Verify they are connected (edge in either direction)
+    edge = (await db.execute(
+        select(Edge).where(
+            ((Edge.source_id == node_id) & (Edge.target_id == peer_id))
+            | ((Edge.source_id == peer_id) & (Edge.target_id == node_id))
+        )
+    )).scalars().first()
+    if not edge:
+        raise HTTPException(status_code=403, detail="Nodes are not connected")
+
+    # Read peer config and key workspace files
+    config = read_nanobot_config(peer.container_id) if peer.container_id else {}
+    workspace_files: dict[str, str] = {}
+    if peer.container_id:
+        for filename in ("identity.json", "SOUL.md", "AGENTS.md", "dashboard.html", "commands.html", "api.py"):
+            content = read_workspace_file(peer.container_id, filename)
+            if content:
+                workspace_files[filename] = content
+
+    return {
+        "peer": _node_summary(peer),
+        "config": config,
+        "workspace_files": workspace_files,
+    }

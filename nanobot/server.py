@@ -123,6 +123,13 @@ async def init_agent():
             restrict_to_workspace=config.tools.restrict_to_workspace,
             session_manager=session_manager,
         )
+
+        # Register network awareness tool if running inside Paradise
+        node_id = os.environ.get("PARADISE_NODE_ID", "")
+        if node_id:
+            from nanobot.agent.tools.network import NetworkTool
+            agent_loop.tools.register(NetworkTool(node_id=node_id))
+
         _ready.set()
         print(f"[paradise] Agent initialized, model={config.agents.defaults.model}", flush=True)
     except Exception as exc:
@@ -186,6 +193,7 @@ async def handle_client(websocket):
                 continue
 
             session_key = msg.get("session_key", "paradise:default")
+            network = msg.get("network")
 
             async def on_progress(text: str, **kw) -> None:
                 try:
@@ -203,6 +211,7 @@ async def handle_client(websocket):
                     channel="paradise",
                     chat_id="paradise",
                     on_progress=on_progress,
+                    network=network,
                 )
                 await websocket.send(json.dumps({"type": "response", "content": response}))
             except Exception as exc:
