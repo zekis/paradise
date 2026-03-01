@@ -21,6 +21,7 @@ from app.docker_ops import (
     write_nanobot_config,
     read_workspace_file,
     write_workspace_file,
+    write_workspace_files_batch,
 )
 
 router = APIRouter(tags=["nodes"])
@@ -56,11 +57,12 @@ async def _recreate_container(node: Node, db: AsyncSession) -> None:
         if canvas_state and canvas_state.default_agent_templates
         else DEFAULT_TEMPLATES
     )
-    for filename, content in templates.items():
-        if filename in ALLOWED_WORKSPACE_FILES and content:
-            await asyncio.to_thread(
-                write_workspace_file, container_id, filename, content
-            )
+    batch = {
+        fn: content for fn, content in templates.items()
+        if fn in ALLOWED_WORKSPACE_FILES and content
+    }
+    if batch:
+        await asyncio.to_thread(write_workspace_files_batch, container_id, batch)
 
 
 class NodeCreate(BaseModel):
@@ -110,14 +112,18 @@ async def create_node(payload: NodeCreate, db: AsyncSession = Depends(get_db)):
 
     # Spin up nanobot container
     try:
-        container_id = create_nanobot_container(str(node_id), payload.name)
+        container_id = await asyncio.to_thread(
+            create_nanobot_container, str(node_id), payload.name
+        )
         node.container_id = container_id
         node.container_status = "running"
 
         canvas_state = await db.get(CanvasState, "default")
         # Apply default config if one is set
         if canvas_state and canvas_state.default_nanobot_config:
-            write_nanobot_config(container_id, canvas_state.default_nanobot_config)
+            await asyncio.to_thread(
+                write_nanobot_config, container_id, canvas_state.default_nanobot_config
+            )
             node.config = canvas_state.default_nanobot_config
 
         # Write default agent templates into the container workspace
@@ -126,9 +132,12 @@ async def create_node(payload: NodeCreate, db: AsyncSession = Depends(get_db)):
             if canvas_state and canvas_state.default_agent_templates
             else DEFAULT_TEMPLATES
         )
-        for filename, content in templates.items():
-            if filename in ALLOWED_WORKSPACE_FILES and content:
-                write_workspace_file(container_id, filename, content)
+        batch = {
+            fn: content for fn, content in templates.items()
+            if fn in ALLOWED_WORKSPACE_FILES and content
+        }
+        if batch:
+            await asyncio.to_thread(write_workspace_files_batch, container_id, batch)
     except Exception as exc:
         node.container_status = "error"
         node.config = {"error": str(exc)}
@@ -154,7 +163,9 @@ async def get_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Node not found")
     # Refresh container status
     if node.container_id:
-        node.container_status = get_container_status(node.container_id)
+        node.container_status = await asyncio.to_thread(
+            get_container_status, node.container_id
+        )
         await db.commit()
     return node
 
@@ -211,7 +222,7 @@ async def delete_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
     node_name = node.name
     # Stop and remove container
     if node.container_id:
-        stop_nanobot_container(node.container_id)
+        await asyncio.to_thread(stop_nanobot_container, node.container_id)
     await db.delete(node)
     await db.commit()
     await emit_event("node_deleted", node_id=None, node_name=node_name,
@@ -238,13 +249,15 @@ async def clone_node(node_id: UUID, payload: dict, db: AsyncSession = Depends(ge
     )
 
     try:
-        container_id = create_nanobot_container(str(new_id), node.name)
+        container_id = await asyncio.to_thread(
+            create_nanobot_container, str(new_id), node.name
+        )
         node.container_id = container_id
         node.container_status = "running"
 
         # Copy nanobot config
         if source.config:
-            write_nanobot_config(container_id, source.config)
+            await asyncio.to_thread(write_nanobot_config, container_id, source.config)
             node.config = source.config
 
         # Copy identity
@@ -260,10 +273,18 @@ async def clone_node(node_id: UUID, payload: dict, db: AsyncSession = Depends(ge
                         fname = tab["file"]
                         if "/" not in fname and "\\" not in fname and ".." not in fname:
                             files_to_copy.add(fname)
+            # Read all source files, then batch write to new container
+            batch: dict[str, str] = {}
             for filename in files_to_copy:
-                content = read_workspace_file(source.container_id, filename)
+                content = await asyncio.to_thread(
+                    read_workspace_file, source.container_id, filename
+                )
                 if content:
-                    write_workspace_file(container_id, filename, content)
+                    batch[filename] = content
+            if batch:
+                await asyncio.to_thread(
+                    write_workspace_files_batch, container_id, batch
+                )
     except Exception as exc:
         node.container_status = "error"
         node.config = {"error": str(exc)}
@@ -282,7 +303,7 @@ async def node_logs(node_id: UUID, tail: int = 100, db: AsyncSession = Depends(g
     node = await db.get(Node, node_id)
     if not node or not node.container_id:
         raise HTTPException(status_code=404, detail="Node or container not found")
-    logs = get_container_logs(node.container_id, tail=tail)
+    logs = await asyncio.to_thread(get_container_logs, node.container_id, tail)
     return {"logs": logs}
 
 
@@ -293,7 +314,11 @@ async def restart_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Node not found")
 
     # If container is gone, recreate it; otherwise just restart
-    status = get_container_status(node.container_id) if node.container_id else "not_found"
+    status = (
+        await asyncio.to_thread(get_container_status, node.container_id)
+        if node.container_id
+        else "not_found"
+    )
     if status == "not_found":
         try:
             await _recreate_container(node, db)
@@ -301,7 +326,7 @@ async def restart_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
             node.container_status = "error"
             raise HTTPException(status_code=500, detail=str(exc))
     else:
-        restart_nanobot_container(node.container_id)
+        await asyncio.to_thread(restart_nanobot_container, node.container_id)
         node.container_status = "running"
 
     await db.commit()
@@ -319,7 +344,7 @@ async def rebuild_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
 
     # Stop and remove old container
     if node.container_id:
-        stop_nanobot_container(node.container_id)
+        await asyncio.to_thread(stop_nanobot_container, node.container_id)
 
     # Create new container with config and templates
     try:
@@ -339,7 +364,7 @@ async def get_node_config(node_id: UUID, db: AsyncSession = Depends(get_db)):
     node = await db.get(Node, node_id)
     if not node or not node.container_id:
         raise HTTPException(status_code=404, detail="Node or container not found")
-    config = read_nanobot_config(node.container_id)
+    config = await asyncio.to_thread(read_nanobot_config, node.container_id)
     return {"config": config}
 
 
@@ -348,7 +373,9 @@ async def update_node_config(node_id: UUID, payload: dict, db: AsyncSession = De
     node = await db.get(Node, node_id)
     if not node or not node.container_id:
         raise HTTPException(status_code=404, detail="Node or container not found")
-    write_nanobot_config(node.container_id, payload.get("config", {}))
+    await asyncio.to_thread(
+        write_nanobot_config, node.container_id, payload.get("config", {})
+    )
     # Cache config snapshot
     node.config = payload.get("config", {})
     await db.commit()
@@ -360,8 +387,8 @@ async def get_node_stats(node_id: UUID, db: AsyncSession = Depends(get_db)):
     node = await db.get(Node, node_id)
     if not node or not node.container_id:
         raise HTTPException(status_code=404, detail="Node or container not found")
-    status = get_container_status(node.container_id)
-    stats = get_container_stats(node.container_id)
+    status = await asyncio.to_thread(get_container_status, node.container_id)
+    stats = await asyncio.to_thread(get_container_stats, node.container_id)
     return {
         "container_id": node.container_id[:12],
         "status": status,
@@ -500,7 +527,7 @@ async def get_workspace_file(node_id: UUID, filename: str, db: AsyncSession = De
         raise HTTPException(status_code=404, detail="Node or container not found")
     if filename not in _allowed_files_for_node(node):
         raise HTTPException(status_code=400, detail="File not allowed")
-    content = read_workspace_file(node.container_id, filename)
+    content = await asyncio.to_thread(read_workspace_file, node.container_id, filename)
     # Fall back to stored defaults, then hardcoded defaults (only for default files)
     if not content and filename in DEFAULT_TEMPLATES:
         canvas_state = await db.get(CanvasState, "default")
@@ -511,7 +538,9 @@ async def get_workspace_file(node_id: UUID, filename: str, db: AsyncSession = De
         )
         content = templates.get(filename, "")
         if content:
-            write_workspace_file(node.container_id, filename, content)
+            await asyncio.to_thread(
+                write_workspace_file, node.container_id, filename, content
+            )
     return {"filename": filename, "content": content}
 
 
@@ -522,7 +551,9 @@ async def put_workspace_file(node_id: UUID, filename: str, payload: dict, db: As
         raise HTTPException(status_code=404, detail="Node or container not found")
     if filename not in _allowed_files_for_node(node):
         raise HTTPException(status_code=400, detail="File not allowed")
-    write_workspace_file(node.container_id, filename, payload.get("content", ""))
+    await asyncio.to_thread(
+        write_workspace_file, node.container_id, filename, payload.get("content", "")
+    )
     return {"ok": True}
 
 
@@ -575,7 +606,9 @@ async def get_node_identity(node_id: UUID, db: AsyncSession = Depends(get_db)):
     if not node or not node.container_id:
         raise HTTPException(status_code=404, detail="Node or container not found")
 
-    content = read_workspace_file(node.container_id, "identity.json")
+    content = await asyncio.to_thread(
+        read_workspace_file, node.container_id, "identity.json"
+    )
     if not content:
         return {"identity": None}
 
@@ -588,8 +621,9 @@ async def get_node_identity(node_id: UUID, db: AsyncSession = Depends(get_db)):
     if isinstance(identity, dict) and "name" in identity and identity["name"] != node.name:
         identity["name"] = node.name
         try:
-            write_workspace_file(
-                node.container_id, "identity.json", json.dumps(identity, indent=2)
+            await asyncio.to_thread(
+                write_workspace_file,
+                node.container_id, "identity.json", json.dumps(identity, indent=2),
             )
         except Exception:
             pass
@@ -697,11 +731,17 @@ async def get_peer_config(node_id: UUID, peer_id: UUID, db: AsyncSession = Depen
         raise HTTPException(status_code=403, detail="Nodes are not connected")
 
     # Read peer config and key workspace files
-    config = read_nanobot_config(peer.container_id) if peer.container_id else {}
+    config = (
+        await asyncio.to_thread(read_nanobot_config, peer.container_id)
+        if peer.container_id
+        else {}
+    )
     workspace_files: dict[str, str] = {}
     if peer.container_id:
         for filename in ("identity.json", "SOUL.md", "AGENTS.md", "dashboard.html", "commands.html", "api.py"):
-            content = read_workspace_file(peer.container_id, filename)
+            content = await asyncio.to_thread(
+                read_workspace_file, peer.container_id, filename
+            )
             if content:
                 workspace_files[filename] = content
 
