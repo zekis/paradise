@@ -94,6 +94,7 @@ Install any pip packages you need: \`await PARADISE.run("pip install requests")\
 - \`await PARADISE.readFile("file")\` / \`PARADISE.writeFile("file", content)\` — workspace files
 - \`await PARADISE.rename("new-name")\` — rename this node on the canvas (e.g. "pve-01", "weather-home")
 - \`await PARADISE.setStatus("ok"|"warning"|"error", "optional message")\` — set the node's status indicator. The dot on the canvas reflects this: green=ok, yellow=warning, red=error. Use this to signal faults!
+- \`await PARADISE.setGauge(0-100, "label")\` — set the analog gauge ring on the canvas node. Value 0-100 fills a circular arc around the node icon. Label describes what is being measured (e.g. "open todos", "cpu", "uptime"). Pass null to clear. Gauge color: identity color <60%, yellow 60-80%, red >80%.
 - \`await PARADISE.getNetwork()\` — get your network topology: {self, parents, children, siblings} with names, identities, and statuses of connected nodes
 - \`await PARADISE.getPeerConfig(peerId)\` — get a connected peer's config and workspace files (identity.json, SOUL.md, AGENTS.md, dashboard.html, etc.)
 
@@ -104,6 +105,7 @@ Install any pip packages you need: \`await PARADISE.run("pip install requests")\
 After building, your **dashboard.html** should:
 1. Call \`PARADISE.rename("short-name")\` on first load to give this node a meaningful name (e.g. "pve-03" for a Proxmox node, "weather-nyc" for a weather agent). Keep it short (under 15 chars).
 2. Call \`PARADISE.setStatus("ok")\` when everything is working, or \`PARADISE.setStatus("error", "Cannot reach API")\` when there's a fault. Update status on each data refresh.
+3. Call \`PARADISE.setGauge(value, "label")\` to show a live metric on the node circle. Pick a value meaningful to your role — e.g. CPU % for a server monitor, open task count (as %) for a task manager, disk usage % for a storage agent. Update it alongside status on each data refresh.
 
 Start with Step 1 now — ask your clarifying questions.`;
 

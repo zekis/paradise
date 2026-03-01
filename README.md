@@ -116,6 +116,9 @@ await PARADISE.rename("My Proxmox Agent");
 
 // Set the status dot color on the canvas node
 await PARADISE.setStatus("ok", "All systems nominal");
+
+// Set the analog gauge ring on the canvas node (0-100)
+await PARADISE.setGauge(73, "open todos");
 ```
 
 ## Workspace Files
