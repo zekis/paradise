@@ -20,6 +20,7 @@ import { NodeDrawer } from "./NodeDrawer";
 import { ContextMenu } from "./ContextMenu";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
 import { EventLogDrawer } from "./EventLogDrawer";
+import { TreeViewDrawer } from "./TreeViewDrawer";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useCanvasSync } from "@/hooks/useCanvasSync";
 import { useEventLogStore } from "@/store/eventLogStore";
@@ -33,6 +34,7 @@ function CanvasInner() {
   const { nodes, edges, loaded, onNodesChange, onEdgesChange, onConnect, onNodeDragStop, saveViewport, setNodes } = useCanvasSync();
   const [showSettings, setShowSettings] = useState(false);
   const [showGenesis, setShowGenesis] = useState(false);
+  const [treeDrawerOpen, setTreeDrawerOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId?: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ nodeId: string; label: string } | null>(null);
   const createAtRef = useRef<{ x: number; y: number } | null>(null);
@@ -200,11 +202,9 @@ function CanvasInner() {
         />
       )}
 
-      <EventLogDrawer drawerOpen={!!selectedNodeData} onFocusNode={handleFocusNode} />
+      <TreeViewDrawer nodes={nodes} edges={edges} onFocusNode={handleFocusNode} onOpenChange={setTreeDrawerOpen} />
+      <EventLogDrawer drawerOpen={!!selectedNodeData} treeDrawerOpen={treeDrawerOpen} onFocusNode={handleFocusNode} />
 
-      <div style={{ position: "fixed", top: 16, left: 16, fontSize: 18, fontWeight: 700, color: "var(--text)", opacity: 0.4, zIndex: 1000, pointerEvents: "none", letterSpacing: 2 }}>
-        PARADISE
-      </div>
     </div>
   );
 }

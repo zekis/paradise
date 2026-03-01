@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "@mdi/react";
-import { mdiChevronUp, mdiChevronDown, mdiDeleteSweepOutline } from "@mdi/js";
+import { mdiChevronUp, mdiChevronDown, mdiDeleteSweepOutline, mdiPin, mdiPinOutline } from "@mdi/js";
 import { useEventLogStore, type EventLogEntry } from "@/store/eventLogStore";
 import { useCanvasStore } from "@/store/canvasStore";
 
@@ -52,16 +52,17 @@ function formatTime(isoString: string): string {
 
 interface EventLogDrawerProps {
   drawerOpen: boolean;
+  treeDrawerOpen: boolean;
   onFocusNode: (nodeId: string) => void;
 }
 
-export function EventLogDrawer({ drawerOpen, onFocusNode }: EventLogDrawerProps) {
+export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: EventLogDrawerProps) {
   const events = useEventLogStore((s) => s.events);
   const api = useCanvasStore((s) => s.api);
   const clearEvents = useEventLogStore((s) => s.clearEvents);
 
-  const [expanded, setExpanded] = useState(false);
-  const [pinned, setPinned] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [pinned, setPinned] = useState(true);
   const peekTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -126,11 +127,11 @@ export function EventLogDrawer({ drawerOpen, onFocusNode }: EventLogDrawerProps)
       style={{
         position: "fixed",
         bottom: 0,
-        left: 0,
+        left: treeDrawerOpen ? 240 : 0,
         right: drawerOpen ? 420 : 0,
         height: DRAWER_HEIGHT,
         transform: `translateY(${translateY}px)`,
-        transition: "transform 0.25s ease, right 0.15s ease",
+        transition: "transform 0.25s ease, right 0.15s ease, left 0.15s ease",
         background: "var(--bg-card)",
         borderTop: "1px solid var(--border)",
         zIndex: 2000,
@@ -194,6 +195,11 @@ export function EventLogDrawer({ drawerOpen, onFocusNode }: EventLogDrawerProps)
               <Icon path={mdiDeleteSweepOutline} size={0.55} />
             </button>
           )}
+          <Icon
+            path={pinned ? mdiPin : mdiPinOutline}
+            size={0.5}
+            color="var(--text-muted)"
+          />
           <Icon
             path={expanded ? mdiChevronDown : mdiChevronUp}
             size={0.55}
