@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.db import Node, async_session, engine, create_tables
 from app.docker_ops import get_container_status
-from app.routes import canvas, nodes, edges, chat
+from app.routes import canvas, nodes, edges, chat, events
 
 log = logging.getLogger("paradise")
 
@@ -51,6 +51,7 @@ app.include_router(canvas.router, prefix="/api")
 app.include_router(nodes.router, prefix="/api")
 app.include_router(edges.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(events.router, prefix="/api")
 
 
 @app.get("/healthz")

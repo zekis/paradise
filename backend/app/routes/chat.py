@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import ChatMessage, Edge, Node, async_session, get_db
+from app.db import ChatMessage, Edge, Node, async_session, emit_event, get_db
 from app.docker_ops import read_workspace_file, write_workspace_file
 
 DOCKER_CLIENT = docker.from_env()
@@ -58,6 +58,10 @@ async def _check_identity(
                         pass
                 node.identity = identity
                 await db.commit()
+
+        await emit_event("identity_update", node_id=node_id,
+                         node_name=node.name if node else None,
+                         summary="Identity updated")
 
         if websocket is not None:
             try:
@@ -140,6 +144,7 @@ async def chat_relay(websocket: WebSocket, node_id: UUID):
 
     ws_url = _nanobot_ws_url(node)
     container_id = node.container_id
+    node_name = node.name
 
     try:
         async with websockets.connect(ws_url) as nanobot_ws:
@@ -187,6 +192,11 @@ async def chat_relay(websocket: WebSocket, node_id: UUID):
                                 async with async_session() as db:
                                     db.add(ChatMessage(node_id=node_id, role="assistant", content=parsed["content"]))
                                     await db.commit()
+                                content_preview = parsed["content"][:80]
+                                if len(parsed["content"]) > 80:
+                                    content_preview += "..."
+                                await emit_event("chat_response", node_id=node_id, node_name=node_name,
+                                                 summary=content_preview)
                                 await _check_identity(
                                     node_id, container_id,
                                     websocket if frontend_connected else None,
@@ -198,6 +208,11 @@ async def chat_relay(websocket: WebSocket, node_id: UUID):
                                         content=parsed["content"], message_type="tool_call",
                                     ))
                                     await db.commit()
+                                tool_preview = parsed["content"][:80]
+                                if len(parsed["content"]) > 80:
+                                    tool_preview += "..."
+                                await emit_event("chat_tool_call", node_id=node_id, node_name=node_name,
+                                                 summary=tool_preview)
                             elif msg_type == "error" and parsed.get("message"):
                                 error_msg = parsed["message"]
                                 is_connect_error = any(
@@ -212,6 +227,8 @@ async def chat_relay(websocket: WebSocket, node_id: UUID):
                                             message_type="error",
                                         ))
                                         await db.commit()
+                                    await emit_event("chat_error", node_id=node_id, node_name=node_name,
+                                                     summary=error_msg[:120])
                         except Exception:
                             pass
 

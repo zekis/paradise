@@ -10,7 +10,7 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NanobotNode } from "./NanobotNode";
 import { DeletableEdge } from "./DeletableEdge";
 import { DefaultConfigPanel } from "./DefaultConfigPanel";
@@ -19,8 +19,10 @@ import { CanvasToolbar } from "./CanvasToolbar";
 import { NodeDrawer } from "./NodeDrawer";
 import { ContextMenu } from "./ContextMenu";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
+import { EventLogDrawer } from "./EventLogDrawer";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useCanvasSync } from "@/hooks/useCanvasSync";
+import { useEventLogStore } from "@/store/eventLogStore";
 import { generateBotName } from "@/lib/names";
 import type { NanobotNodeData } from "@/types";
 
@@ -37,10 +39,27 @@ function CanvasInner() {
   const api = useCanvasStore((s) => s.api);
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
   const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, setCenter } = useReactFlow();
 
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null;
   const selectedNodeData = selectedNode?.data as NanobotNodeData | undefined;
+
+  // Start event log polling once the API URL is known
+  useEffect(() => {
+    if (api) {
+      useEventLogStore.getState().startPolling(api);
+    }
+    return () => { useEventLogStore.getState().stopPolling(); };
+  }, [api]);
+
+  const handleFocusNode = useCallback((nodeId: string) => {
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    setSelectedNodeId(nodeId);
+    setShowSettings(false);
+    // Center on node (nodes are 80x92, offset to center)
+    setCenter(node.position.x + 40, node.position.y + 46, { zoom: 1.5, duration: 400 });
+  }, [nodes, setSelectedNodeId, setCenter]);
 
   const handlePaneClick = useCallback(() => {
     setSelectedNodeId(null);
@@ -180,6 +199,8 @@ function CanvasInner() {
           onClose={() => setDeleteConfirm(null)}
         />
       )}
+
+      <EventLogDrawer drawerOpen={!!selectedNodeData} onFocusNode={handleFocusNode} />
 
       <div style={{ position: "fixed", top: 16, left: 16, fontSize: 18, fontWeight: 700, color: "var(--text)", opacity: 0.4, zIndex: 1000, pointerEvents: "none", letterSpacing: 2 }}>
         PARADISE
