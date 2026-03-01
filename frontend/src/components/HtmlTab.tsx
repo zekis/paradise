@@ -64,6 +64,18 @@ const PARADISE = {
     });
     if (!res.ok) throw new Error("setStatus failed: " + res.status);
     window.parent.postMessage({ type: "paradise:status", nodeId: this.nodeId, status, message: message || "" }, "*");
+  },
+
+  async getNetwork() {
+    const res = await fetch(this.api + "/api/nodes/" + this.nodeId + "/network");
+    if (!res.ok) throw new Error("getNetwork failed: " + res.status);
+    return await res.json();
+  },
+
+  async getPeerConfig(peerId) {
+    const res = await fetch(this.api + "/api/nodes/" + this.nodeId + "/network/config/" + encodeURIComponent(peerId));
+    if (!res.ok) throw new Error("getPeerConfig failed: " + res.status);
+    return await res.json();
   }
 };
 </script>

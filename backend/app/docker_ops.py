@@ -28,6 +28,10 @@ def create_nanobot_container(node_id: str, name: str) -> str:
         volumes={
             volume_name: {"bind": "/root/.nanobot", "mode": "rw"},
         },
+        environment={
+            "PARADISE_NODE_ID": node_id,
+            "PARADISE_BACKEND_URL": "http://backend:8000",
+        },
         network=PARADISE_NETWORK,
         restart_policy={"Name": "unless-stopped"},
     )
