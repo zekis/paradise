@@ -34,16 +34,17 @@ export function DeletableEdge({
 
   return (
     <>
-      {/* Invisible wider path for hover detection */}
+      <BaseEdge path={edgePath} style={style} markerEnd={markerEnd} interactionWidth={0} />
+      {/* Hover detection path rendered after BaseEdge so it sits on top in SVG z-order */}
       <path
         d={edgePath}
         fill="none"
-        stroke="transparent"
+        strokeOpacity={0}
         strokeWidth={20}
+        style={{ pointerEvents: "all" }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       />
-      <BaseEdge path={edgePath} style={style} markerEnd={markerEnd} />
       {hovered && (
         <EdgeLabelRenderer>
           <button
