@@ -47,7 +47,7 @@ services:
     build:
       context: ./nanobot
       additional_contexts:
-        nanobot-src: /root/nanobot
+        nanobot-src: ./nanobot-src
     image: paradise-nanobot
     entrypoint: ["true"]
     restart: "no"
