@@ -90,7 +90,13 @@ async def chat_relay(websocket: WebSocket, node_id: UUID):
                             parsed = json.loads(data)
                             if parsed.get("type") == "chat" and parsed.get("content"):
                                 async with async_session() as db:
-                                    db.add(ChatMessage(node_id=node_id, role="user", content=parsed["content"]))
+                                    db.add(ChatMessage(
+                                        node_id=node_id,
+                                        role="user",
+                                        content=parsed["content"],
+                                        message_type=parsed.get("message_type", "chat"),
+                                        display_content=parsed.get("display_content"),
+                                    ))
                                     await db.commit()
                         except Exception:
                             pass
@@ -105,7 +111,8 @@ async def chat_relay(websocket: WebSocket, node_id: UUID):
                         # Always store responses in DB, regardless of frontend
                         try:
                             parsed = json.loads(msg)
-                            if parsed.get("type") == "response" and parsed.get("content"):
+                            msg_type = parsed.get("type")
+                            if msg_type == "response" and parsed.get("content"):
                                 async with async_session() as db:
                                     db.add(ChatMessage(node_id=node_id, role="assistant", content=parsed["content"]))
                                     await db.commit()
@@ -113,6 +120,27 @@ async def chat_relay(websocket: WebSocket, node_id: UUID):
                                     node_id, container_id,
                                     websocket if frontend_connected else None,
                                 )
+                            elif msg_type == "tool_call" and parsed.get("content"):
+                                async with async_session() as db:
+                                    db.add(ChatMessage(
+                                        node_id=node_id, role="assistant",
+                                        content=parsed["content"], message_type="tool_call",
+                                    ))
+                                    await db.commit()
+                            elif msg_type == "error" and parsed.get("message"):
+                                error_msg = parsed["message"]
+                                is_connect_error = any(
+                                    p in error_msg.lower()
+                                    for p in ("cannot connect", "connection refused", "name resolution")
+                                )
+                                if not is_connect_error:
+                                    async with async_session() as db:
+                                        db.add(ChatMessage(
+                                            node_id=node_id, role="assistant",
+                                            content=f"Error: {error_msg}",
+                                            message_type="error",
+                                        ))
+                                        await db.commit()
                         except Exception:
                             pass
 
@@ -235,6 +263,8 @@ class MessageRead(BaseModel):
     node_id: UUID
     role: str
     content: str
+    message_type: str | None = None
+    display_content: str | None = None
     created_at: str | None
 
     model_config = {"from_attributes": True}
