@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import Edge, get_db
+from app.db import Edge, emit_event, get_db
 
 router = APIRouter(tags=["edges"])
 
@@ -38,6 +38,8 @@ async def create_edge(payload: EdgeCreate, db: AsyncSession = Depends(get_db)):
     db.add(edge)
     await db.commit()
     await db.refresh(edge)
+    await emit_event("edge_created", summary="Edge created",
+                     details={"source_id": str(payload.source_id), "target_id": str(payload.target_id)})
     return edge
 
 
@@ -52,6 +54,10 @@ async def delete_edge(edge_id: UUID, db: AsyncSession = Depends(get_db)):
     edge = await db.get(Edge, edge_id)
     if not edge:
         raise HTTPException(status_code=404, detail="Edge not found")
+    source_id = str(edge.source_id)
+    target_id = str(edge.target_id)
     await db.delete(edge)
     await db.commit()
+    await emit_event("edge_deleted", summary="Edge deleted",
+                     details={"source_id": source_id, "target_id": target_id})
     return {"ok": True}

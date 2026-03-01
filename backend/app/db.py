@@ -90,6 +90,42 @@ class ChatMessage(Base):
     )
 
 
+class EventLog(Base):
+    __tablename__ = "event_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_type = Column(String(40), nullable=False, index=True)
+    node_id = Column(UUID(as_uuid=True), ForeignKey("nodes.id", ondelete="SET NULL"), nullable=True, index=True)
+    node_name = Column(Text, nullable=True)
+    summary = Column(Text, nullable=True)
+    details = Column(JSONB, nullable=True)
+    created_at = Column(
+        String, default=lambda: datetime.now(timezone.utc).isoformat(), index=True
+    )
+
+
+async def emit_event(
+    event_type: str,
+    node_id: "uuid.UUID | None" = None,
+    node_name: str | None = None,
+    summary: str | None = None,
+    details: dict | None = None,
+) -> None:
+    """Fire-and-forget helper to persist an event log entry."""
+    try:
+        async with async_session() as db:
+            db.add(EventLog(
+                event_type=event_type,
+                node_id=node_id,
+                node_name=node_name,
+                summary=summary,
+                details=details,
+            ))
+            await db.commit()
+    except Exception:
+        pass  # Never let event logging break the caller
+
+
 async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import CanvasState, Edge, Node, get_db
+from app.db import CanvasState, Edge, Node, emit_event, get_db
 from app.docker_ops import (
     create_nanobot_container,
     get_container_logs,
@@ -97,6 +97,8 @@ async def create_node(payload: NodeCreate, db: AsyncSession = Depends(get_db)):
     db.add(node)
     await db.commit()
     await db.refresh(node)
+    await emit_event("node_created", node_id=node.id, node_name=node.name,
+                     summary=f'Node "{node.name}" created')
     return node
 
 
@@ -140,6 +142,7 @@ async def update_node(node_id: UUID, payload: NodeUpdate, db: AsyncSession = Dep
     node = await db.get(Node, node_id)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
+    old_name = node.name
     updates = payload.model_dump(exclude_unset=True)
     for field, value in updates.items():
         setattr(node, field, value)
@@ -153,6 +156,11 @@ async def update_node(node_id: UUID, payload: NodeUpdate, db: AsyncSession = Dep
         except Exception:
             pass  # Don't fail the rename if identity sync fails
 
+    if "name" in updates and updates["name"] != old_name:
+        await emit_event("node_renamed", node_id=node.id, node_name=node.name,
+                         summary=f'Node renamed "{old_name}" → "{node.name}"',
+                         details={"old_name": old_name, "new_name": node.name})
+
     return node
 
 
@@ -161,11 +169,14 @@ async def delete_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
     node = await db.get(Node, node_id)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
+    node_name = node.name
     # Stop and remove container
     if node.container_id:
         stop_nanobot_container(node.container_id)
     await db.delete(node)
     await db.commit()
+    await emit_event("node_deleted", node_id=None, node_name=node_name,
+                     summary=f'Node "{node_name}" deleted')
     return {"ok": True}
 
 
@@ -221,6 +232,9 @@ async def clone_node(node_id: UUID, payload: dict, db: AsyncSession = Depends(ge
     db.add(node)
     await db.commit()
     await db.refresh(node)
+    await emit_event("node_cloned", node_id=node.id, node_name=node.name,
+                     summary=f'Node "{node.name}" cloned from "{source.name}"',
+                     details={"source_id": str(source.id), "source_name": source.name})
     return node
 
 
@@ -254,6 +268,8 @@ async def restart_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
         node.container_status = "running"
 
     await db.commit()
+    await emit_event("container_restart", node_id=node.id, node_name=node.name,
+                     summary=f'Container restarted for "{node.name}"')
     return {"ok": True}
 
 
@@ -296,6 +312,8 @@ async def rebuild_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(exc))
 
     await db.commit()
+    await emit_event("container_rebuild", node_id=node.id, node_name=node.name,
+                     summary=f'Container rebuilt for "{node.name}"')
     return {"ok": True}
 
 
@@ -503,6 +521,10 @@ async def set_agent_status(node_id: UUID, payload: dict, db: AsyncSession = Depe
     node.agent_status = status or None
     node.agent_status_message = payload.get("message", "")[:200] or None
     await db.commit()
+    msg = node.agent_status_message or ""
+    await emit_event("agent_status", node_id=node.id, node_name=node.name,
+                     summary=f'{node.name}: {status}' + (f' — {msg}' if msg else ''),
+                     details={"status": status, "message": msg})
     return {"ok": True, "agent_status": node.agent_status}
 
 
