@@ -61,8 +61,8 @@ export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: Even
   const api = useCanvasStore((s) => s.api);
   const clearEvents = useEventLogStore((s) => s.clearEvents);
 
-  const [expanded, setExpanded] = useState(false);
-  const [pinned, setPinned] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [pinned, setPinned] = useState(true);
   const peekTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);

@@ -244,8 +244,8 @@ interface TreeViewDrawerProps {
 }
 
 export function TreeViewDrawer({ nodes, edges, onFocusNode, onOpenChange }: TreeViewDrawerProps) {
-  const [expanded, setExpanded] = useState(false);
-  const [pinned, setPinned] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [pinned, setPinned] = useState(true);
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -331,8 +331,8 @@ export function TreeViewDrawer({ nodes, edges, onFocusNode, onOpenChange }: Tree
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>
-              Nodes
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", opacity: 0.6, letterSpacing: 2 }}>
+              PARADISE
             </span>
             {nodes.length > 0 && (
               <span

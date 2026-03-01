@@ -205,9 +205,6 @@ function CanvasInner() {
       <TreeViewDrawer nodes={nodes} edges={edges} onFocusNode={handleFocusNode} onOpenChange={setTreeDrawerOpen} />
       <EventLogDrawer drawerOpen={!!selectedNodeData} treeDrawerOpen={treeDrawerOpen} onFocusNode={handleFocusNode} />
 
-      <div style={{ position: "fixed", top: 16, left: 16, fontSize: 18, fontWeight: 700, color: "var(--text)", opacity: 0.4, zIndex: 1000, pointerEvents: "none", letterSpacing: 2 }}>
-        PARADISE
-      </div>
     </div>
   );
 }
