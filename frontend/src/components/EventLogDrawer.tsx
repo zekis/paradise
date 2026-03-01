@@ -134,7 +134,7 @@ export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: Even
         transition: "transform 0.25s ease, right 0.15s ease, left 0.15s ease",
         background: "var(--bg-card)",
         borderTop: "1px solid var(--border)",
-        zIndex: 500,
+        zIndex: 2000,
         display: "flex",
         flexDirection: "column",
         boxShadow: expanded ? "0 -4px 16px rgba(0, 0, 0, 0.3)" : undefined,

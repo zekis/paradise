@@ -152,32 +152,30 @@ function CanvasInner() {
         </div>
       )}
 
-      <div style={{ position: "relative", zIndex: 1000, width: "100%", height: "100%" }}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeDragStop={onNodeDragStop}
-          onViewportChange={saveViewport}
-          onPaneClick={handlePaneClick}
-          onNodeClick={handleNodeClick}
-          onNodeContextMenu={handleNodeContextMenu}
-          onPaneContextMenu={handlePaneContextMenu}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          snapToGrid
-          snapGrid={[20, 20]}
-          fitView={!loaded}
-          proOptions={{ hideAttribution: true }}
-          defaultEdgeOptions={{ type: "smoothstep", style: { stroke: "var(--border)", strokeWidth: 1.5 }, animated: true }}
-        >
-          <Background variant={BackgroundVariant.Dots} color="var(--dots)" gap={20} />
-          <Controls style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }} />
-          <MiniMap style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }} nodeColor="var(--accent)" maskColor="rgba(0,0,0,0.5)" />
-        </ReactFlow>
-      </div>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodeDragStop={onNodeDragStop}
+        onViewportChange={saveViewport}
+        onPaneClick={handlePaneClick}
+        onNodeClick={handleNodeClick}
+        onNodeContextMenu={handleNodeContextMenu}
+        onPaneContextMenu={handlePaneContextMenu}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        snapToGrid
+        snapGrid={[20, 20]}
+        fitView={!loaded}
+        proOptions={{ hideAttribution: true }}
+        defaultEdgeOptions={{ type: "smoothstep", style: { stroke: "var(--border)", strokeWidth: 1.5 }, animated: true }}
+      >
+        <Background variant={BackgroundVariant.Dots} color="var(--dots)" gap={20} />
+        <Controls style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }} />
+        <MiniMap style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }} nodeColor="var(--accent)" maskColor="rgba(0,0,0,0.5)" />
+      </ReactFlow>
 
       <CanvasToolbar showSettings={showSettings} onToggleSettings={handleToggleSettings} onAddBot={() => setShowGenesis(true)} />
 
