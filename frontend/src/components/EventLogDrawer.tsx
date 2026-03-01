@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "@mdi/react";
-import { mdiChevronUp, mdiChevronDown, mdiDeleteSweepOutline } from "@mdi/js";
+import { mdiChevronUp, mdiChevronDown, mdiDeleteSweepOutline, mdiPin, mdiPinOutline } from "@mdi/js";
 import { useEventLogStore, type EventLogEntry } from "@/store/eventLogStore";
 import { useCanvasStore } from "@/store/canvasStore";
 
@@ -134,7 +134,7 @@ export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: Even
         transition: "transform 0.25s ease, right 0.15s ease, left 0.15s ease",
         background: "var(--bg-card)",
         borderTop: "1px solid var(--border)",
-        zIndex: 2000,
+        zIndex: 500,
         display: "flex",
         flexDirection: "column",
         boxShadow: expanded ? "0 -4px 16px rgba(0, 0, 0, 0.3)" : undefined,
@@ -195,6 +195,11 @@ export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: Even
               <Icon path={mdiDeleteSweepOutline} size={0.55} />
             </button>
           )}
+          <Icon
+            path={pinned ? mdiPin : mdiPinOutline}
+            size={0.5}
+            color="var(--text-muted)"
+          />
           <Icon
             path={expanded ? mdiChevronDown : mdiChevronUp}
             size={0.55}
