@@ -25,6 +25,43 @@ from app.docker_ops import (
 
 router = APIRouter(tags=["nodes"])
 
+log = __import__("logging").getLogger("paradise")
+
+
+async def _recreate_container(node: Node, db: AsyncSession) -> None:
+    """Recreate a missing container for an existing node, re-applying config and templates.
+
+    Updates node.container_id and node.container_status in place (caller must commit).
+    """
+    container_id = await asyncio.to_thread(
+        create_nanobot_container, str(node.id), node.name
+    )
+    node.container_id = container_id
+    node.container_status = "running"
+
+    canvas_state = await db.get(CanvasState, "default")
+
+    # Re-apply config: prefer node's cached config, fall back to canvas default
+    if node.config:
+        await asyncio.to_thread(write_nanobot_config, container_id, node.config)
+    elif canvas_state and canvas_state.default_nanobot_config:
+        await asyncio.to_thread(
+            write_nanobot_config, container_id, canvas_state.default_nanobot_config
+        )
+        node.config = canvas_state.default_nanobot_config
+
+    # Write agent templates
+    templates = (
+        canvas_state.default_agent_templates
+        if canvas_state and canvas_state.default_agent_templates
+        else DEFAULT_TEMPLATES
+    )
+    for filename, content in templates.items():
+        if filename in ALLOWED_WORKSPACE_FILES and content:
+            await asyncio.to_thread(
+                write_workspace_file, container_id, filename, content
+            )
+
 
 class NodeCreate(BaseModel):
     name: str = "new-nanobot"
@@ -253,13 +290,11 @@ async def restart_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
-    # If container is gone, recreate it
+    # If container is gone, recreate it; otherwise just restart
     status = get_container_status(node.container_id) if node.container_id else "not_found"
     if status == "not_found":
         try:
-            container_id = create_nanobot_container(str(node.id), node.name)
-            node.container_id = container_id
-            node.container_status = "running"
+            await _recreate_container(node, db)
         except Exception as exc:
             node.container_status = "error"
             raise HTTPException(status_code=500, detail=str(exc))
@@ -284,29 +319,9 @@ async def rebuild_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
     if node.container_id:
         stop_nanobot_container(node.container_id)
 
-    # Create new container
+    # Create new container with config and templates
     try:
-        container_id = create_nanobot_container(str(node.id), node.name)
-        node.container_id = container_id
-        node.container_status = "running"
-
-        # Re-apply config
-        canvas_state = await db.get(CanvasState, "default")
-        if node.config:
-            write_nanobot_config(container_id, node.config)
-        elif canvas_state and canvas_state.default_nanobot_config:
-            write_nanobot_config(container_id, canvas_state.default_nanobot_config)
-            node.config = canvas_state.default_nanobot_config
-
-        # Write agent templates
-        templates = (
-            canvas_state.default_agent_templates
-            if canvas_state and canvas_state.default_agent_templates
-            else DEFAULT_TEMPLATES
-        )
-        for filename, content in templates.items():
-            if filename in ALLOWED_WORKSPACE_FILES and content:
-                write_workspace_file(container_id, filename, content)
+        await _recreate_container(node, db)
     except Exception as exc:
         node.container_status = "error"
         raise HTTPException(status_code=500, detail=str(exc))
