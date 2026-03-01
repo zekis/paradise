@@ -12,6 +12,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useCallback, useRef, useState } from "react";
 import { NanobotNode } from "./NanobotNode";
+import { DeletableEdge } from "./DeletableEdge";
 import { DefaultConfigPanel } from "./DefaultConfigPanel";
 import { GenesisModal } from "./GenesisModal";
 import { CanvasToolbar } from "./CanvasToolbar";
@@ -24,6 +25,7 @@ import { generateBotName } from "@/lib/names";
 import type { NanobotNodeData } from "@/types";
 
 const nodeTypes = { nanobot: NanobotNode };
+const edgeTypes = { smoothstep: DeletableEdge };
 
 function CanvasInner() {
   const { nodes, edges, loaded, onNodesChange, onEdgesChange, onConnect, onNodeDragStop, saveViewport, setNodes } = useCanvasSync();
@@ -142,6 +144,7 @@ function CanvasInner() {
         onNodeContextMenu={handleNodeContextMenu}
         onPaneContextMenu={handlePaneContextMenu}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         snapToGrid
         snapGrid={[20, 20]}
         fitView={!loaded}

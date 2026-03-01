@@ -22,6 +22,7 @@ vi.mock("@/store/canvasStore", () => {
     selectedNodeId: null,
     setSelectedNodeId: vi.fn(),
     setRemoveNode: vi.fn(),
+    setRemoveEdge: vi.fn(),
     setUpdateNodeIdentity: vi.fn(),
     setUpdateNodeName: vi.fn(),
     setUpdateNodeAgentStatus: vi.fn(),
