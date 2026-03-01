@@ -16,6 +16,7 @@ def create_nanobot_container(node_id: str, name: str) -> str:
     """Spin up a new nanobot container. Returns the container ID."""
     container_name = f"nanobot-{node_id[:8]}"
     volume_name = f"paradise_nanobot_{node_id[:8]}"
+    ssh_volume_name = f"paradise_nanobot_{node_id[:8]}_ssh"
 
     container = DOCKER_CLIENT.containers.run(
         NANOBOT_IMAGE,
@@ -27,6 +28,7 @@ def create_nanobot_container(node_id: str, name: str) -> str:
         },
         volumes={
             volume_name: {"bind": "/root/.nanobot", "mode": "rw"},
+            ssh_volume_name: {"bind": "/root/.ssh", "mode": "rw"},
         },
         environment={
             "PARADISE_NODE_ID": node_id,
