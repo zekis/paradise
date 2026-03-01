@@ -83,4 +83,43 @@ describe("NanobotNode", () => {
     );
     expect(container.textContent).toContain("test-bot");
   });
+
+  it("renders gauge SVG when gaugeValue is present", () => {
+    const { container } = render(
+      <NanobotNode
+        id="node-1"
+        data={{ ...defaultData, gaugeValue: 65, gaugeLabel: "open todos" }}
+        type="nanobot"
+        selected={false}
+        dragging={false}
+        isConnectable={true}
+        zIndex={1}
+        positionAbsoluteX={0}
+        positionAbsoluteY={0}
+      />
+    );
+    const svg = container.querySelector("svg");
+    expect(svg).not.toBeNull();
+    const circles = container.querySelectorAll("svg circle");
+    expect(circles.length).toBe(2); // background track + gauge arc
+  });
+
+  it("does not render gauge SVG when gaugeValue is null", () => {
+    const { container } = render(
+      <NanobotNode
+        id="node-1"
+        data={{ ...defaultData, gaugeValue: null }}
+        type="nanobot"
+        selected={false}
+        dragging={false}
+        isConnectable={true}
+        zIndex={1}
+        positionAbsoluteX={0}
+        positionAbsoluteY={0}
+      />
+    );
+    // The robot icon is also an SVG, so check for gauge-specific circle elements
+    const gaugeCircles = container.querySelectorAll("svg circle");
+    expect(gaugeCircles.length).toBe(0);
+  });
 });

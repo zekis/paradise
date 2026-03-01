@@ -58,6 +58,16 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
     );
   });
 
+  store.setUpdateNodeGauge((nodeId: string, value: number | null, label?: string) => {
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, gaugeValue: value, gaugeLabel: label || null } }
+          : n
+      )
+    );
+  });
+
   store.setAddNode((node: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => {
     setNodes((nds) => [
       ...nds,
@@ -100,6 +110,8 @@ async function fetchCanvas(
           identity: n.identity || null,
           agentStatus: n.agent_status || null,
           agentStatusMessage: n.agent_status_message || null,
+          gaugeValue: (n.gauge_value as number) ?? null,
+          gaugeLabel: (n.gauge_label as string) || null,
         } satisfies NanobotNodeData,
         style: { width: 80, height: 92 },
       }))
@@ -136,6 +148,35 @@ export function useCanvasSync() {
     useCanvasStore.getState().setApi(API);
     wireStoreActions(setNodes, setEdges);
     fetchCanvas(setNodes, setEdges, setViewport, setLoaded);
+
+    // Periodically refresh node data (gauge, identity, status) from backend
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API}/api/nodes`);
+        if (!res.ok) return;
+        const nodesData: Record<string, unknown>[] = await res.json();
+        const dataMap = new Map(nodesData.map((n) => [n.id as string, n]));
+        setNodes((nds) =>
+          nds.map((node) => {
+            const fresh = dataMap.get(node.id);
+            if (!fresh) return node;
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                containerStatus: fresh.container_status,
+                identity: fresh.identity || null,
+                agentStatus: fresh.agent_status || null,
+                agentStatusMessage: fresh.agent_status_message || null,
+                gaugeValue: (fresh.gauge_value as number) ?? null,
+                gaugeLabel: (fresh.gauge_label as string) || null,
+              },
+            };
+          })
+        );
+      } catch {}
+    }, 60000);
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

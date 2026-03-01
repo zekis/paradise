@@ -22,6 +22,50 @@ function getStatusColor(agentStatus: string | null, containerStatus: string | nu
   }
 }
 
+const GAUGE_SIZE = 56;
+const GAUGE_STROKE = 3;
+const GAUGE_RADIUS = (GAUGE_SIZE - GAUGE_STROKE) / 2;
+const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS;
+
+function GaugeRing({ value, color }: { value: number; color: string }) {
+  const clamped = Math.min(Math.max(value, 0), 100);
+  const offset = GAUGE_CIRCUMFERENCE - (clamped / 100) * GAUGE_CIRCUMFERENCE;
+  return (
+    <svg
+      width={GAUGE_SIZE}
+      height={GAUGE_SIZE}
+      style={{ position: "absolute", top: 0, left: 0, transform: "rotate(-90deg)", pointerEvents: "none" }}
+    >
+      <circle
+        cx={GAUGE_SIZE / 2}
+        cy={GAUGE_SIZE / 2}
+        r={GAUGE_RADIUS}
+        fill="none"
+        stroke="rgba(255,255,255,0.06)"
+        strokeWidth={GAUGE_STROKE}
+      />
+      <circle
+        cx={GAUGE_SIZE / 2}
+        cy={GAUGE_SIZE / 2}
+        r={GAUGE_RADIUS}
+        fill="none"
+        stroke={color}
+        strokeWidth={GAUGE_STROKE}
+        strokeLinecap="round"
+        strokeDasharray={GAUGE_CIRCUMFERENCE}
+        strokeDashoffset={offset}
+        style={{ transition: "stroke-dashoffset 1s ease-in-out" }}
+      />
+    </svg>
+  );
+}
+
+function getGaugeColor(value: number, identityColor: string | null): string {
+  if (value > 80) return "var(--red)";
+  if (value > 60) return "var(--yellow)";
+  return identityColor || "var(--accent)";
+}
+
 const KEYFRAMES = `
   @keyframes pulse-dot {
     0%, 100% { opacity: 1; transform: scale(1); }
@@ -35,13 +79,14 @@ const KEYFRAMES = `
 
 export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
   const d = data as NanobotNodeData;
-  const { nodeId, containerStatus, identity, agentStatus, agentStatusMessage, genesisActive } = d;
+  const { nodeId, containerStatus, identity, agentStatus, agentStatusMessage, genesisActive, gaugeValue, gaugeLabel } = d;
 
   const { selectedNodeId, setSelectedNodeId } = useCanvasStore();
 
   const statusColor = getStatusColor(agentStatus, containerStatus);
   const identityColor = identity?.color || null;
   const isSelected = selectedNodeId === nodeId;
+  const hasGauge = gaugeValue != null;
 
   return (
     <div
@@ -77,7 +122,11 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
           position: "relative",
           transition: "border-color 0.15s, box-shadow 0.15s",
         }}
+        title={hasGauge ? `${gaugeLabel ? gaugeLabel + ": " : ""}${Math.round(gaugeValue!)}%` : undefined}
       >
+        {hasGauge && (
+          <GaugeRing value={gaugeValue!} color={getGaugeColor(gaugeValue!, identityColor)} />
+        )}
         {identity?.emoji ? (
           <span style={{ fontSize: 24, lineHeight: 1 }}>{identity.emoji}</span>
         ) : (

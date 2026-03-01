@@ -16,6 +16,8 @@ interface CanvasStore {
   setUpdateNodeName: (fn: (nodeId: string, name: string) => void) => void;
   updateNodeAgentStatus: (nodeId: string, status: string | null, message?: string) => void;
   setUpdateNodeAgentStatus: (fn: (nodeId: string, status: string | null, message?: string) => void) => void;
+  updateNodeGauge: (nodeId: string, value: number | null, label?: string) => void;
+  setUpdateNodeGauge: (fn: (nodeId: string, value: number | null, label?: string) => void) => void;
   addNode: (node: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => void;
   setAddNode: (fn: (node: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => void) => void;
 }
@@ -35,6 +37,8 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
   setUpdateNodeName: (fn) => set({ updateNodeName: fn }),
   updateNodeAgentStatus: () => {},
   setUpdateNodeAgentStatus: (fn) => set({ updateNodeAgentStatus: fn }),
+  updateNodeGauge: () => {},
+  setUpdateNodeGauge: (fn) => set({ updateNodeGauge: fn }),
   addNode: () => {},
   setAddNode: (fn) => set({ addNode: fn }),
 }));

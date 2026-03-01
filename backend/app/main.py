@@ -152,6 +152,21 @@ async def _maintenance_loop():
                                     node_name=node.name,
                                     summary=f'Identity refreshed for "{node.name}"',
                                 )
+
+                            # Sync gauge value from identity.json (only if present)
+                            if isinstance(identity, dict) and "gauge_value" in identity:
+                                raw_gv = identity.get("gauge_value")
+                                if raw_gv is not None:
+                                    try:
+                                        gv = float(raw_gv)
+                                        if 0 <= gv <= 100:
+                                            node.gauge_value = gv
+                                            node.gauge_label = str(identity.get("gauge_label", ""))[:100] or None
+                                    except (TypeError, ValueError):
+                                        pass
+                                else:
+                                    node.gauge_value = None
+                                    node.gauge_label = None
                         except (json.JSONDecodeError, TypeError):
                             pass
                         except Exception as exc:

@@ -90,6 +90,8 @@ class NodeRead(BaseModel):
     identity: dict | None = None
     agent_status: str | None = None
     agent_status_message: str | None = None
+    gauge_value: float | None = None
+    gauge_label: str | None = None
     created_at: str | None
     updated_at: str | None
 
@@ -541,6 +543,29 @@ async def set_agent_status(node_id: UUID, payload: dict, db: AsyncSession = Depe
                      summary=f'{node.name}: {status}' + (f' — {msg}' if msg else ''),
                      details={"status": status, "message": msg})
     return {"ok": True, "agent_status": node.agent_status}
+
+
+@router.put("/nodes/{node_id}/gauge")
+async def set_gauge(node_id: UUID, payload: dict, db: AsyncSession = Depends(get_db)):
+    """Set agent-reported gauge value (0-100) from PARADISE.setGauge()."""
+    node = await db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    raw_value = payload.get("value")
+    if raw_value is None:
+        node.gauge_value = None
+        node.gauge_label = None
+    else:
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="value must be a number 0-100")
+        if value < 0 or value > 100:
+            raise HTTPException(status_code=400, detail="value must be between 0 and 100")
+        node.gauge_value = value
+        node.gauge_label = str(payload.get("label", ""))[:100] or None
+    await db.commit()
+    return {"ok": True, "gauge_value": node.gauge_value, "gauge_label": node.gauge_label}
 
 
 @router.get("/nodes/{node_id}/identity")

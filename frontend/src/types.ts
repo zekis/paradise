@@ -21,6 +21,8 @@ export interface NanobotNodeData extends Record<string, unknown> {
   agentStatusMessage: string | null;
   genesisPrompt?: string;
   genesisActive?: boolean;
+  gaugeValue?: number | null;
+  gaugeLabel?: string | null;
 }
 
 export type NanobotFlowNode = Node<NanobotNodeData, "nanobot">;

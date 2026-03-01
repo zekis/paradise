@@ -81,7 +81,7 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [thinking, setThinking] = useState(false);
   const skipBlurSave = useRef(false);
-  const { api, updateNodeIdentity, updateNodeName, updateNodeAgentStatus } = useCanvasStore();
+  const { api, updateNodeIdentity, updateNodeName, updateNodeAgentStatus, updateNodeGauge } = useCanvasStore();
 
   const handleIdentityUpdate = useCallback(
     (identity: Record<string, unknown>) => updateNodeIdentity(nodeId, identity),
@@ -115,11 +115,13 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
         updateNodeName(nodeId, msg.name);
       } else if (msg.type === "paradise:status") {
         updateNodeAgentStatus(nodeId, msg.status, msg.message);
+      } else if (msg.type === "paradise:gauge") {
+        updateNodeGauge(nodeId, msg.value ?? null, msg.label);
       }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [nodeId, updateNodeName, updateNodeAgentStatus]);
+  }, [nodeId, updateNodeName, updateNodeAgentStatus, updateNodeGauge]);
 
   const identityColor = identity?.color || null;
   const topTabs = identity ? BASE_TABS : BASE_TABS.filter((t) => t.key !== "object");
