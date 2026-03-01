@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import ChatMessage, Edge, Node, async_session, get_db
-from app.docker_ops import read_workspace_file
+from app.docker_ops import read_workspace_file, write_workspace_file
 
 DOCKER_CLIENT = docker.from_env()
 
@@ -42,6 +42,20 @@ async def _check_identity(
         async with async_session() as db:
             node = await db.get(Node, node_id)
             if node:
+                # Sync DB node name back into identity if it has drifted
+                if (
+                    isinstance(identity, dict)
+                    and "name" in identity
+                    and identity["name"] != node.name
+                ):
+                    identity["name"] = node.name
+                    try:
+                        updated = json.dumps(identity, indent=2)
+                        await asyncio.to_thread(
+                            write_workspace_file, container_id, "identity.json", updated
+                        )
+                    except Exception:
+                        pass
                 node.identity = identity
                 await db.commit()
 
