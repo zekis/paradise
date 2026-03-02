@@ -95,7 +95,8 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
   const d = data as NanobotNodeData;
   const { nodeId, containerStatus, identity, agentStatus, agentStatusMessage, genesisActive, gaugeValue, gaugeLabel, gaugeUnit } = d;
 
-  const { selectedNodeId, setSelectedNodeId } = useCanvasStore();
+  const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
+  const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
 
   const statusColor = getStatusColor(agentStatus, containerStatus);
   const identityColor = identity?.color || null;

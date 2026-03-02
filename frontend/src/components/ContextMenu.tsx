@@ -28,7 +28,8 @@ interface MenuItem {
 }
 
 export function ContextMenu({ position, nodeId, onClose, onDelete, onAddBot }: ContextMenuProps) {
-  const { api, addNode } = useCanvasStore();
+  const api = useCanvasStore((s) => s.api);
+  const addNode = useCanvasStore((s) => s.addNode);
 
   useEffect(() => {
     const dismiss = () => onClose();

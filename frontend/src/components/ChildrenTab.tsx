@@ -20,7 +20,9 @@ export function ChildrenTab({ nodeId, api }: { nodeId: string; api: string }) {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<string | null>(null);
-  const { setSelectedNodeId, addNode, addEdge } = useCanvasStore();
+  const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
+  const addNode = useCanvasStore((s) => s.addNode);
+  const addEdge = useCanvasStore((s) => s.addEdge);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
