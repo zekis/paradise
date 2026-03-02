@@ -11,7 +11,8 @@ interface DeleteConfirmModalProps {
 }
 
 export function DeleteConfirmModal({ nodeId, label, onClose }: DeleteConfirmModalProps) {
-  const { api, removeNode } = useCanvasStore();
+  const api = useCanvasStore((s) => s.api);
+  const removeNode = useCanvasStore((s) => s.removeNode);
 
   const handleDelete = () => {
     removeNode(nodeId);

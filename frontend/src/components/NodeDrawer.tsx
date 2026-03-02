@@ -78,7 +78,11 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
   const [thinking, setThinking] = useState(false);
   const skipBlurSave = useRef(false);
   const prevNodeId = useRef(nodeId);
-  const { api, updateNodeIdentity, updateNodeName, updateNodeAgentStatus, updateNodeGauge } = useCanvasStore();
+  const api = useCanvasStore((s) => s.api);
+  const updateNodeIdentity = useCanvasStore((s) => s.updateNodeIdentity);
+  const updateNodeName = useCanvasStore((s) => s.updateNodeName);
+  const updateNodeAgentStatus = useCanvasStore((s) => s.updateNodeAgentStatus);
+  const updateNodeGauge = useCanvasStore((s) => s.updateNodeGauge);
 
   const handleIdentityUpdate = useCallback(
     (identity: Record<string, unknown>) => updateNodeIdentity(nodeId, identity),
