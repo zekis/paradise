@@ -4,44 +4,33 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "@mdi/react";
 import {
   mdiChat,
-  mdiRobot,
-  mdiCog,
   mdiText,
   mdiInformation,
   mdiPencil,
   mdiDeleteOutline,
   mdiClose,
   mdiViewDashboard,
+  mdiFileDocument,
 } from "@mdi/js";
 import { useCanvasStore } from "@/store/canvasStore";
 import { ChatTab } from "./ChatTab";
-import { ConfigTab } from "./ConfigTab";
 import { LogsTab } from "./LogsTab";
 import { InfoTab } from "./InfoTab";
-import { FileTab } from "./FileTab";
 import { HtmlTab } from "./HtmlTab";
 import { ChildrenTab } from "./ChildrenTab";
+import { FileBrowserTab } from "./FileBrowserTab";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
 import { resolveMdiIcon } from "@/lib/mdiIcons";
 import type { NanobotNodeData } from "@/types";
 
-type TopTab = "chat" | "object" | "agent" | "config" | "logs" | "info";
+type TopTab = "chat" | "object" | "files" | "logs" | "info";
 
 const BASE_TABS: { key: TopTab; icon: string; title: string }[] = [
   { key: "chat", icon: mdiChat, title: "Chat" },
   { key: "object", icon: mdiViewDashboard, title: "Object" },
-  { key: "agent", icon: mdiRobot, title: "Agent" },
-  { key: "config", icon: mdiCog, title: "Config" },
+  { key: "files", icon: mdiFileDocument, title: "Files" },
   { key: "logs", icon: mdiText, title: "Logs" },
   { key: "info", icon: mdiInformation, title: "Info" },
-];
-
-const AGENT_SUBS: { key: string; label: string; file: string }[] = [
-  { key: "soul", label: "Soul", file: "SOUL.md" },
-  { key: "agents", label: "Agents", file: "AGENTS.md" },
-  { key: "user", label: "User", file: "USER.md" },
-  { key: "heartbeat", label: "Heartbeat", file: "HEARTBEAT.md" },
-  { key: "identity", label: "Identity", file: "identity.json" },
 ];
 
 type ObjectSubTab = "dashboard" | "obj-config" | "commands" | "children";
@@ -82,7 +71,6 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
   } = data;
 
   const [activeTab, setActiveTab] = useState<TopTab>(identity ? "object" : "chat");
-  const [agentSub, setAgentSub] = useState("soul");
   const [objectSub, setObjectSub] = useState<ObjectSubTab>("dashboard");
   const [editing, setEditing] = useState(false);
   const [editingName, setEditingName] = useState("");
@@ -110,7 +98,6 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
   useEffect(() => {
     if (prevNodeId.current !== nodeId) {
       setActiveTab(identity ? "object" : "chat");
-      setAgentSub("soul");
       setObjectSub("dashboard");
       setEditing(false);
       setShowDeleteConfirm(false);
@@ -137,14 +124,6 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
 
   const identityColor = identity?.color || null;
   const topTabs = identity ? BASE_TABS : BASE_TABS.filter((t) => t.key !== "object");
-
-  const customAgentTabs: { key: string; label: string; file: string }[] =
-    identity?.tabs?.map((t) => ({
-      key: `custom:${t.file}`,
-      label: t.name,
-      file: t.file,
-    })) || [];
-  const allAgentSubs = [...AGENT_SUBS, ...customAgentTabs];
 
   const saveName = async (newName: string) => {
     if (skipBlurSave.current) return;
@@ -353,9 +332,6 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
       {activeTab === "object" && (
         <SubTabBar tabs={OBJECT_SUBS} active={objectSub} onSelect={(k) => setObjectSub(k as ObjectSubTab)} accentColor={identityColor} />
       )}
-      {activeTab === "agent" && (
-        <SubTabBar tabs={allAgentSubs} active={agentSub} onSelect={setAgentSub} accentColor={identityColor} scrollable={customAgentTabs.length > 0} />
-      )}
 
       {/* Tab content */}
       <div style={{ ...TAB_CONTENT_STYLE, display: activeTab === "chat" ? "flex" : "none", flexDirection: "column" }}>
@@ -380,15 +356,8 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
           <ChildrenTab nodeId={nodeId} api={api} />
         </div>
       </div>
-      <div style={{ ...TAB_CONTENT_STYLE, display: activeTab === "agent" ? "flex" : "none", flexDirection: "column" }}>
-        {allAgentSubs.map((sub) => (
-          <div key={sub.key} style={{ height: "100%", display: agentSub === sub.key ? "block" : "none" }}>
-            <FileTab nodeId={nodeId} api={api} filename={sub.file} visible={activeTab === "agent" && agentSub === sub.key} />
-          </div>
-        ))}
-      </div>
-      <div style={{ ...TAB_CONTENT_STYLE, display: activeTab === "config" ? "flex" : "none", flexDirection: "column" }}>
-        <ConfigTab nodeId={nodeId} api={api} />
+      <div style={{ ...TAB_CONTENT_STYLE, padding: 0, display: activeTab === "files" ? "flex" : "none", flexDirection: "column" }}>
+        <FileBrowserTab nodeId={nodeId} api={api} />
       </div>
       <div style={{ ...TAB_CONTENT_STYLE, display: activeTab === "logs" ? "flex" : "none", flexDirection: "column" }}>
         <LogsTab nodeId={nodeId} api={api} />

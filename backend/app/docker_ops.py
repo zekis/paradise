@@ -181,6 +181,24 @@ def write_workspace_file(container_id: str, filename: str, content: str) -> None
         pass
 
 
+def list_workspace_files(container_id: str) -> list[str]:
+    """List all files in the nanobot workspace directory (flat, relative names)."""
+    try:
+        container = DOCKER_CLIENT.containers.get(container_id)
+        exit_code, output = container.exec_run(
+            ["find", WORKSPACE_PATH, "-maxdepth", "1", "-type", "f", "-printf", "%f\\n"],
+        )
+        if exit_code != 0:
+            return []
+        filenames = [
+            line for line in output.decode("utf-8", errors="replace").strip().split("\n")
+            if line and ".." not in line
+        ]
+        return sorted(filenames)
+    except (docker.errors.NotFound, docker.errors.APIError):
+        return []
+
+
 def write_workspace_files_batch(container_id: str, files: dict[str, str]) -> None:
     """Write multiple files to the workspace in a single tar archive."""
     if not files:

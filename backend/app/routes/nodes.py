@@ -16,6 +16,7 @@ from app.docker_ops import (
     get_container_logs,
     get_container_stats,
     get_container_status,
+    list_workspace_files,
     restart_nanobot_container,
     stop_nanobot_container,
     read_nanobot_config,
@@ -565,6 +566,60 @@ async def put_workspace_file(node_id: UUID, filename: str, payload: dict, db: As
         raise HTTPException(status_code=404, detail="Node or container not found")
     if filename not in _allowed_files_for_node(node):
         raise HTTPException(status_code=400, detail="File not allowed")
+    await asyncio.to_thread(
+        write_workspace_file, node.container_id, filename, payload.get("content", "")
+    )
+    return {"ok": True}
+
+
+def _is_safe_filename(filename: str) -> bool:
+    """Check that a filename is safe (no path traversal, no absolute paths)."""
+    return (
+        bool(filename)
+        and "/" not in filename
+        and "\\" not in filename
+        and ".." not in filename
+        and not filename.startswith(".")
+    )
+
+
+@router.get("/nodes/{node_id}/workspace")
+async def list_node_workspace(node_id: UUID, db: AsyncSession = Depends(get_db)):
+    """List all files in a node's workspace directory."""
+    node = await db.get(Node, node_id)
+    if not node or not node.container_id:
+        raise HTTPException(status_code=404, detail="Node or container not found")
+    files = await asyncio.to_thread(list_workspace_files, node.container_id)
+    # Check if config.json exists
+    config = await asyncio.to_thread(read_nanobot_config, node.container_id)
+    has_config = bool(config)
+    return {"files": files, "has_config": has_config}
+
+
+@router.get("/nodes/{node_id}/workspace/{filename}")
+async def get_workspace_file_unrestricted(
+    node_id: UUID, filename: str, db: AsyncSession = Depends(get_db),
+):
+    """Read any file from the workspace (no allowlist, just path safety)."""
+    node = await db.get(Node, node_id)
+    if not node or not node.container_id:
+        raise HTTPException(status_code=404, detail="Node or container not found")
+    if not _is_safe_filename(filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    content = await asyncio.to_thread(read_workspace_file, node.container_id, filename)
+    return {"filename": filename, "content": content or ""}
+
+
+@router.put("/nodes/{node_id}/workspace/{filename}")
+async def put_workspace_file_unrestricted(
+    node_id: UUID, filename: str, payload: dict, db: AsyncSession = Depends(get_db),
+):
+    """Write any file to the workspace (no allowlist, just path safety)."""
+    node = await db.get(Node, node_id)
+    if not node or not node.container_id:
+        raise HTTPException(status_code=404, detail="Node or container not found")
+    if not _is_safe_filename(filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
     await asyncio.to_thread(
         write_workspace_file, node.container_id, filename, payload.get("content", "")
     )
