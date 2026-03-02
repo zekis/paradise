@@ -91,6 +91,12 @@ const PARADISE = {
 </script>
 `;
 
+// Module-level cache: avoids re-fetching on tab switches
+const htmlCache = new Map<string, string>();
+
+/** @internal Clear cache — exposed for tests only. */
+export function _clearHtmlCache() { htmlCache.clear(); }
+
 export function HtmlTab({
   nodeId,
   api,
@@ -102,7 +108,8 @@ export function HtmlTab({
   filename: string;
   visible?: boolean;
 }) {
-  const [html, setHtml] = useState<string | null>(null);
+  const cacheKey = `${nodeId}:${filename}`;
+  const [html, setHtml] = useState<string | null>(() => htmlCache.get(cacheKey) ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const prevVisible = useRef(false);
@@ -118,7 +125,12 @@ export function HtmlTab({
   }, [visible, nodeId]);
 
   async function loadHtml() {
-    setLoading(true);
+    const cached = htmlCache.get(cacheKey);
+    // Show cached content immediately; only show spinner if no cache
+    if (cached) {
+      setHtml(cached);
+    }
+    setLoading(!cached);
     setError("");
     try {
       const res = await fetch(`${api}/api/nodes/${nodeId}/files/${encodeURIComponent(filename)}`);
@@ -126,12 +138,15 @@ export function HtmlTab({
       if (data.content) {
         // Prepend the Paradise bridge script
         const bridge = PARADISE_BRIDGE(nodeId, api);
-        setHtml(bridge + data.content);
+        const full = bridge + data.content;
+        htmlCache.set(cacheKey, full);
+        setHtml(full);
       } else {
+        htmlCache.delete(cacheKey);
         setHtml(null);
       }
     } catch (err) {
-      setError("Failed to load");
+      if (!cached) setError("Failed to load");
     }
     setLoading(false);
   }

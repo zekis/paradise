@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { HtmlTab } from "@/components/HtmlTab";
+import { HtmlTab, _clearHtmlCache } from "@/components/HtmlTab";
 import { TEST_API, TEST_NODE_ID } from "./test-utils";
 
 describe("HtmlTab", () => {
   beforeEach(() => {
+    _clearHtmlCache();
     vi.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({ content: "<h1>Hello</h1>" }),

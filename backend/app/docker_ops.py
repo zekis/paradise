@@ -179,3 +179,22 @@ def write_workspace_file(container_id: str, filename: str, content: str) -> None
         container.put_archive(WORKSPACE_PATH, stream)
     except (docker.errors.NotFound, docker.errors.APIError):
         pass
+
+
+def write_workspace_files_batch(container_id: str, files: dict[str, str]) -> None:
+    """Write multiple files to the workspace in a single tar archive."""
+    if not files:
+        return
+    try:
+        container = DOCKER_CLIENT.containers.get(container_id)
+        stream = io.BytesIO()
+        with tarfile.open(fileobj=stream, mode="w") as tar:
+            for filename, content in files.items():
+                data = content.encode("utf-8")
+                info = tarfile.TarInfo(name=filename)
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+        stream.seek(0)
+        container.put_archive(WORKSPACE_PATH, stream)
+    except (docker.errors.NotFound, docker.errors.APIError):
+        pass
