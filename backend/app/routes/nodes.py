@@ -955,6 +955,8 @@ async def create_child_node(
         source_id=parent_id,
         target_id=node_id,
         edge_type="connection",
+        source_handle="bottom-s",
+        target_handle="top-t",
     )
     db.add(edge)
 

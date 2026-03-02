@@ -20,8 +20,8 @@ interface CanvasStore {
   setUpdateNodeGauge: (fn: (nodeId: string, value: number | null, label?: string, unit?: string) => void) => void;
   addNode: (node: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => void;
   setAddNode: (fn: (node: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => void) => void;
-  addEdge: (edge: { id: string; source: string; target: string }) => void;
-  setAddEdge: (fn: (edge: { id: string; source: string; target: string }) => void) => void;
+  addEdge: (edge: { id: string; source: string; target: string; sourceHandle?: string; targetHandle?: string }) => void;
+  setAddEdge: (fn: (edge: { id: string; source: string; target: string; sourceHandle?: string; targetHandle?: string }) => void) => void;
 }
 
 export const useCanvasStore = create<CanvasStore>((set) => ({

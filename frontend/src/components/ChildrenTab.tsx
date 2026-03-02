@@ -116,6 +116,8 @@ export function ChildrenTab({ nodeId, api }: { nodeId: string; api: string }) {
           id: String(data.edge_id),
           source: nodeId,
           target: n.id,
+          sourceHandle: "bottom-s",
+          targetHandle: "top-t",
         });
 
         // Remove from recommendations, add to children
