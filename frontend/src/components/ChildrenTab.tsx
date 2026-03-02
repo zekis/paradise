@@ -72,6 +72,13 @@ export function ChildrenTab({ nodeId, api }: { nodeId: string; api: string }) {
     return () => es.close();
   }, [api, nodeId, fetchData]);
 
+  // Fallback polling: re-fetch every 10s while no recommendations exist
+  useEffect(() => {
+    if (recommendations.length > 0) return;
+    const interval = setInterval(fetchData, 10_000);
+    return () => clearInterval(interval);
+  }, [recommendations.length, fetchData]);
+
   const handleCreateChild = async (rec: Recommendation) => {
     setCreating(rec.name);
     try {
