@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { NanobotNode } from "./NanobotNode";
 import { DeletableEdge } from "./DeletableEdge";
 import { DefaultConfigPanel } from "./DefaultConfigPanel";
-import { GenesisModal } from "./GenesisModal";
+import { GenesisModal, type GenesisResult } from "./GenesisModal";
 import { CanvasToolbar } from "./CanvasToolbar";
 import { NodeDrawer } from "./NodeDrawer";
 import { ContextMenu } from "./ContextMenu";
@@ -25,26 +25,89 @@ import { useCanvasStore } from "@/store/canvasStore";
 import { useCanvasSync } from "@/hooks/useCanvasSync";
 import { useEventLogStore } from "@/store/eventLogStore";
 import { generateBotName } from "@/lib/names";
-import type { NanobotNodeData } from "@/types";
+import type { NanobotNodeData, Recommendation } from "@/types";
 
 const nodeTypes = { nanobot: NanobotNode };
 const edgeTypes = { smoothstep: DeletableEdge };
 
+function computeTargetHandle(sourceHandle: string): string {
+  switch (sourceHandle) {
+    case "bottom-s": return "top-t";
+    case "top-s": return "bottom-t";
+    case "left-s": return "right-t";
+    case "right-s": return "left-t";
+    default: return "top-t";
+  }
+}
+
+interface DragCreateContext {
+  parentNodeId: string;
+  parentNodeName: string;
+  sourceHandle: string;
+  dropPosition: { x: number; y: number };
+  recommendations: Recommendation[];
+}
+
 function CanvasInner() {
-  const { nodes, edges, loaded, onNodesChange, onEdgesChange, onConnect, onNodeDragStop, saveViewport, setNodes } = useCanvasSync();
   const [showSettings, setShowSettings] = useState(false);
   const [showGenesis, setShowGenesis] = useState(false);
   const [treeDrawerOpen, setTreeDrawerOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId?: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ nodeId: string; label: string } | null>(null);
+  const [dragCreateContext, setDragCreateContext] = useState<DragCreateContext | null>(null);
   const createAtRef = useRef<{ x: number; y: number } | null>(null);
   const api = useCanvasStore((s) => s.api);
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
   const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
   const { screenToFlowPosition, setCenter } = useReactFlow();
 
+  // Ref-stabilized callback for useCanvasSync to avoid circular dependency
+  const handleDragToEmptyRef = useRef<((sourceNodeId: string, sourceHandleId: string, screenPosition: { x: number; y: number }) => void) | undefined>(undefined);
+
+  const { nodes, edges, loaded, onNodesChange, onEdgesChange, onConnect, onConnectStart, onConnectEnd, onNodeDragStop, saveViewport, setNodes } =
+    useCanvasSync({ onDragToEmpty: (...args) => handleDragToEmptyRef.current?.(...args) });
+
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null;
   const selectedNodeData = selectedNode?.data as NanobotNodeData | undefined;
+
+  // Implement the drag-to-empty handler
+  handleDragToEmptyRef.current = useCallback(
+    (sourceNodeId: string, sourceHandleId: string, screenPosition: { x: number; y: number }) => {
+      // Only trigger from source handles
+      if (!sourceHandleId.endsWith("-s")) return;
+
+      const flowPosition = screenToFlowPosition({ x: screenPosition.x, y: screenPosition.y });
+      const sourceNode = nodes.find((n) => n.id === sourceNodeId);
+      const parentName = (sourceNode?.data as NanobotNodeData)?.label || "Unknown";
+
+      // Open genesis modal immediately with empty recommendations
+      setDragCreateContext({
+        parentNodeId: sourceNodeId,
+        parentNodeName: parentName,
+        sourceHandle: sourceHandleId,
+        dropPosition: flowPosition,
+        recommendations: [],
+      });
+      setShowGenesis(true);
+
+      // Fetch recommendations asynchronously
+      if (api) {
+        fetch(`${api}/api/nodes/${sourceNodeId}/recommendations`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.recommendations) {
+              setDragCreateContext((prev) =>
+                prev && prev.parentNodeId === sourceNodeId
+                  ? { ...prev, recommendations: data.recommendations }
+                  : prev
+              );
+            }
+          })
+          .catch(() => {});
+      }
+    },
+    [api, nodes, screenToFlowPosition]
+  );
 
   // Start event log polling once the API URL is known
   useEffect(() => {
@@ -108,41 +171,103 @@ function CanvasInner() {
     });
   }, [setSelectedNodeId]);
 
-  const handleGenesis = useCallback(async (genesisPrompt: string | null) => {
+  const handleGenesis = useCallback(async (result: GenesisResult) => {
     setShowGenesis(false);
-    const name = generateBotName();
-    const pos = createAtRef.current || { x: Math.random() * 400 + 100, y: Math.random() * 400 + 100 };
-    createAtRef.current = null;
-    const res = await fetch(`${api}/api/nodes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, position_x: pos.x, position_y: pos.y }),
-    });
-    if (!res.ok) return;
-    const node = await res.json();
-    const hasGenesis = !!genesisPrompt;
-    setNodes((nds) => [
-      ...nds,
-      {
-        id: node.id,
-        type: "nanobot" as const,
-        position: { x: node.position_x, y: node.position_y },
-        data: {
-          label: node.name,
-          nodeId: node.id,
-          containerStatus: node.container_status,
-          genesisPrompt: genesisPrompt || undefined,
-          genesisActive: hasGenesis,
-          identity: null,
+
+    if (dragCreateContext) {
+      // --- CHILD CREATION PATH ---
+      const { parentNodeId, sourceHandle, dropPosition } = dragCreateContext;
+      const rec = result.recommendation;
+      const name = rec?.name || generateBotName();
+      const genesisPrompt = result.genesisPrompt || name;
+      const targetHandle = computeTargetHandle(sourceHandle);
+
+      setDragCreateContext(null);
+
+      const res = await fetch(`${api}/api/nodes/${parentNodeId}/children`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          genesis_prompt: genesisPrompt,
+          icon: rec?.icon || undefined,
+          emoji: rec?.emoji || undefined,
+          description: rec?.description || undefined,
+          position_x: dropPosition.x,
+          position_y: dropPosition.y,
+          source_handle: sourceHandle,
+          target_handle: targetHandle,
+        }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const n = data.node;
+
+      setNodes((nds) => [
+        ...nds,
+        {
+          id: n.id,
+          type: "nanobot" as const,
+          position: { x: n.position_x, y: n.position_y },
+          data: {
+            label: n.name,
+            nodeId: n.id,
+            containerStatus: n.container_status,
+            genesisPrompt: data.genesis_prompt,
+            genesisActive: true,
+            identity: null,
+          },
+          style: { width: 80, height: 92 },
         },
-        style: { width: 80, height: 92 },
-      },
-    ]);
-    if (hasGenesis) {
-      setSelectedNodeId(node.id);
+      ]);
+
+      useCanvasStore.getState().addEdge({
+        id: String(data.edge_id),
+        source: parentNodeId,
+        target: n.id,
+        sourceHandle: sourceHandle,
+        targetHandle: targetHandle,
+      });
+
+      setSelectedNodeId(n.id);
       setShowSettings(false);
+    } else {
+      // --- ROOT CREATION PATH (existing logic) ---
+      const name = generateBotName();
+      const genesisPrompt = result.genesisPrompt;
+      const pos = createAtRef.current || { x: Math.random() * 400 + 100, y: Math.random() * 400 + 100 };
+      createAtRef.current = null;
+      const res = await fetch(`${api}/api/nodes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, position_x: pos.x, position_y: pos.y }),
+      });
+      if (!res.ok) return;
+      const node = await res.json();
+      const hasGenesis = !!genesisPrompt;
+      setNodes((nds) => [
+        ...nds,
+        {
+          id: node.id,
+          type: "nanobot" as const,
+          position: { x: node.position_x, y: node.position_y },
+          data: {
+            label: node.name,
+            nodeId: node.id,
+            containerStatus: node.container_status,
+            genesisPrompt: genesisPrompt || undefined,
+            genesisActive: hasGenesis,
+            identity: null,
+          },
+          style: { width: 80, height: 92 },
+        },
+      ]);
+      if (hasGenesis) {
+        setSelectedNodeId(node.id);
+        setShowSettings(false);
+      }
     }
-  }, [api, setNodes, setSelectedNodeId]);
+  }, [api, dragCreateContext, setNodes, setSelectedNodeId]);
 
   return (
     <div style={{ width: "100%", height: "100vh", position: "relative" }}>
@@ -158,6 +283,8 @@ function CanvasInner() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onConnectStart={onConnectStart}
+        onConnectEnd={onConnectEnd}
         onNodeDragStop={onNodeDragStop}
         onViewportChange={saveViewport}
         onPaneClick={handlePaneClick}
@@ -183,7 +310,25 @@ function CanvasInner() {
       {selectedNodeData && (
         <NodeDrawer data={selectedNodeData} onClose={() => setSelectedNodeId(null)} />
       )}
-      {showGenesis && <GenesisModal onClose={() => { setShowGenesis(false); createAtRef.current = null; }} onCreate={handleGenesis} />}
+      {showGenesis && (
+        <GenesisModal
+          onClose={() => {
+            setShowGenesis(false);
+            createAtRef.current = null;
+            setDragCreateContext(null);
+          }}
+          onCreate={handleGenesis}
+          parentContext={
+            dragCreateContext
+              ? {
+                  nodeId: dragCreateContext.parentNodeId,
+                  nodeName: dragCreateContext.parentNodeName,
+                  recommendations: dragCreateContext.recommendations,
+                }
+              : undefined
+          }
+        />
+      )}
 
       {contextMenu && (
         <ContextMenu

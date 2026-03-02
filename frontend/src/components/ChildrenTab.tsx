@@ -5,15 +5,7 @@ import Icon from "@mdi/react";
 import { mdiPlus, mdiChevronRight } from "@mdi/js";
 import { resolveMdiIcon } from "@/lib/mdiIcons";
 import { useCanvasStore } from "@/store/canvasStore";
-import type { NanobotNodeData } from "@/types";
-
-interface Recommendation {
-  name: string;
-  genesis_prompt: string;
-  icon: string;
-  emoji: string;
-  description: string;
-}
+import type { NanobotNodeData, Recommendation } from "@/types";
 
 interface ChildNode {
   id: string;

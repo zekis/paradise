@@ -28,3 +28,11 @@ export interface NanobotNodeData extends Record<string, unknown> {
 }
 
 export type NanobotFlowNode = Node<NanobotNodeData, "nanobot">;
+
+export interface Recommendation {
+  name: string;
+  genesis_prompt: string;
+  icon: string;
+  emoji: string;
+  description: string;
+}

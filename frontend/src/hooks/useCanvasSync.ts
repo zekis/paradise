@@ -145,12 +145,19 @@ async function fetchCanvas(
   }
 }
 
-export function useCanvasSync() {
+export interface UseCanvasSyncOptions {
+  onDragToEmpty?: (sourceNodeId: string, sourceHandleId: string, screenPosition: { x: number; y: number }) => void;
+}
+
+export function useCanvasSync(options?: UseCanvasSyncOptions) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [loaded, setLoaded] = useState(false);
   const { setViewport } = useReactFlow();
   const viewportTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectStartRef = useRef<{ nodeId: string; handleId: string } | null>(null);
+  const onDragToEmptyRef = useRef(options?.onDragToEmpty);
+  onDragToEmptyRef.current = options?.onDragToEmpty;
 
   useEffect(() => {
     useCanvasStore.getState().setApi(API);
@@ -249,6 +256,33 @@ export function useCanvasSync() {
     [setEdges]
   );
 
+  const onConnectStart = useCallback(
+    (_event: MouseEvent | TouchEvent, params: { nodeId: string | null; handleId: string | null; handleType: string | null }) => {
+      if (params.nodeId && params.handleId) {
+        connectStartRef.current = { nodeId: params.nodeId, handleId: params.handleId };
+      }
+    },
+    []
+  );
+
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent) => {
+      const startInfo = connectStartRef.current;
+      connectStartRef.current = null;
+      if (!startInfo) return;
+
+      // If the drag ended on a handle, onConnect handles it — skip
+      const target = (event as MouseEvent).target as HTMLElement;
+      if (target?.closest?.(".react-flow__handle")) return;
+
+      const clientX = "changedTouches" in event ? event.changedTouches[0].clientX : (event as MouseEvent).clientX;
+      const clientY = "changedTouches" in event ? event.changedTouches[0].clientY : (event as MouseEvent).clientY;
+
+      onDragToEmptyRef.current?.(startInfo.nodeId, startInfo.handleId, { x: clientX, y: clientY });
+    },
+    []
+  );
+
   const onNodeDragStop = useCallback(
     async (_event: React.MouseEvent, node: Node) => {
       fetch(`${API}/api/nodes/${node.id}`, {
@@ -260,5 +294,5 @@ export function useCanvasSync() {
     []
   );
 
-  return { nodes, edges, loaded, onNodesChange, onEdgesChange, onConnect, onNodeDragStop, saveViewport, setNodes };
+  return { nodes, edges, loaded, onNodesChange, onEdgesChange, onConnect, onConnectStart, onConnectEnd, onNodeDragStop, saveViewport, setNodes };
 }

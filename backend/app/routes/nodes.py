@@ -874,6 +874,8 @@ class ChildNodeCreate(BaseModel):
     description: str | None = None
     position_x: float | None = None
     position_y: float | None = None
+    source_handle: str | None = None
+    target_handle: str | None = None
 
 
 class ChildNodeResponse(BaseModel):
@@ -955,8 +957,8 @@ async def create_child_node(
         source_id=parent_id,
         target_id=node_id,
         edge_type="connection",
-        source_handle="bottom-s",
-        target_handle="top-t",
+        source_handle=payload.source_handle or "bottom-s",
+        target_handle=payload.target_handle or "top-t",
     )
     db.add(edge)
 

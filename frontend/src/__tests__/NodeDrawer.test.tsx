@@ -1,6 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { TEST_API } from "./test-utils";
+
+// Provide EventSource stub for jsdom (used by ChildrenTab)
+beforeAll(() => {
+  global.EventSource = class {
+    onmessage: ((ev: MessageEvent) => void) | null = null;
+    onerror: ((ev: Event) => void) | null = null;
+    close = vi.fn();
+    addEventListener = vi.fn();
+    removeEventListener = vi.fn();
+  } as unknown as typeof EventSource;
+});
 
 vi.mock("@/store/canvasStore", () => ({
   useCanvasStore: () => ({
