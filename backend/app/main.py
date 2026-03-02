@@ -31,9 +31,12 @@ async def reconcile_containers():
         result = await db.execute(select(Node).where(Node.container_id.isnot(None)))
         all_nodes = result.scalars().all()
 
-        # Pass 1: sync status from Docker
-        for node in all_nodes:
-            actual = await asyncio.to_thread(get_container_status, node.container_id)
+        # Pass 1: sync status from Docker (parallel)
+        statuses = await asyncio.gather(*[
+            asyncio.to_thread(get_container_status, n.container_id)
+            for n in all_nodes
+        ])
+        for node, actual in zip(all_nodes, statuses):
             if actual != node.container_status:
                 log.info(
                     "reconcile: node %s (%s) status %s -> %s",
@@ -89,10 +92,11 @@ async def _maintenance_loop():
                 all_nodes = result.scalars().all()
 
                 # --- Container status check (every 30s) ---
-                for node in all_nodes:
-                    actual = await asyncio.to_thread(
-                        get_container_status, node.container_id
-                    )
+                statuses = await asyncio.gather(*[
+                    asyncio.to_thread(get_container_status, n.container_id)
+                    for n in all_nodes
+                ])
+                for node, actual in zip(all_nodes, statuses):
                     if actual != node.container_status:
                         log.info(
                             "maintenance: node %s (%s) status %s -> %s",
@@ -113,67 +117,69 @@ async def _maintenance_loop():
 
                 # --- Identity refresh (every 60s) ---
                 if ticks % (IDENTITY_CHECK_INTERVAL // CONTAINER_CHECK_INTERVAL) == 0:
-                    for node in all_nodes:
-                        if node.container_status != "running":
-                            continue
-                        try:
-                            content = await asyncio.to_thread(
-                                read_workspace_file,
-                                node.container_id,
-                                "identity.json",
-                            )
-                            if not content:
-                                continue
-
-                            identity = json.loads(content)
-
-                            # Sync DB node name back into identity if drifted
-                            if (
-                                isinstance(identity, dict)
-                                and "name" in identity
-                                and identity["name"] != node.name
-                            ):
-                                identity["name"] = node.name
-                                try:
-                                    await asyncio.to_thread(
-                                        write_workspace_file,
-                                        node.container_id,
-                                        "identity.json",
-                                        json.dumps(identity, indent=2),
-                                    )
-                                except Exception:
-                                    pass
-
-                            if identity != node.identity:
-                                node.identity = identity
-                                await emit_event(
-                                    "identity_update",
-                                    node_id=node.id,
-                                    node_name=node.name,
-                                    summary=f'Identity refreshed for "{node.name}"',
-                                )
-
-                            # Sync gauge value from identity.json (only if present)
-                            if isinstance(identity, dict) and "gauge_value" in identity:
-                                raw_gv = identity.get("gauge_value")
-                                if raw_gv is not None:
-                                    try:
-                                        gv = float(raw_gv)
-                                        if 0 <= gv <= 100:
-                                            node.gauge_value = gv
-                                            node.gauge_label = str(identity.get("gauge_label", ""))[:100] or None
-                                    except (TypeError, ValueError):
-                                        pass
-                                else:
-                                    node.gauge_value = None
-                                    node.gauge_label = None
-                        except (json.JSONDecodeError, TypeError):
-                            pass
-                        except Exception as exc:
+                    running_nodes = [n for n in all_nodes if n.container_status == "running"]
+                    # Read all identity files concurrently
+                    identity_contents = await asyncio.gather(*[
+                        asyncio.to_thread(
+                            read_workspace_file, n.container_id, "identity.json"
+                        )
+                        for n in running_nodes
+                    ], return_exceptions=True)
+                    # Apply updates sequentially (DB session safety)
+                    for node, content in zip(running_nodes, identity_contents):
+                        if isinstance(content, Exception):
                             log.debug(
                                 "maintenance: identity read failed for %s: %s",
-                                node.name, exc,
+                                node.name, content,
                             )
+                            continue
+                        if not content:
+                            continue
+                        try:
+                            identity = json.loads(content)
+                        except (json.JSONDecodeError, TypeError):
+                            continue
+
+                        # Sync DB node name back into identity if drifted
+                        if (
+                            isinstance(identity, dict)
+                            and "name" in identity
+                            and identity["name"] != node.name
+                        ):
+                            identity["name"] = node.name
+                            try:
+                                await asyncio.to_thread(
+                                    write_workspace_file,
+                                    node.container_id,
+                                    "identity.json",
+                                    json.dumps(identity, indent=2),
+                                )
+                            except Exception:
+                                pass
+
+                        if identity != node.identity:
+                            node.identity = identity
+                            await emit_event(
+                                "identity_update",
+                                node_id=node.id,
+                                node_name=node.name,
+                                summary=f'Identity refreshed for "{node.name}"',
+                            )
+
+                        # Sync gauge value from identity.json (only if present)
+                        if isinstance(identity, dict) and "gauge_value" in identity:
+                            raw_gv = identity.get("gauge_value")
+                            if raw_gv is not None:
+                                try:
+                                    gv = float(raw_gv)
+                                    if 0 <= gv <= 100:
+                                        node.gauge_value = gv
+                                        node.gauge_label = str(identity.get("gauge_label", ""))[:100] or None
+                                except (TypeError, ValueError):
+                                    pass
+                            else:
+                                node.gauge_value = None
+                                node.gauge_label = None
 
                     await db.commit()
 
