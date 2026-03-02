@@ -107,7 +107,7 @@ Install any pip packages you need: \`await PARADISE.run("pip install requests")\
 After building, your **dashboard.html** should:
 1. Call \`PARADISE.rename("short-name")\` on first load to give this node a meaningful name (e.g. "pve-03" for a Proxmox node, "weather-nyc" for a weather agent). Keep it short (under 15 chars).
 2. Call \`PARADISE.setStatus("ok")\` when everything is working, or \`PARADISE.setStatus("error", "Cannot reach API")\` when there's a fault. Update status on each data refresh.
-3. Call \`PARADISE.setGauge(value, "label", "unit")\` to show a live metric on the node circle. Pick a value meaningful to your role — e.g. CPU usage for a server monitor, open task count for a task manager, disk usage for a storage agent. The unit is the symbol shown after the number (e.g. "%" for percentages, "°C" for temperature, or "" for plain counts). Update it alongside status on each data refresh.
+3. Call \`PARADISE.setGauge(value, "label", "unit")\` to show a live metric on the node circle. Pick a value meaningful to your role. The unit is the symbol shown after the number. Examples: \`await PARADISE.setGauge(cpu_pct, "cpu", "%")\`, \`await PARADISE.setGauge(taskCount, "tasks", "")\`. Update it alongside status on each data refresh.
 
 Start with Step 1 now — ask your clarifying questions.`;
 

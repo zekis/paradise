@@ -153,16 +153,24 @@ async def _maintenance_loop():
                                     summary=f'Identity refreshed for "{node.name}"',
                                 )
 
-                            # Sync gauge value from identity.json (only if present)
-                            if isinstance(identity, dict) and "gauge_value" in identity:
-                                raw_gv = identity.get("gauge_value")
+                            # Sync gauge value from identity.json (flat or nested)
+                            gauge_src = identity if isinstance(identity, dict) else {}
+                            if "gauge" in gauge_src and isinstance(gauge_src["gauge"], dict):
+                                g = gauge_src["gauge"]
+                                gauge_src = {
+                                    "gauge_value": g.get("value", g.get("gauge_value")),
+                                    "gauge_label": g.get("label", g.get("gauge_label", "")),
+                                    "gauge_unit": g.get("unit", g.get("gauge_unit", "")),
+                                }
+                            if "gauge_value" in gauge_src:
+                                raw_gv = gauge_src.get("gauge_value")
                                 if raw_gv is not None:
                                     try:
                                         gv = float(raw_gv)
                                         if 0 <= gv <= 100:
                                             node.gauge_value = gv
-                                            node.gauge_label = str(identity.get("gauge_label", ""))[:100] or None
-                                            node.gauge_unit = str(identity.get("gauge_unit", ""))[:20] or None
+                                            node.gauge_label = str(gauge_src.get("gauge_label", ""))[:100] or None
+                                            node.gauge_unit = str(gauge_src.get("gauge_unit", ""))[:20] or None
                                     except (TypeError, ValueError):
                                         pass
                                 else:
