@@ -21,6 +21,7 @@ import { InfoTab } from "./InfoTab";
 import { FileTab } from "./FileTab";
 import { HtmlTab } from "./HtmlTab";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
+import { resolveMdiIcon } from "@/lib/mdiIcons";
 import type { NanobotNodeData } from "@/types";
 
 type TopTab = "chat" | "object" | "agent" | "config" | "logs" | "info";
@@ -198,7 +199,9 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
-          {identity?.emoji ? (
+          {identity?.icon && resolveMdiIcon(identity.icon) ? (
+            <Icon path={resolveMdiIcon(identity.icon)!} size={0.55} color={identityColor || "var(--text-muted)"} style={{ flexShrink: 0 }} />
+          ) : identity?.emoji ? (
             <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0 }}>{identity.emoji}</span>
           ) : (
             <span

@@ -12,6 +12,7 @@ import {
 } from "@mdi/js";
 import type { Node, Edge } from "@xyflow/react";
 import { useCanvasStore } from "@/store/canvasStore";
+import { resolveMdiIcon } from "@/lib/mdiIcons";
 import type { NanobotNodeData } from "@/types";
 
 const DRAWER_WIDTH = 240;
@@ -23,6 +24,7 @@ interface TreeNode {
   id: string;
   label: string;
   emoji?: string;
+  icon?: string;
   color?: string;
   agentStatus: string | null;
   containerStatus: string | null;
@@ -91,6 +93,7 @@ function buildTree(nodes: Node[], edges: Edge[]): TreeNode[] {
       id,
       label: data.label,
       emoji: data.identity?.emoji,
+      icon: data.identity?.icon,
       color: data.identity?.color,
       agentStatus: data.agentStatus ?? null,
       containerStatus: data.containerStatus ?? null,
@@ -183,8 +186,10 @@ function TreeItem({
           <span style={{ width: 14, flexShrink: 0 }} />
         )}
 
-        {/* Emoji or robot icon */}
-        {node.emoji ? (
+        {/* Icon badge */}
+        {node.icon && resolveMdiIcon(node.icon) ? (
+          <Icon path={resolveMdiIcon(node.icon)!} size={0.55} color={node.color || "var(--text-muted)"} style={{ flexShrink: 0 }} />
+        ) : node.emoji ? (
           <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{node.emoji}</span>
         ) : (
           <Icon path={mdiRobot} size={0.55} color="var(--text-muted)" style={{ flexShrink: 0 }} />

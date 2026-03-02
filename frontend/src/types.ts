@@ -7,6 +7,7 @@ export interface NodeIdentityTab {
 
 export interface NodeIdentity {
   emoji?: string;
+  icon?: string;
   color?: string;
   description?: string;
   tabs?: NodeIdentityTab[];

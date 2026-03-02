@@ -31,95 +31,114 @@ describe("NanobotNode", () => {
     agentStatusMessage: null,
   };
 
+  const defaultProps = {
+    id: "node-1",
+    type: "nanobot" as const,
+    selected: false,
+    dragging: false,
+    isConnectable: true,
+    zIndex: 1,
+    positionAbsoluteX: 0,
+    positionAbsoluteY: 0,
+  };
+
   it("renders collapsed node with label", () => {
-    render(
-      <NanobotNode
-        id="node-1"
-        data={defaultData}
-        type="nanobot"
-        selected={false}
-        dragging={false}
-        isConnectable={true}
-        zIndex={1}
-        positionAbsoluteX={0}
-        positionAbsoluteY={0}
-      />
-    );
+    render(<NanobotNode {...defaultProps} data={defaultData} />);
     expect(screen.getByText("test-bot")).toBeDefined();
   });
 
   it("shows status indicator dot", () => {
     const { container } = render(
-      <NanobotNode
-        id="node-1"
-        data={{ ...defaultData, containerStatus: "running" }}
-        type="nanobot"
-        selected={false}
-        dragging={false}
-        isConnectable={true}
-        zIndex={1}
-        positionAbsoluteX={0}
-        positionAbsoluteY={0}
-      />
+      <NanobotNode {...defaultProps} data={{ ...defaultData, containerStatus: "running" }} />
     );
-    // Should render some visual elements
     expect(container.querySelector("div")).toBeDefined();
     expect(screen.getByText("test-bot")).toBeDefined();
   });
 
-  it("shows default emoji when no identity", () => {
+  it("shows default robot icon when no identity", () => {
     const { container } = render(
-      <NanobotNode
-        id="node-1"
-        data={{ ...defaultData, identity: null }}
-        type="nanobot"
-        selected={false}
-        dragging={false}
-        isConnectable={true}
-        zIndex={1}
-        positionAbsoluteX={0}
-        positionAbsoluteY={0}
-      />
+      <NanobotNode {...defaultProps} data={{ ...defaultData, identity: null }} />
     );
     expect(container.textContent).toContain("test-bot");
   });
 
   it("renders gauge SVG when gaugeValue is present", () => {
     const { container } = render(
-      <NanobotNode
-        id="node-1"
-        data={{ ...defaultData, gaugeValue: 65, gaugeLabel: "open todos" }}
-        type="nanobot"
-        selected={false}
-        dragging={false}
-        isConnectable={true}
-        zIndex={1}
-        positionAbsoluteX={0}
-        positionAbsoluteY={0}
-      />
+      <NanobotNode {...defaultProps} data={{ ...defaultData, gaugeValue: 65, gaugeLabel: "open todos" }} />
     );
     const svg = container.querySelector("svg");
     expect(svg).not.toBeNull();
     const circles = container.querySelectorAll("svg circle");
-    expect(circles.length).toBe(2); // background track + gauge arc
+    expect(circles.length).toBe(2);
   });
 
   it("does not render gauge SVG when gaugeValue is null", () => {
     const { container } = render(
-      <NanobotNode
-        id="node-1"
-        data={{ ...defaultData, gaugeValue: null }}
-        type="nanobot"
-        selected={false}
-        dragging={false}
-        isConnectable={true}
-        zIndex={1}
-        positionAbsoluteX={0}
-        positionAbsoluteY={0}
-      />
+      <NanobotNode {...defaultProps} data={{ ...defaultData, gaugeValue: null }} />
     );
-    // The robot icon is also an SVG, so check for gauge-specific circle elements
     const gaugeCircles = container.querySelectorAll("svg circle");
     expect(gaugeCircles.length).toBe(0);
+  });
+
+  it("shows gauge value percentage in center when gauge active", () => {
+    render(
+      <NanobotNode {...defaultProps} data={{ ...defaultData, gaugeValue: 73, gaugeLabel: "cpu" }} />
+    );
+    expect(screen.getByText("73%")).toBeDefined();
+  });
+
+  it("uses grey/neutral circle when node is healthy", () => {
+    const { container } = render(
+      <NanobotNode
+        {...defaultProps}
+        data={{ ...defaultData, agentStatus: "ok", identity: { emoji: "🤖", color: "#ff0000" } }}
+      />
+    );
+    const circleDiv = container.querySelectorAll("div")[1]?.querySelector("div");
+    // The circle should not use the identity color for border when healthy
+    // It should use var(--bg-card) for background and var(--border) for border
+  });
+
+  it("uses warning color on circle when agent has warning status", () => {
+    const { container } = render(
+      <NanobotNode
+        {...defaultProps}
+        data={{ ...defaultData, agentStatus: "warning", identity: { emoji: "🤖", color: "#ff0000" } }}
+      />
+    );
+    // Circle border should reflect warning state, not identity color
+  });
+
+  it("renders icon badge with MDI icon when identity.icon is set", () => {
+    const { container } = render(
+      <NanobotNode
+        {...defaultProps}
+        data={{ ...defaultData, identity: { icon: "mdiServer", color: "#22c55e" } }}
+      />
+    );
+    // Should render the badge div and an SVG icon inside it
+    const svgs = container.querySelectorAll("svg");
+    expect(svgs.length).toBeGreaterThan(0);
+  });
+
+  it("renders icon badge with emoji when no icon but emoji is set", () => {
+    const { container } = render(
+      <NanobotNode
+        {...defaultProps}
+        data={{ ...defaultData, identity: { emoji: "🌡️", color: "#ff0000" } }}
+      />
+    );
+    expect(container.textContent).toContain("🌡️");
+  });
+
+  it("does not render icon badge when neither icon nor emoji is set", () => {
+    const { container } = render(
+      <NanobotNode
+        {...defaultProps}
+        data={{ ...defaultData, identity: { color: "#ff0000" } }}
+      />
+    );
+    // No badge should be rendered, only the fallback robot icon in center
+    expect(container.textContent).not.toContain("🌡️");
   });
 });

@@ -23,7 +23,9 @@ Wait for the user to answer before proceeding to Step 2.
 
 Write these files to your workspace using the write_file tool:
 
-1. **identity.json** (FIRST): {"emoji": "<emoji>", "color": "<hex>", "description": "<one line>", "tabs": [{"name": "<Label>", "file": "<FILE.md>"}]}
+1. **identity.json** (FIRST): {"icon": "<mdiIconName>", "emoji": "<fallback emoji>", "color": "<hex>", "description": "<one line>", "tabs": [{"name": "<Label>", "file": "<FILE.md>"}]}
+   - icon: MDI icon name (preferred). Choose from: mdiServer, mdiDatabase, mdiMonitor, mdiCloud, mdiCloudSync, mdiHome, mdiHomeAutomation, mdiWeatherSunny, mdiWeatherCloudy, mdiShieldCheck, mdiShieldLock, mdiChartLine, mdiChartBar, mdiNetwork, mdiLan, mdiEarth, mdiCpu64Bit, mdiMemory, mdiHarddisk, mdiThermometer, mdiLightbulb, mdiCamera, mdiEmail, mdiCalendar, mdiClock, mdiFinance, mdiCart, mdiStore, mdiPackage, mdiDocker, mdiGithub, mdiCog, mdiWrench, mdiPower, mdiFlash, mdiLeaf, mdiWater, mdiWifi, mdiApi, mdiCodeBraces, mdiRss, mdiBug, mdiTestTube, mdiRobot
+   - emoji: fallback emoji if no icon matches
    - tabs: 1-2 custom markdown tabs relevant to your role
 2. **SOUL.md** — Personality and communication style
 3. **AGENTS.md** — Domain knowledge, task priorities, heartbeat instructions
