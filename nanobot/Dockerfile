@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends git openssh-cli
 COPY --from=nanobot-src . /tmp/nanobot-src
 RUN pip install --no-cache-dir /tmp/nanobot-src websockets && rm -rf /tmp/nanobot-src
 
+# Copy platform docs (read-only reference for agents and users)
+COPY --from=docs . /root/docs
+
 # Create default workspace and SSH directory with correct permissions
 RUN mkdir -p /root/.nanobot/workspace /root/.ssh && chmod 700 /root/.ssh
 

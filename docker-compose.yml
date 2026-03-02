@@ -48,6 +48,7 @@ services:
       context: ./nanobot
       additional_contexts:
         nanobot-src: ./nanobot-src
+        docs: ./docs
     image: paradise-nanobot
     entrypoint: ["true"]
     restart: "no"

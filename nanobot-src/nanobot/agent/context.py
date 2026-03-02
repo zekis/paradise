@@ -70,6 +70,7 @@ Your workspace is at: {workspace_path}
 - Long-term memory: {workspace_path}/memory/MEMORY.md (write important facts here)
 - History log: {workspace_path}/memory/HISTORY.md (grep-searchable)
 - Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md
+- Platform docs: /root/docs (read PARADISE_API.md for identity.json format and JS API reference)
 
 ## nanobot Guidelines
 - State intent before tool calls, but NEVER predict or claim results before receiving them.
@@ -115,6 +116,9 @@ Reply directly with text for conversations. Only use the 'message' tool to send 
 
             if not any(network.get(r) for r in ("parents", "children", "siblings")):
                 lines.append("No connected peers.")
+
+        lines.append("")
+        lines.append("Tip: Read /root/docs/PARADISE_API.md for identity.json format and JS API reference.")
 
         return ContextBuilder._RUNTIME_CONTEXT_TAG + "\n" + "\n".join(lines)
     
