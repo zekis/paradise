@@ -21,3 +21,13 @@ Get USER_ID and CHANNEL from the current session (e.g., `8281248569` and `telegr
 - **Rewrite**: `write_file` to replace all tasks
 
 When the user asks for a recurring/periodic task, update `HEARTBEAT.md` instead of creating a one-time cron reminder.
+
+## Paradise State Updates
+
+Use the `set_paradise_state` tool to update your node's appearance on the canvas. This works without any dashboard HTML.
+
+- **Gauge** — show a progress ring (0-100) on your node icon: `set_paradise_state(gauge_value=73, gauge_label="cpu", gauge_unit="%")`
+- **Status** — set the status indicator dot: `set_paradise_state(status="ok")` or `set_paradise_state(status="error", status_message="API down")`
+- **Both** — set gauge and status in one call
+
+Use this during heartbeat tasks, after completing work, or when monitoring detects a change. Updates appear on the canvas immediately.

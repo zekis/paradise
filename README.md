@@ -17,6 +17,7 @@ Browser (Next.js 15 / React Flow)
   ├── Canvas API    /api/canvas
   ├── Nodes API     /api/nodes
   ├── Edges API     /api/edges
+  ├── SSE Stream    /api/events/stream    ← real-time state push
   └── Chat Relay    /api/nodes/{id}/chat  ← WebSocket bridge
        │                │
        │ SQLAlchemy     │ Docker SDK (unix socket)
@@ -37,6 +38,8 @@ Chat uses a three-layer WebSocket relay: browser → FastAPI → nanobot contain
 - **Genesis** — describe what an agent should be; it writes its own `identity.json`, HTML dashboards, and `api.py` scripts
 - **Node inspector** — side drawer with tabs: Chat, Object (dashboard/config/commands/children), Agent files, Config, Logs, Info/Stats
 - **PARADISE Bridge API** — JavaScript API injected into agent-rendered iframes: `exec()`, `run()`, `readFile()`, `writeFile()`, `rename()`, `setStatus()`
+- **Agent state tool** — agents can call `set_paradise_state` to update their gauge/status directly, no dashboard HTML required
+- **Real-time SSE** — backend broadcasts state changes (gauge, status, identity, container) to all connected frontends via Server-Sent Events
 - **Agent status signaling** — agents call `setStatus(ok|warning|error)` to update the status dot on the canvas
 - **Global settings** — default nanobot config and agent file templates applied to every new container
 - **Dark theme** — CSS custom properties, system-ui font stack
@@ -120,6 +123,8 @@ await PARADISE.setStatus("ok", "All systems nominal");
 // Set the analog gauge ring on the canvas node (0-100)
 await PARADISE.setGauge(73, "cpu", "%");
 ```
+
+Agents can also update gauge and status **without dashboard HTML** using the built-in `set_paradise_state` tool or by calling the REST API directly. See `docs/PARADISE_API.md` for details.
 
 ## Workspace Files
 

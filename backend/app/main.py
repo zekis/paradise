@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
+from app.broadcast import broadcast
 from app.db import Node, async_session, engine, create_tables, emit_event
 from app.docker_ops import get_container_status, read_workspace_file, write_workspace_file
 from app.routes import canvas, nodes, edges, chat, events
@@ -112,6 +113,10 @@ async def _maintenance_loop():
                             summary=f'{node.name}: {old_status} -> {actual}',
                             details={"old_status": old_status, "new_status": actual},
                         )
+                        await broadcast.publish("container_status", {
+                            "node_id": str(node.id),
+                            "container_status": actual,
+                        })
 
                 await db.commit()
 
@@ -165,6 +170,10 @@ async def _maintenance_loop():
                                 node_name=node.name,
                                 summary=f'Identity refreshed for "{node.name}"',
                             )
+                            await broadcast.publish("identity_update", {
+                                "node_id": str(node.id),
+                                "identity": identity,
+                            })
 
                         # Sync gauge value from identity.json (flat or nested)
                         gauge_src = identity if isinstance(identity, dict) else {}
@@ -176,6 +185,7 @@ async def _maintenance_loop():
                                 "gauge_unit": g.get("unit", g.get("gauge_unit", "")),
                             }
                         if "gauge_value" in gauge_src:
+                            old_gv = node.gauge_value
                             raw_gv = gauge_src.get("gauge_value")
                             if raw_gv is not None:
                                 try:
@@ -190,6 +200,13 @@ async def _maintenance_loop():
                                 node.gauge_value = None
                                 node.gauge_label = None
                                 node.gauge_unit = None
+                            if node.gauge_value != old_gv:
+                                await broadcast.publish("gauge", {
+                                    "node_id": str(node.id),
+                                    "gauge_value": node.gauge_value,
+                                    "gauge_label": node.gauge_label,
+                                    "gauge_unit": node.gauge_unit,
+                                })
 
                     await db.commit()
 
