@@ -471,6 +471,14 @@ Get USER_ID and CHANNEL from the current session.
 - **Rewrite**: `write_file` to replace all tasks
 
 When the user asks for a recurring/periodic task, update `HEARTBEAT.md` instead of creating a one-time cron reminder.
+
+## Child Node Recommendations
+
+Write a `recommendations.json` file to suggest child nanobot nodes. Each recommendation appears as a "Create" button in your node's Children tab. When clicked, the system creates a child node connected to you and runs genesis with your context included.
+
+Use shell commands or api.py to discover real services (VMs, containers, databases, etc.) before recommending. Include connection details in each `genesis_prompt` so the child can connect without re-asking the user.
+
+See `/root/docs/PARADISE_API.md` for the full format and field reference.
 """,
     "USER.md": """# User Profile
 
