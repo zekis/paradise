@@ -1,6 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { TEST_API } from "./test-utils";
+
+// Provide EventSource stub for jsdom
+beforeAll(() => {
+  global.EventSource = class {
+    onmessage: ((ev: MessageEvent) => void) | null = null;
+    onerror: ((ev: Event) => void) | null = null;
+    close = vi.fn();
+    addEventListener = vi.fn();
+    removeEventListener = vi.fn();
+  } as unknown as typeof EventSource;
+});
 
 // Must mock before importing useCanvasSync
 vi.mock("@xyflow/react", () => ({
@@ -23,6 +34,7 @@ vi.mock("@/store/canvasStore", () => {
     setUpdateNodeAgentStatus: vi.fn(),
     setUpdateNodeGauge: vi.fn(),
     setAddNode: vi.fn(),
+    setAddEdge: vi.fn(),
     getState: () => state,
   };
   const useCanvasStore = Object.assign(
@@ -51,6 +63,8 @@ describe("useCanvasSync", () => {
     expect(typeof result.current.onEdgesChange).toBe("function");
     expect(typeof result.current.onConnect).toBe("function");
     expect(typeof result.current.onNodeDragStop).toBe("function");
+    expect(typeof result.current.onConnectStart).toBe("function");
+    expect(typeof result.current.onConnectEnd).toBe("function");
     expect(typeof result.current.saveViewport).toBe("function");
   });
 });

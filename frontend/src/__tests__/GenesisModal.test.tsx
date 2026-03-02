@@ -19,7 +19,7 @@ describe("GenesisModal", () => {
     const onCreate = vi.fn();
     render(<GenesisModal onClose={vi.fn()} onCreate={onCreate} />);
     fireEvent.click(screen.getByText("Skip"));
-    expect(onCreate).toHaveBeenCalledWith(null);
+    expect(onCreate).toHaveBeenCalledWith({ genesisPrompt: null });
   });
 
   it("calls onClose when backdrop clicked", () => {

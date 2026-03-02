@@ -1,5 +1,16 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeAll } from "vitest";
 import { render, screen } from "@testing-library/react";
+
+// Provide EventSource stub for jsdom
+beforeAll(() => {
+  global.EventSource = class {
+    onmessage: ((ev: MessageEvent) => void) | null = null;
+    onerror: ((ev: Event) => void) | null = null;
+    close = vi.fn();
+    addEventListener = vi.fn();
+    removeEventListener = vi.fn();
+  } as unknown as typeof EventSource;
+});
 
 // Mock ReactFlow and related hooks - inline values to avoid hoisting issues
 vi.mock("@xyflow/react", () => ({
@@ -28,6 +39,7 @@ vi.mock("@/store/canvasStore", () => {
     setUpdateNodeAgentStatus: vi.fn(),
     setUpdateNodeGauge: vi.fn(),
     setAddNode: vi.fn(),
+    setAddEdge: vi.fn(),
   };
   const useCanvasStore = Object.assign(
     (selector?: (s: typeof state) => unknown) => (selector ? selector(state) : state),
