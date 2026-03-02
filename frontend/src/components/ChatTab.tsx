@@ -102,6 +102,39 @@ Install any pip packages you need: \`await PARADISE.run("pip install requests")\
 
 **Persistence**: config.html saves settings to \`settings.json\` via PARADISE.writeFile(). api.py reads settings.json for connection params.
 
+## Step 3: Recommend Child Nodes (after building)
+
+After writing your workspace files, explore what you manage and recommend child nanobot nodes.
+Think about what sub-systems, services, or devices your target manages that would benefit from their own dedicated nanobot. For example:
+- A Proxmox hypervisor → recommend one node per VM (SSH wrapper for each)
+- A Linux server → recommend nodes for major services (Docker, databases, web server)
+- A Docker host → recommend one node per container or compose stack
+- A network device → recommend nodes for connected devices or VLANs
+
+Use api.py / \`PARADISE.run()\` to **discover real services** before recommending. Do NOT hallucinate — only recommend nodes you can concretely discover.
+
+Write a **recommendations.json** file using the write_file tool:
+\`\`\`json
+{
+  "recommendations": [
+    {
+      "name": "short-name",
+      "genesis_prompt": "Detailed description of what this child nanobot should manage. Include connection details, IP addresses, ports, credentials references from parent settings.json, and any other context needed to connect.",
+      "icon": "mdiIconName",
+      "emoji": "fallback emoji",
+      "description": "One-line description shown on the create button"
+    }
+  ]
+}
+\`\`\`
+
+Guidelines:
+- Each genesis_prompt should include enough context for the child to connect without asking the user again
+- Reference connection details from your settings.json where relevant
+- If you cannot discover any child services (or it doesn't make sense for your role), write: \`{"recommendations": []}\`
+- Keep recommendations to 10 or fewer
+- Use short, descriptive names (e.g. "vm-101", "docker-host", "postgres-main")
+
 ## Self-Naming & Status
 
 After building, your **dashboard.html** should:

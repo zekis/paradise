@@ -31,3 +31,11 @@ Use the `set_paradise_state` tool to update your node's appearance on the canvas
 - **Both** — set gauge and status in one call
 
 Use this during heartbeat tasks, after completing work, or when monitoring detects a change. Updates appear on the canvas immediately.
+
+## Child Node Recommendations
+
+Write a `recommendations.json` file to suggest child nanobot nodes. Each recommendation appears as a "Create" button in your node's Children tab. When clicked, the system creates a child node connected to you and runs genesis with your context included.
+
+Use shell commands or api.py to discover real services (VMs, containers, databases, etc.) before recommending. Include connection details in each `genesis_prompt` so the child can connect without re-asking the user.
+
+See `/root/docs/PARADISE_API.md` for the full format and field reference.

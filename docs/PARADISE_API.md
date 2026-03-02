@@ -39,6 +39,51 @@ Written to your workspace during genesis. Defines your node's appearance on the 
 
 `mdiServer`, `mdiServerNetwork`, `mdiDatabase`, `mdiMonitor`, `mdiCloud`, `mdiCloudSync`, `mdiHome`, `mdiHomeAutomation`, `mdiWeatherSunny`, `mdiWeatherCloudy`, `mdiWeatherPartlyCloudy`, `mdiShieldCheck`, `mdiShieldLock`, `mdiLock`, `mdiChartLine`, `mdiChartBar`, `mdiChartPie`, `mdiNetwork`, `mdiLan`, `mdiEarth`, `mdiCpu64Bit`, `mdiMemory`, `mdiHarddisk`, `mdiThermometer`, `mdiLightbulb`, `mdiLightbulbOn`, `mdiCamera`, `mdiCameraIris`, `mdiEmail`, `mdiCalendar`, `mdiClock`, `mdiAlarm`, `mdiBell`, `mdiChat`, `mdiFinance`, `mdiCurrencyBtc`, `mdiCurrencyUsd`, `mdiCart`, `mdiStore`, `mdiPackage`, `mdiDocker`, `mdiGithub`, `mdiCog`, `mdiWrench`, `mdiPower`, `mdiFlash`, `mdiLeaf`, `mdiWater`, `mdiWifi`, `mdiDownload`, `mdiUpload`, `mdiSync`, `mdiFileDocument`, `mdiFolder`, `mdiMapMarker`, `mdiNavigation`, `mdiBattery`, `mdiMusic`, `mdiSpeaker`, `mdiPrinter`, `mdiApi`, `mdiCodeBraces`, `mdiBookOpenVariant`, `mdiRss`, `mdiBug`, `mdiTestTube`, `mdiMicroscope`, `mdiRobot`
 
+## recommendations.json
+
+Written to your workspace to suggest child nanobot nodes. The platform reads this file and displays each recommendation as a "Create" button in the parent node's **Children** tab. When the user clicks "Create", the system spawns a new child node, connects it to you with an edge, and runs genesis on it with your context (identity, settings) included.
+
+You can write this file during genesis, after discovery, or anytime (e.g., during a heartbeat task when you detect new services).
+
+```json
+{
+  "recommendations": [
+    {
+      "name": "vm-101",
+      "genesis_prompt": "SSH wrapper for Proxmox VM 101 (Ubuntu 22.04) at 10.0.0.101. Use SSH key from parent settings.json.",
+      "icon": "mdiServer",
+      "emoji": "🖥️",
+      "description": "SSH access to VM 101"
+    },
+    {
+      "name": "docker-host",
+      "genesis_prompt": "Docker container manager for the Docker daemon on this server. List and monitor running containers.",
+      "icon": "mdiDocker",
+      "emoji": "🐳",
+      "description": "Docker container management"
+    }
+  ]
+}
+```
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Short name for the child node (max 60 chars, e.g. "vm-101", "postgres-main") |
+| `genesis_prompt` | string | Yes | Full genesis prompt for the child. Include connection details, IPs, ports, and references to credentials in your settings.json. |
+| `icon` | string | No | MDI icon name for the create button (see icon list above) |
+| `emoji` | string | No | Fallback emoji if no icon matches |
+| `description` | string | No | One-line description shown on the button (max 200 chars) |
+
+### Guidelines
+
+- **Only recommend real services you can discover** — use `api.py` or shell commands to list VMs, containers, services, etc. before writing recommendations. Do not hallucinate.
+- **Include connection context** in each `genesis_prompt` — the child needs enough detail to connect without re-asking the user (IPs, ports, credential references).
+- **Max 10 recommendations** — the platform truncates beyond this.
+- **Update anytime** — overwrite recommendations.json when you discover new services or when existing recommendations are stale.
+- **Empty is fine** — if nothing to recommend, write `{"recommendations": []}`.
+
 ## Agent Tool — `set_paradise_state`
 
 Available as a built-in tool when running inside Paradise. No dashboard HTML required — the agent can call this directly during chat, heartbeat tasks, or any tool execution.

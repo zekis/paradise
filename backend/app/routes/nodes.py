@@ -16,6 +16,7 @@ from app.docker_ops import (
     get_container_logs,
     get_container_stats,
     get_container_status,
+    list_workspace_files,
     restart_nanobot_container,
     stop_nanobot_container,
     read_nanobot_config,
@@ -407,7 +408,7 @@ async def get_node_stats(node_id: UUID, db: AsyncSession = Depends(get_db)):
 ALLOWED_WORKSPACE_FILES = {
     "SOUL.md", "AGENTS.md", "USER.md", "HEARTBEAT.md", "TOOLS.md", "identity.json",
     "dashboard.html", "config.html", "commands.html", "children.html",
-    "settings.json", "api.py",
+    "settings.json", "api.py", "recommendations.json",
 }
 
 
@@ -471,6 +472,14 @@ Get USER_ID and CHANNEL from the current session.
 - **Rewrite**: `write_file` to replace all tasks
 
 When the user asks for a recurring/periodic task, update `HEARTBEAT.md` instead of creating a one-time cron reminder.
+
+## Child Node Recommendations
+
+Write a `recommendations.json` file to suggest child nanobot nodes. Each recommendation appears as a "Create" button in your node's Children tab. When clicked, the system creates a child node connected to you and runs genesis with your context included.
+
+Use shell commands or api.py to discover real services (VMs, containers, databases, etc.) before recommending. Include connection details in each `genesis_prompt` so the child can connect without re-asking the user.
+
+See `/root/docs/PARADISE_API.md` for the full format and field reference.
 """,
     "USER.md": """# User Profile
 
@@ -557,6 +566,60 @@ async def put_workspace_file(node_id: UUID, filename: str, payload: dict, db: As
         raise HTTPException(status_code=404, detail="Node or container not found")
     if filename not in _allowed_files_for_node(node):
         raise HTTPException(status_code=400, detail="File not allowed")
+    await asyncio.to_thread(
+        write_workspace_file, node.container_id, filename, payload.get("content", "")
+    )
+    return {"ok": True}
+
+
+def _is_safe_filename(filename: str) -> bool:
+    """Check that a filename is safe (no path traversal, no absolute paths)."""
+    return (
+        bool(filename)
+        and "/" not in filename
+        and "\\" not in filename
+        and ".." not in filename
+        and not filename.startswith(".")
+    )
+
+
+@router.get("/nodes/{node_id}/workspace")
+async def list_node_workspace(node_id: UUID, db: AsyncSession = Depends(get_db)):
+    """List all files in a node's workspace directory."""
+    node = await db.get(Node, node_id)
+    if not node or not node.container_id:
+        raise HTTPException(status_code=404, detail="Node or container not found")
+    files = await asyncio.to_thread(list_workspace_files, node.container_id)
+    # Check if config.json exists
+    config = await asyncio.to_thread(read_nanobot_config, node.container_id)
+    has_config = bool(config)
+    return {"files": files, "has_config": has_config}
+
+
+@router.get("/nodes/{node_id}/workspace/{filename}")
+async def get_workspace_file_unrestricted(
+    node_id: UUID, filename: str, db: AsyncSession = Depends(get_db),
+):
+    """Read any file from the workspace (no allowlist, just path safety)."""
+    node = await db.get(Node, node_id)
+    if not node or not node.container_id:
+        raise HTTPException(status_code=404, detail="Node or container not found")
+    if not _is_safe_filename(filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    content = await asyncio.to_thread(read_workspace_file, node.container_id, filename)
+    return {"filename": filename, "content": content or ""}
+
+
+@router.put("/nodes/{node_id}/workspace/{filename}")
+async def put_workspace_file_unrestricted(
+    node_id: UUID, filename: str, payload: dict, db: AsyncSession = Depends(get_db),
+):
+    """Write any file to the workspace (no allowlist, just path safety)."""
+    node = await db.get(Node, node_id)
+    if not node or not node.container_id:
+        raise HTTPException(status_code=404, detail="Node or container not found")
+    if not _is_safe_filename(filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
     await asyncio.to_thread(
         write_workspace_file, node.container_id, filename, payload.get("content", "")
     )
@@ -769,3 +832,147 @@ async def get_peer_config(node_id: UUID, peer_id: UUID, db: AsyncSession = Depen
         "config": config,
         "workspace_files": workspace_files,
     }
+
+
+@router.get("/nodes/{node_id}/recommendations")
+async def get_recommendations(node_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Read recommendations.json from a node's container and return validated entries."""
+    node = await db.get(Node, node_id)
+    if not node or not node.container_id:
+        raise HTTPException(status_code=404, detail="Node or container not found")
+
+    content = await asyncio.to_thread(
+        read_workspace_file, node.container_id, "recommendations.json"
+    )
+    if not content:
+        return {"recommendations": []}
+
+    try:
+        data = json.loads(content)
+        recs = data if isinstance(data, list) else data.get("recommendations", [])
+        validated = []
+        for r in recs:
+            if not isinstance(r, dict) or not r.get("name") or not r.get("genesis_prompt"):
+                continue
+            validated.append({
+                "name": str(r["name"])[:60],
+                "genesis_prompt": str(r["genesis_prompt"]),
+                "icon": str(r.get("icon", "")),
+                "emoji": str(r.get("emoji", "")),
+                "description": str(r.get("description", ""))[:200],
+            })
+        return {"recommendations": validated[:10]}
+    except (json.JSONDecodeError, TypeError):
+        return {"recommendations": []}
+
+
+class ChildNodeCreate(BaseModel):
+    name: str
+    genesis_prompt: str
+    icon: str | None = None
+    emoji: str | None = None
+    description: str | None = None
+    position_x: float | None = None
+    position_y: float | None = None
+
+
+class ChildNodeResponse(BaseModel):
+    node: NodeRead
+    edge_id: UUID
+    genesis_prompt: str
+
+
+@router.post("/nodes/{parent_id}/children", response_model=ChildNodeResponse)
+async def create_child_node(
+    parent_id: UUID,
+    payload: ChildNodeCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a child node from a recommendation, auto-creating the parent->child edge."""
+    parent = await db.get(Node, parent_id)
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent node not found")
+
+    # Position child near parent
+    pos_x = payload.position_x if payload.position_x is not None else parent.position_x + 120
+    pos_y = payload.position_y if payload.position_y is not None else parent.position_y + 150
+
+    # Enrich genesis prompt with parent context
+    parts = [payload.genesis_prompt, "\n\n## Parent Context", f"Parent node: {parent.name}"]
+    if parent.identity:
+        parts.append(f"Parent identity: {json.dumps(parent.identity)}")
+    if parent.container_id:
+        settings_content = await asyncio.to_thread(
+            read_workspace_file, parent.container_id, "settings.json"
+        )
+        if settings_content:
+            parts.append(f"Parent settings: {settings_content}")
+    enriched_prompt = "\n".join(parts)
+
+    # Create child node
+    node_id = uuid4()
+    node = Node(
+        id=node_id,
+        name=payload.name,
+        position_x=pos_x,
+        position_y=pos_y,
+    )
+
+    try:
+        container_id = await asyncio.to_thread(
+            create_nanobot_container, str(node_id), payload.name
+        )
+        node.container_id = container_id
+        node.container_status = "running"
+
+        canvas_state = await db.get(CanvasState, "default")
+        if canvas_state and canvas_state.default_nanobot_config:
+            await asyncio.to_thread(
+                write_nanobot_config, container_id, canvas_state.default_nanobot_config
+            )
+            node.config = canvas_state.default_nanobot_config
+
+        templates = (
+            canvas_state.default_agent_templates
+            if canvas_state and canvas_state.default_agent_templates
+            else DEFAULT_TEMPLATES
+        )
+        batch = {
+            fn: content for fn, content in templates.items()
+            if fn in ALLOWED_WORKSPACE_FILES and content
+        }
+        if batch:
+            await asyncio.to_thread(write_workspace_files_batch, container_id, batch)
+    except Exception as exc:
+        node.container_status = "error"
+        node.config = {"error": str(exc)}
+
+    db.add(node)
+
+    # Create edge: parent -> child
+    edge = Edge(
+        id=uuid4(),
+        source_id=parent_id,
+        target_id=node_id,
+        edge_type="connection",
+        source_handle="bottom-s",
+        target_handle="top-t",
+    )
+    db.add(edge)
+
+    await db.commit()
+    await db.refresh(node)
+
+    await emit_event(
+        "child_node_created",
+        node_id=node.id,
+        node_name=node.name,
+        summary=f'Child "{node.name}" created from "{parent.name}"',
+        details={"parent_id": str(parent_id), "parent_name": parent.name},
+    )
+
+    return ChildNodeResponse(
+        node=NodeRead.model_validate(node),
+        edge_id=edge.id,
+        genesis_prompt=enriched_prompt,
+    )

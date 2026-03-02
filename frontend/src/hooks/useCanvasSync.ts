@@ -74,6 +74,13 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
       { id: node.id, type: "nanobot" as const, position: node.position, data: node.data, style: { width: 80, height: 92 } },
     ]);
   });
+
+  store.setAddEdge((edge: { id: string; source: string; target: string; sourceHandle?: string; targetHandle?: string }) => {
+    setEdges((eds) => [
+      ...eds,
+      { id: edge.id, source: edge.source, target: edge.target, type: "smoothstep" as const, sourceHandle: edge.sourceHandle, targetHandle: edge.targetHandle },
+    ]);
+  });
 }
 
 async function fetchCanvas(

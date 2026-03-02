@@ -210,6 +210,26 @@ async def _maintenance_loop():
 
                     await db.commit()
 
+                    # --- Recommendations check (alongside identity refresh) ---
+                    recs_contents = await asyncio.gather(*[
+                        asyncio.to_thread(
+                            read_workspace_file, n.container_id, "recommendations.json"
+                        )
+                        for n in running_nodes
+                    ], return_exceptions=True)
+                    for node, content in zip(running_nodes, recs_contents):
+                        if isinstance(content, Exception) or not content:
+                            continue
+                        try:
+                            data = json.loads(content)
+                            recs = data if isinstance(data, list) else data.get("recommendations", [])
+                            if recs:
+                                await broadcast.publish("recommendations_ready", {
+                                    "node_id": str(node.id),
+                                })
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+
         except asyncio.CancelledError:
             log.info("maintenance loop cancelled")
             raise

@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.broadcast import broadcast
 from app.db import ChatMessage, Edge, Node, async_session, emit_event, get_db
 from app.docker_ops import read_workspace_file, write_workspace_file
 
@@ -68,6 +69,21 @@ async def _check_identity(
                 await websocket.send_json({"type": "identity_update", "identity": identity})
             except Exception:
                 pass  # Frontend gone; identity is already in DB
+
+        # Check for recommendations.json and notify
+        try:
+            recs_content = await asyncio.to_thread(
+                read_workspace_file, container_id, "recommendations.json"
+            )
+            if recs_content:
+                recs_data = json.loads(recs_content)
+                recs = recs_data if isinstance(recs_data, list) else recs_data.get("recommendations", [])
+                if recs:
+                    await broadcast.publish("recommendations_ready", {
+                        "node_id": str(node_id),
+                    })
+        except Exception:
+            pass
     except (json.JSONDecodeError, TypeError):
         pass
     except Exception:
