@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.broadcast import broadcast
 from app.db import CanvasState, Edge, Node, emit_event, get_db
 from app.docker_ops import (
     create_nanobot_container,
@@ -211,6 +212,10 @@ async def update_node(node_id: UUID, payload: NodeUpdate, db: AsyncSession = Dep
         await emit_event("node_renamed", node_id=node.id, node_name=node.name,
                          summary=f'Node renamed "{old_name}" → "{node.name}"',
                          details={"old_name": old_name, "new_name": node.name})
+        await broadcast.publish("rename", {
+            "node_id": str(node.id),
+            "name": node.name,
+        })
 
     return node
 
@@ -574,6 +579,11 @@ async def set_agent_status(node_id: UUID, payload: dict, db: AsyncSession = Depe
     await emit_event("agent_status", node_id=node.id, node_name=node.name,
                      summary=f'{node.name}: {status}' + (f' — {msg}' if msg else ''),
                      details={"status": status, "message": msg})
+    await broadcast.publish("agent_status", {
+        "node_id": str(node_id),
+        "agent_status": node.agent_status,
+        "agent_status_message": node.agent_status_message,
+    })
     return {"ok": True, "agent_status": node.agent_status}
 
 
@@ -599,6 +609,12 @@ async def set_gauge(node_id: UUID, payload: dict, db: AsyncSession = Depends(get
         node.gauge_label = str(payload.get("label", ""))[:100] or None
         node.gauge_unit = str(payload.get("unit", ""))[:20] or None
     await db.commit()
+    await broadcast.publish("gauge", {
+        "node_id": str(node_id),
+        "gauge_value": node.gauge_value,
+        "gauge_label": node.gauge_label,
+        "gauge_unit": node.gauge_unit,
+    })
     return {"ok": True, "gauge_value": node.gauge_value, "gauge_label": node.gauge_label, "gauge_unit": node.gauge_unit}
 
 

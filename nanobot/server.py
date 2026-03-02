@@ -124,11 +124,13 @@ async def init_agent():
             session_manager=session_manager,
         )
 
-        # Register network awareness tool if running inside Paradise
+        # Register Paradise tools if running inside Paradise
         node_id = os.environ.get("PARADISE_NODE_ID", "")
         if node_id:
             from nanobot.agent.tools.network import NetworkTool
+            from nanobot.agent.tools.paradise import ParadiseTool
             agent_loop.tools.register(NetworkTool(node_id=node_id))
+            agent_loop.tools.register(ParadiseTool(node_id=node_id))
 
         _ready.set()
         print(f"[paradise] Agent initialized, model={config.agents.defaults.model}", flush=True)

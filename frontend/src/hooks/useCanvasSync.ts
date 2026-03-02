@@ -150,7 +150,39 @@ export function useCanvasSync() {
     wireStoreActions(setNodes, setEdges);
     fetchCanvas(setNodes, setEdges, setViewport, setLoaded);
 
-    // Periodically refresh node data (gauge, identity, status) from backend
+    // SSE stream for real-time node state updates
+    const es = new EventSource(`${API}/api/events/stream`);
+    es.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        const store = useCanvasStore.getState();
+        switch (msg.event) {
+          case "gauge":
+            store.updateNodeGauge(msg.node_id, msg.gauge_value ?? null, msg.gauge_label, msg.gauge_unit);
+            break;
+          case "agent_status":
+            store.updateNodeAgentStatus(msg.node_id, msg.agent_status, msg.agent_status_message);
+            break;
+          case "identity_update":
+            if (msg.identity) store.updateNodeIdentity(msg.node_id, msg.identity);
+            break;
+          case "rename":
+            store.updateNodeName(msg.node_id, msg.name);
+            break;
+          case "container_status":
+            setNodes((nds) =>
+              nds.map((n) =>
+                n.id === msg.node_id
+                  ? { ...n, data: { ...n.data, containerStatus: msg.container_status } }
+                  : n
+              )
+            );
+            break;
+        }
+      } catch {}
+    };
+
+    // Fallback poll for resilience (covers SSE reconnection gaps)
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`${API}/api/nodes`);
@@ -178,7 +210,10 @@ export function useCanvasSync() {
         );
       } catch {}
     }, 60000);
-    return () => clearInterval(interval);
+    return () => {
+      es.close();
+      clearInterval(interval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

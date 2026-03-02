@@ -1,4 +1,4 @@
-"""Event log API — list and clear persisted events."""
+"""Event log API — list and clear persisted events, plus SSE stream."""
 
 from uuid import UUID
 
@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import StreamingResponse
 
+from app.broadcast import broadcast
 from app.db import EventLog, get_db
 
 router = APIRouter(tags=["events"])
@@ -51,3 +53,17 @@ async def clear_events(db: AsyncSession = Depends(get_db)):
     await db.execute(delete(EventLog))
     await db.commit()
     return {"ok": True}
+
+
+@router.get("/events/stream")
+async def event_stream():
+    """SSE stream for real-time node state updates (gauge, status, identity, rename)."""
+    async def generate():
+        async for msg in broadcast.subscribe():
+            yield f"data: {msg}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
