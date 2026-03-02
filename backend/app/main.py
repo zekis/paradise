@@ -222,7 +222,8 @@ async def _maintenance_loop():
                             continue
                         try:
                             data = json.loads(content)
-                            if data.get("recommendations"):
+                            recs = data if isinstance(data, list) else data.get("recommendations", [])
+                            if recs:
                                 await broadcast.publish("recommendations_ready", {
                                     "node_id": str(node.id),
                                 })

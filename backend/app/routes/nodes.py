@@ -849,7 +849,7 @@ async def get_recommendations(node_id: UUID, db: AsyncSession = Depends(get_db))
 
     try:
         data = json.loads(content)
-        recs = data.get("recommendations", [])
+        recs = data if isinstance(data, list) else data.get("recommendations", [])
         validated = []
         for r in recs:
             if not isinstance(r, dict) or not r.get("name") or not r.get("genesis_prompt"):

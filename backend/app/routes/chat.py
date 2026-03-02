@@ -77,7 +77,8 @@ async def _check_identity(
             )
             if recs_content:
                 recs_data = json.loads(recs_content)
-                if recs_data.get("recommendations"):
+                recs = recs_data if isinstance(recs_data, list) else recs_data.get("recommendations", [])
+                if recs:
                     await broadcast.publish("recommendations_ready", {
                         "node_id": str(node_id),
                     })
