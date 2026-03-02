@@ -117,7 +117,7 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
       } else if (msg.type === "paradise:status") {
         updateNodeAgentStatus(nodeId, msg.status, msg.message);
       } else if (msg.type === "paradise:gauge") {
-        updateNodeGauge(nodeId, msg.value ?? null, msg.label);
+        updateNodeGauge(nodeId, msg.value ?? null, msg.label, msg.unit);
       }
     };
     window.addEventListener("message", handler);

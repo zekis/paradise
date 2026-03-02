@@ -162,11 +162,13 @@ async def _maintenance_loop():
                                         if 0 <= gv <= 100:
                                             node.gauge_value = gv
                                             node.gauge_label = str(identity.get("gauge_label", ""))[:100] or None
+                                            node.gauge_unit = str(identity.get("gauge_unit", ""))[:20] or None
                                     except (TypeError, ValueError):
                                         pass
                                 else:
                                     node.gauge_value = None
                                     node.gauge_label = None
+                                    node.gauge_unit = None
                         except (json.JSONDecodeError, TypeError):
                             pass
                         except Exception as exc:

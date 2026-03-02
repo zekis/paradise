@@ -80,11 +80,25 @@ describe("NanobotNode", () => {
     expect(gaugeCircles.length).toBe(0);
   });
 
-  it("shows gauge value percentage in center when gauge active", () => {
+  it("shows gauge value with unit in center when gauge active", () => {
     render(
-      <NanobotNode {...defaultProps} data={{ ...defaultData, gaugeValue: 73, gaugeLabel: "cpu" }} />
+      <NanobotNode {...defaultProps} data={{ ...defaultData, gaugeValue: 73, gaugeLabel: "cpu", gaugeUnit: "%" }} />
     );
     expect(screen.getByText("73%")).toBeDefined();
+  });
+
+  it("shows gauge value with custom unit", () => {
+    render(
+      <NanobotNode {...defaultProps} data={{ ...defaultData, gaugeValue: 42, gaugeLabel: "temp", gaugeUnit: "°C" }} />
+    );
+    expect(screen.getByText("42°C")).toBeDefined();
+  });
+
+  it("shows gauge value without unit when gaugeUnit is not set", () => {
+    render(
+      <NanobotNode {...defaultProps} data={{ ...defaultData, gaugeValue: 5, gaugeLabel: "open todos" }} />
+    );
+    expect(screen.getByText("5")).toBeDefined();
   });
 
   it("uses grey/neutral circle when node is healthy", () => {

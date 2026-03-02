@@ -58,11 +58,11 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
     );
   });
 
-  store.setUpdateNodeGauge((nodeId: string, value: number | null, label?: string) => {
+  store.setUpdateNodeGauge((nodeId: string, value: number | null, label?: string, unit?: string) => {
     setNodes((nds) =>
       nds.map((n) =>
         n.id === nodeId
-          ? { ...n, data: { ...n.data, gaugeValue: value, gaugeLabel: label || null } }
+          ? { ...n, data: { ...n.data, gaugeValue: value, gaugeLabel: label || null, gaugeUnit: unit || null } }
           : n
       )
     );
@@ -112,6 +112,7 @@ async function fetchCanvas(
           agentStatusMessage: (n.agent_status_message as string) || null,
           gaugeValue: (n.gauge_value as number) ?? null,
           gaugeLabel: (n.gauge_label as string) || null,
+          gaugeUnit: (n.gauge_unit as string) || null,
         } satisfies NanobotNodeData,
         style: { width: 80, height: 92 },
       }))
@@ -170,6 +171,7 @@ export function useCanvasSync() {
                 agentStatusMessage: fresh.agent_status_message || null,
                 gaugeValue: (fresh.gauge_value as number) ?? null,
                 gaugeLabel: (fresh.gauge_label as string) || null,
+                gaugeUnit: (fresh.gauge_unit as string) || null,
               },
             };
           })

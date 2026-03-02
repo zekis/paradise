@@ -93,7 +93,7 @@ const KEYFRAMES = `
 
 export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
   const d = data as NanobotNodeData;
-  const { nodeId, containerStatus, identity, agentStatus, agentStatusMessage, genesisActive, gaugeValue, gaugeLabel } = d;
+  const { nodeId, containerStatus, identity, agentStatus, agentStatusMessage, genesisActive, gaugeValue, gaugeLabel, gaugeUnit } = d;
 
   const { selectedNodeId, setSelectedNodeId } = useCanvasStore();
 
@@ -142,7 +142,7 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
           transition: "border-color 0.15s, box-shadow 0.15s",
           overflow: "visible",
         }}
-        title={hasGauge ? `${gaugeLabel ? gaugeLabel + ": " : ""}${Math.round(gaugeValue!)}%` : undefined}
+        title={hasGauge ? `${gaugeLabel ? gaugeLabel + ": " : ""}${Math.round(gaugeValue!)}${gaugeUnit || ""}` : undefined}
       >
         {hasGauge && (
           <GaugeRing value={gaugeValue!} color={gaugeColor!} />
@@ -184,7 +184,7 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
               position: "relative",
             }}
           >
-            {Math.round(gaugeValue!)}%
+            {Math.round(gaugeValue!)}{gaugeUnit || ""}
           </span>
         ) : (
           <Icon path={resolvedIcon || mdiRobot} size={1.1} color="var(--text-muted)" />
