@@ -1,6 +1,12 @@
 # Paradise Platform API Reference
 
-Reference for the PARADISE JavaScript API available in all HTML pages (dashboard.html, commands.html, config.html, etc.).
+There are three ways to update your node's state on the canvas:
+
+1. **Agent Tool** — call `set_paradise_state` from the LLM agent (no dashboard needed)
+2. **JavaScript API** — call `PARADISE.setGauge()` / `PARADISE.setStatus()` from HTML pages
+3. **Direct REST API** — call the HTTP endpoints from Python, shell, or any code
+
+All three methods update the canvas in real-time via SSE (Server-Sent Events).
 
 ## identity.json
 
@@ -33,7 +39,65 @@ Written to your workspace during genesis. Defines your node's appearance on the 
 
 `mdiServer`, `mdiServerNetwork`, `mdiDatabase`, `mdiMonitor`, `mdiCloud`, `mdiCloudSync`, `mdiHome`, `mdiHomeAutomation`, `mdiWeatherSunny`, `mdiWeatherCloudy`, `mdiWeatherPartlyCloudy`, `mdiShieldCheck`, `mdiShieldLock`, `mdiLock`, `mdiChartLine`, `mdiChartBar`, `mdiChartPie`, `mdiNetwork`, `mdiLan`, `mdiEarth`, `mdiCpu64Bit`, `mdiMemory`, `mdiHarddisk`, `mdiThermometer`, `mdiLightbulb`, `mdiLightbulbOn`, `mdiCamera`, `mdiCameraIris`, `mdiEmail`, `mdiCalendar`, `mdiClock`, `mdiAlarm`, `mdiBell`, `mdiChat`, `mdiFinance`, `mdiCurrencyBtc`, `mdiCurrencyUsd`, `mdiCart`, `mdiStore`, `mdiPackage`, `mdiDocker`, `mdiGithub`, `mdiCog`, `mdiWrench`, `mdiPower`, `mdiFlash`, `mdiLeaf`, `mdiWater`, `mdiWifi`, `mdiDownload`, `mdiUpload`, `mdiSync`, `mdiFileDocument`, `mdiFolder`, `mdiMapMarker`, `mdiNavigation`, `mdiBattery`, `mdiMusic`, `mdiSpeaker`, `mdiPrinter`, `mdiApi`, `mdiCodeBraces`, `mdiBookOpenVariant`, `mdiRss`, `mdiBug`, `mdiTestTube`, `mdiMicroscope`, `mdiRobot`
 
+## Agent Tool — `set_paradise_state`
+
+Available as a built-in tool when running inside Paradise. No dashboard HTML required — the agent can call this directly during chat, heartbeat tasks, or any tool execution.
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `gauge_value` | number (0-100) | Gauge value displayed as a progress ring on the node icon |
+| `gauge_label` | string | Short label for the gauge (e.g. "cpu", "tasks") |
+| `gauge_unit` | string | Unit displayed after the value (e.g. "%", "ms") |
+| `status` | string | Status indicator: `ok` (green), `warning` (yellow), `error` (red) |
+| `status_message` | string | Short message describing the current status |
+
+All parameters are optional — provide `gauge_value` to set the gauge, `status` to set the status, or both.
+
+### Examples
+
+```
+# Set gauge to 73% CPU
+set_paradise_state(gauge_value=73, gauge_label="cpu", gauge_unit="%")
+
+# Set status to error
+set_paradise_state(status="error", status_message="API unreachable")
+
+# Set both at once
+set_paradise_state(gauge_value=95, gauge_label="cpu", gauge_unit="%", status="warning", status_message="High load")
+```
+
+## Direct REST API
+
+Agents can also call the backend HTTP endpoints directly from Python, shell scripts, or `api.py`. The environment variables `PARADISE_NODE_ID` and `PARADISE_BACKEND_URL` are available in every container.
+
+```python
+import httpx, os
+
+node_id = os.environ["PARADISE_NODE_ID"]
+api = os.environ["PARADISE_BACKEND_URL"]
+
+# Set gauge
+httpx.put(f"{api}/api/nodes/{node_id}/gauge",
+          json={"value": 73, "label": "cpu", "unit": "%"})
+
+# Set status
+httpx.put(f"{api}/api/nodes/{node_id}/agent-status",
+          json={"status": "ok", "message": "All systems nominal"})
+```
+
+Or from shell:
+
+```bash
+curl -X PUT "$PARADISE_BACKEND_URL/api/nodes/$PARADISE_NODE_ID/gauge" \
+  -H "Content-Type: application/json" \
+  -d '{"value": 73, "label": "cpu", "unit": "%"}'
+```
+
 ## JavaScript API
+
+The `PARADISE` global object is injected into all HTML pages rendered in node inspector iframes (dashboard.html, commands.html, config.html, etc.).
 
 ### Data & Commands
 
@@ -99,7 +163,7 @@ const peerConfig = await PARADISE.getPeerConfig(peerId);
 
 ## Dashboard Pattern
 
-Your `dashboard.html` should call these on each data refresh:
+If your agent has a `dashboard.html`, it can call these on each data refresh. Note: dashboards are **optional** — agents can use the `set_paradise_state` tool or the direct REST API to update state without any HTML.
 
 ```javascript
 async function refresh() {
@@ -123,3 +187,21 @@ setInterval(refresh, 30000);
 - **Style**: Dark grayscale. bg `#0a0a0a`, text `#e0e0e0`, muted `#888`, borders `#222`. Use identity color for accent highlights only.
 - **Font**: system-ui, 11-12px. Padding: 8-12px.
 - **Icons**: Use SVG paths from MDI (Material Design Icons). No emoji in HTML pages.
+
+## SSE Event Stream
+
+The backend broadcasts real-time node state changes via Server-Sent Events at:
+
+```
+GET /api/events/stream
+```
+
+The frontend subscribes automatically. Each message is a JSON object with an `event` field:
+
+| Event | Fields | Description |
+|-------|--------|-------------|
+| `gauge` | `node_id`, `gauge_value`, `gauge_label`, `gauge_unit` | Gauge value changed |
+| `agent_status` | `node_id`, `agent_status`, `agent_status_message` | Status indicator changed |
+| `identity_update` | `node_id`, `identity` | Identity (icon, color, tabs) changed |
+| `rename` | `node_id`, `name` | Node renamed |
+| `container_status` | `node_id`, `container_status` | Container started/stopped/errored |
