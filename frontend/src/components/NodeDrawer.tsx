@@ -82,6 +82,7 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [thinking, setThinking] = useState(false);
   const skipBlurSave = useRef(false);
+  const prevNodeId = useRef(nodeId);
   const { api, updateNodeIdentity, updateNodeName, updateNodeAgentStatus, updateNodeGauge } = useCanvasStore();
 
   const handleIdentityUpdate = useCallback(
@@ -98,13 +99,16 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
     if (result.identity) updateNodeIdentity(nodeId, result.identity);
   }, [api, nodeId, updateNodeIdentity]);
 
-  // Reset state when switching nodes
+  // Reset state when switching nodes (not on identity updates)
   useEffect(() => {
-    setActiveTab(identity ? "object" : "chat");
-    setAgentSub("soul");
-    setObjectSub("dashboard");
-    setEditing(false);
-    setShowDeleteConfirm(false);
+    if (prevNodeId.current !== nodeId) {
+      setActiveTab(identity ? "object" : "chat");
+      setAgentSub("soul");
+      setObjectSub("dashboard");
+      setEditing(false);
+      setShowDeleteConfirm(false);
+      prevNodeId.current = nodeId;
+    }
   }, [nodeId, identity]);
 
   // Listen for postMessage from PARADISE bridge in iframes
@@ -352,6 +356,7 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
           key={nodeId}
           nodeId={nodeId}
           api={api}
+          visible={activeTab === "chat"}
           genesisPrompt={genesisPrompt}
           onGenesisComplete={handleGenesisComplete}
           onIdentityUpdate={handleIdentityUpdate}

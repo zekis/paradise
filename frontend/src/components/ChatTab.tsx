@@ -114,6 +114,7 @@ Start with Step 1 now — ask your clarifying questions.`;
 export function ChatTab({
   nodeId,
   api,
+  visible,
   genesisPrompt,
   onGenesisComplete,
   onIdentityUpdate,
@@ -121,6 +122,7 @@ export function ChatTab({
 }: {
   nodeId: string;
   api: string;
+  visible?: boolean;
   genesisPrompt?: string;
   onGenesisComplete?: () => void;
   onIdentityUpdate?: (identity: Record<string, unknown>) => void;
@@ -152,7 +154,7 @@ export function ChatTab({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, visible]);
 
   const send = () => {
     const text = input.trim();
