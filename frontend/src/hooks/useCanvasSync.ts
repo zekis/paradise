@@ -10,6 +10,7 @@ import {
   type Edge,
   type Viewport,
   type Connection,
+  type FinalConnectionState,
 } from "@xyflow/react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { API_URL as API } from "@/lib/api";
@@ -266,14 +267,14 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
   );
 
   const onConnectEnd = useCallback(
-    (event: MouseEvent | TouchEvent) => {
+    (event: MouseEvent | TouchEvent, connectionState: FinalConnectionState) => {
       const startInfo = connectStartRef.current;
       connectStartRef.current = null;
       if (!startInfo) return;
 
-      // If the drag ended on a handle, onConnect handles it — skip
-      const target = (event as MouseEvent).target as HTMLElement;
-      if (target?.closest?.(".react-flow__handle")) return;
+      // If the connection ended within snap radius of a handle, it's a real
+      // connection (onConnect handles it) — don't trigger drag-to-create
+      if (connectionState.toHandle) return;
 
       const clientX = "changedTouches" in event ? event.changedTouches[0].clientX : (event as MouseEvent).clientX;
       const clientY = "changedTouches" in event ? event.changedTouches[0].clientY : (event as MouseEvent).clientY;
