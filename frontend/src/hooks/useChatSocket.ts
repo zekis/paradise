@@ -42,6 +42,7 @@ export function useChatSocket({
     !!genesisPrompt && !genesisSentNodes.has(nodeId)
   );
   const wsRef = useRef<WebSocket | null>(null);
+  const mountedRef = useRef(true);
 
   // Refs for volatile values so the connect callback stays stable
   const genesisPromptRef = useRef(genesisPrompt);
@@ -183,10 +184,12 @@ export function useChatSocket({
 
     ws.onclose = () => {
       setConnected(false);
+      if (!mountedRef.current) return;
       // Reload history from DB to catch messages saved while disconnected
       (async () => {
         try {
           const res = await fetch(`${api}/api/nodes/${nodeId}/messages`);
+          if (res.status === 404) return; // Node gone — stop retrying
           if (res.ok) {
             const data: { role: "user" | "assistant"; content: string; message_type?: string; display_content?: string }[] = await res.json();
             setMessages(data.map((m) => ({
@@ -198,16 +201,20 @@ export function useChatSocket({
         } catch {
           // Keep existing messages if fetch fails
         }
+        if (mountedRef.current) setTimeout(connect, 2000);
       })();
-      setTimeout(connect, 2000);
     };
 
     ws.onerror = () => ws.close();
   }, [wsUrl, nodeId, api, setThinking]);
 
   useEffect(() => {
+    mountedRef.current = true;
     connect();
-    return () => { wsRef.current?.close(); };
+    return () => {
+      mountedRef.current = false;
+      wsRef.current?.close();
+    };
   }, [connect]);
 
   const sendMessage = useCallback((text: string) => {
