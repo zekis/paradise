@@ -348,7 +348,7 @@ function CanvasInner() {
       )}
 
       <TreeViewDrawer nodes={nodes} edges={edges} onFocusNode={handleFocusNode} onOpenChange={setTreeDrawerOpen} />
-      <EventLogDrawer drawerOpen={!!selectedNodeData} treeDrawerOpen={treeDrawerOpen} onFocusNode={handleFocusNode} />
+      <EventLogDrawer drawerOpen={!!selectedNodeData || showSettings} treeDrawerOpen={treeDrawerOpen} onFocusNode={handleFocusNode} />
 
     </div>
   );
