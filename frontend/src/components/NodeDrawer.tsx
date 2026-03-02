@@ -20,6 +20,7 @@ import { LogsTab } from "./LogsTab";
 import { InfoTab } from "./InfoTab";
 import { FileTab } from "./FileTab";
 import { HtmlTab } from "./HtmlTab";
+import { ChildrenTab } from "./ChildrenTab";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
 import { resolveMdiIcon } from "@/lib/mdiIcons";
 import type { NanobotNodeData } from "@/types";
@@ -45,11 +46,17 @@ const AGENT_SUBS: { key: string; label: string; file: string }[] = [
 
 type ObjectSubTab = "dashboard" | "obj-config" | "commands" | "children";
 
-const OBJECT_SUBS: { key: ObjectSubTab; label: string; file: string }[] = [
+const OBJECT_HTML_SUBS: { key: ObjectSubTab; label: string; file: string }[] = [
   { key: "dashboard", label: "Dashboard", file: "dashboard.html" },
   { key: "obj-config", label: "Config", file: "config.html" },
   { key: "commands", label: "Commands", file: "commands.html" },
-  { key: "children", label: "Children", file: "children.html" },
+];
+
+const OBJECT_SUBS: { key: ObjectSubTab; label: string }[] = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "obj-config", label: "Config" },
+  { key: "commands", label: "Commands" },
+  { key: "children", label: "Children" },
 ];
 
 const TAB_CONTENT_STYLE: React.CSSProperties = {
@@ -364,11 +371,14 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
         />
       </div>
       <div style={{ flex: 1, overflow: "hidden", display: activeTab === "object" ? "block" : "none" }}>
-        {OBJECT_SUBS.map((sub) => (
+        {OBJECT_HTML_SUBS.map((sub) => (
           <div key={sub.key} style={{ height: "100%", display: objectSub === sub.key ? "block" : "none" }}>
             <HtmlTab nodeId={nodeId} api={api} filename={sub.file} visible={activeTab === "object" && objectSub === sub.key} />
           </div>
         ))}
+        <div style={{ height: "100%", display: objectSub === "children" ? "block" : "none", overflow: "auto", padding: 8 }}>
+          <ChildrenTab nodeId={nodeId} api={api} />
+        </div>
       </div>
       <div style={{ ...TAB_CONTENT_STYLE, display: activeTab === "agent" ? "flex" : "none", flexDirection: "column" }}>
         {allAgentSubs.map((sub) => (
