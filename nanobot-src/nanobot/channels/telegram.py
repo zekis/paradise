@@ -12,6 +12,7 @@ from telegram.request import HTTPXRequest
 from nanobot.bus.events import OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.utils import split_message
 from nanobot.config.schema import TelegramConfig
 
 
@@ -78,26 +79,6 @@ def _markdown_to_telegram_html(text: str) -> str:
     return text
 
 
-def _split_message(content: str, max_len: int = 4000) -> list[str]:
-    """Split content into chunks within max_len, preferring line breaks."""
-    if len(content) <= max_len:
-        return [content]
-    chunks: list[str] = []
-    while content:
-        if len(content) <= max_len:
-            chunks.append(content)
-            break
-        cut = content[:max_len]
-        pos = cut.rfind('\n')
-        if pos == -1:
-            pos = cut.rfind(' ')
-        if pos == -1:
-            pos = max_len
-        chunks.append(content[:pos])
-        content = content[pos:].lstrip()
-    return chunks
-
-
 class TelegramChannel(BaseChannel):
     """
     Telegram channel using long polling.
@@ -131,7 +112,7 @@ class TelegramChannel(BaseChannel):
     async def start(self) -> None:
         """Start the Telegram bot with long polling."""
         if not self.config.token:
-            logger.error("Telegram bot token not configured")
+            logger.error("Telegram bot authentication not configured")
             return
         
         self._running = True
@@ -261,7 +242,7 @@ class TelegramChannel(BaseChannel):
 
         # Send text content
         if msg.content and msg.content != "[empty message]":
-            for chunk in _split_message(msg.content):
+            for chunk in split_message(msg.content, max_len=4000):
                 try:
                     html = _markdown_to_telegram_html(chunk)
                     await self._app.bot.send_message(

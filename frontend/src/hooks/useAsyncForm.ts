@@ -35,7 +35,8 @@ export function useAsyncForm({
       const result = await loadFn();
       setValue(result);
       setError(null);
-    } catch {
+    } catch (error) {
+      console.error('Failed to load form data:', error);
       setError("Failed to load");
     } finally {
       setLoading(false);

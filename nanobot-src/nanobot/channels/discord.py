@@ -12,34 +12,13 @@ from loguru import logger
 from nanobot.bus.events import OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.utils import split_message
 from nanobot.config.schema import DiscordConfig
 
 
 DISCORD_API_BASE = "https://discord.com/api/v10"
 MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024  # 20MB
 MAX_MESSAGE_LEN = 2000  # Discord message character limit
-
-
-def _split_message(content: str, max_len: int = MAX_MESSAGE_LEN) -> list[str]:
-    """Split content into chunks within max_len, preferring line breaks."""
-    if not content:
-        return []
-    if len(content) <= max_len:
-        return [content]
-    chunks: list[str] = []
-    while content:
-        if len(content) <= max_len:
-            chunks.append(content)
-            break
-        cut = content[:max_len]
-        pos = cut.rfind('\n')
-        if pos <= 0:
-            pos = cut.rfind(' ')
-        if pos <= 0:
-            pos = max_len
-        chunks.append(content[:pos])
-        content = content[pos:].lstrip()
-    return chunks
 
 
 class DiscordChannel(BaseChannel):
@@ -59,7 +38,7 @@ class DiscordChannel(BaseChannel):
     async def start(self) -> None:
         """Start the Discord gateway connection."""
         if not self.config.token:
-            logger.error("Discord bot token not configured")
+            logger.error("Discord bot authentication credential not configured")
             return
 
         self._running = True
@@ -105,7 +84,7 @@ class DiscordChannel(BaseChannel):
         headers = {"Authorization": f"Bot {self.config.token}"}
 
         try:
-            chunks = _split_message(msg.content or "")
+            chunks = split_message(msg.content or "", max_len=MAX_MESSAGE_LEN)
             if not chunks:
                 return
 
@@ -153,7 +132,7 @@ class DiscordChannel(BaseChannel):
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
-                logger.warning("Invalid JSON from Discord gateway: {}", raw[:100])
+                logger.warning("Invalid JSON from Discord gateway, length={}", len(raw) if raw else 0)
                 continue
 
             op = data.get("op")

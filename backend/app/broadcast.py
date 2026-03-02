@@ -2,7 +2,10 @@
 
 import asyncio
 import json
+import logging
 from typing import AsyncGenerator
+
+logger = logging.getLogger(__name__)
 
 
 class Broadcaster:
@@ -17,7 +20,7 @@ class Broadcaster:
             try:
                 q.put_nowait(msg)
             except asyncio.QueueFull:
-                pass  # drop if client is slow
+                logger.debug("Dropping SSE message for slow client (queue full), event_type=%s", event_type)
 
     async def subscribe(self) -> AsyncGenerator[str, None]:
         q: asyncio.Queue[str] = asyncio.Queue(maxsize=256)

@@ -12,7 +12,8 @@ export function LogsTab({ nodeId, api }: { nodeId: string; api: string }) {
       const res = await fetch(`${api}/api/nodes/${nodeId}/logs?tail=${tail}`);
       const data = await res.json();
       setLogs(data.logs || "No logs available");
-    } catch {
+    } catch (error) {
+      console.error(`Failed to fetch logs for node ${nodeId}:`, error);
       setLogs("Failed to fetch logs");
     }
   }, [api, nodeId, tail]);

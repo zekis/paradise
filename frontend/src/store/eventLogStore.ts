@@ -46,8 +46,8 @@ export const useEventLogStore = create<EventLogStore>((set, get) => ({
           const merged = [...state.events, ...newEvents];
           return { events: merged.slice(-MAX_EVENTS) };
         });
-      } catch {
-        // Silently ignore polling errors
+      } catch (error) {
+        console.warn('Failed to poll event log:', error);
       }
     };
 
@@ -67,8 +67,8 @@ export const useEventLogStore = create<EventLogStore>((set, get) => ({
   clearEvents: async (api: string) => {
     try {
       await fetch(`${api}/api/events`, { method: "DELETE" });
-    } catch {
-      // ignore
+    } catch (error) {
+      console.warn('Failed to clear events on server:', error);
     }
     set({ events: [] });
   },

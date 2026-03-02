@@ -14,7 +14,8 @@ import {
 } from "@xyflow/react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { API_URL as API } from "@/lib/api";
-import type { NanobotNodeData, NodeIdentity } from "@/types";
+import type { NodeIdentity } from "@/types";
+import { mapApiNodeToFlowNode, mapApiNodeToNodeData, type ApiNode } from "@/lib/mappers";
 
 type NodeSetter = (fn: (nds: Node[]) => Node[]) => void;
 type EdgeSetter = (fn: (eds: Edge[]) => Edge[]) => void;
@@ -30,7 +31,9 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
 
   store.setRemoveEdge((edgeId: string) => {
     setEdges((eds) => eds.filter((e) => e.id !== edgeId));
-    fetch(`${API}/api/edges/${edgeId}`, { method: "DELETE" }).catch(() => {});
+    fetch(`${API}/api/edges/${edgeId}`, { method: "DELETE" }).catch((error) => {
+      console.error(`Failed to delete edge ${edgeId}:`, error);
+    });
   });
 
   store.setUpdateNodeIdentity((nodeId: string, identity: NodeIdentity) => {
@@ -107,23 +110,7 @@ async function fetchCanvas(
     ]);
 
     setNodes(
-      nodesData.map((n: Record<string, unknown>) => ({
-        id: n.id,
-        type: "nanobot" as const,
-        position: { x: n.position_x, y: n.position_y },
-        data: {
-          label: n.name as string,
-          nodeId: n.id as string,
-          containerStatus: (n.container_status as string) || null,
-          identity: (n.identity as NodeIdentity) || null,
-          agentStatus: (n.agent_status as string) || null,
-          agentStatusMessage: (n.agent_status_message as string) || null,
-          gaugeValue: (n.gauge_value as number) ?? null,
-          gaugeLabel: (n.gauge_label as string) || null,
-          gaugeUnit: (n.gauge_unit as string) || null,
-        } satisfies NanobotNodeData,
-        style: { width: 80, height: 92 },
-      }))
+      nodesData.map((n: ApiNode) => mapApiNodeToFlowNode(n))
     );
 
     setEdges(
@@ -141,7 +128,8 @@ async function fetchCanvas(
       setViewport({ x: canvasData.viewport_x, y: canvasData.viewport_y, zoom: canvasData.zoom });
     }
     setLoaded(true);
-  } catch {
+  } catch (error) {
+    console.error('Failed to fetch initial canvas data (nodes/edges/viewport):', error);
     setLoaded(true);
   }
 }
@@ -194,7 +182,9 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
             );
             break;
         }
-      } catch {}
+      } catch (error) {
+        console.warn('Failed to parse SSE canvas event:', error);
+      }
     };
 
     // Fallback poll for resilience (covers SSE reconnection gaps)
@@ -202,28 +192,31 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
       try {
         const res = await fetch(`${API}/api/nodes`);
         if (!res.ok) return;
-        const nodesData: Record<string, unknown>[] = await res.json();
-        const dataMap = new Map(nodesData.map((n) => [n.id as string, n]));
+        const nodesData: ApiNode[] = await res.json();
+        const dataMap = new Map(nodesData.map((n) => [n.id, n]));
         setNodes((nds) =>
           nds.map((node) => {
             const fresh = dataMap.get(node.id);
             if (!fresh) return node;
+            const freshData = mapApiNodeToNodeData(fresh);
             return {
               ...node,
               data: {
                 ...node.data,
-                containerStatus: fresh.container_status,
-                identity: fresh.identity || null,
-                agentStatus: fresh.agent_status || null,
-                agentStatusMessage: fresh.agent_status_message || null,
-                gaugeValue: (fresh.gauge_value as number) ?? null,
-                gaugeLabel: (fresh.gauge_label as string) || null,
-                gaugeUnit: (fresh.gauge_unit as string) || null,
+                containerStatus: freshData.containerStatus,
+                identity: freshData.identity,
+                agentStatus: freshData.agentStatus,
+                agentStatusMessage: freshData.agentStatusMessage,
+                gaugeValue: freshData.gaugeValue,
+                gaugeLabel: freshData.gaugeLabel,
+                gaugeUnit: freshData.gaugeUnit,
               },
             };
           })
         );
-      } catch {}
+      } catch (error) {
+        console.warn('Failed to poll node status updates:', error);
+      }
     }, 60000);
     return () => {
       es.close();
@@ -239,7 +232,9 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ viewport_x: viewport.x, viewport_y: viewport.y, zoom: viewport.zoom }),
-      }).catch(() => {});
+      }).catch((error) => {
+        console.warn('Failed to save viewport position:', error);
+      });
     }, 500);
   }, []);
 
@@ -290,7 +285,9 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ position_x: node.position.x, position_y: node.position.y }),
-      }).catch(() => {});
+      }).catch((error) => {
+        console.warn(`Failed to save node position for ${node.id}:`, error);
+      });
     },
     []
   );

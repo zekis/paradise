@@ -26,6 +26,7 @@ import { useCanvasSync } from "@/hooks/useCanvasSync";
 import { useEventLogStore } from "@/store/eventLogStore";
 import { generateBotName } from "@/lib/names";
 import type { NanobotNodeData, Recommendation } from "@/types";
+import { mapApiNodeToFlowNode } from "@/lib/mappers";
 
 const nodeTypes = { nanobot: NanobotNode };
 const edgeTypes = { smoothstep: DeletableEdge };
@@ -103,7 +104,9 @@ function CanvasInner() {
               );
             }
           })
-          .catch(() => {});
+          .catch((error) => {
+            console.warn(`Failed to fetch recommendations for node ${sourceNodeId}:`, error);
+          });
       }
     },
     [api, nodes, screenToFlowPosition]
@@ -205,20 +208,10 @@ function CanvasInner() {
 
       setNodes((nds) => [
         ...nds,
-        {
-          id: n.id,
-          type: "nanobot" as const,
-          position: { x: n.position_x, y: n.position_y },
-          data: {
-            label: n.name,
-            nodeId: n.id,
-            containerStatus: n.container_status,
-            genesisPrompt: data.genesis_prompt,
-            genesisActive: true,
-            identity: null,
-          },
-          style: { width: 80, height: 92 },
-        },
+        mapApiNodeToFlowNode(n, {
+          genesisPrompt: data.genesis_prompt,
+          genesisActive: true,
+        }),
       ]);
 
       useCanvasStore.getState().addEdge({
@@ -247,20 +240,10 @@ function CanvasInner() {
       const hasGenesis = !!genesisPrompt;
       setNodes((nds) => [
         ...nds,
-        {
-          id: node.id,
-          type: "nanobot" as const,
-          position: { x: node.position_x, y: node.position_y },
-          data: {
-            label: node.name,
-            nodeId: node.id,
-            containerStatus: node.container_status,
-            genesisPrompt: genesisPrompt || undefined,
-            genesisActive: hasGenesis,
-            identity: null,
-          },
-          style: { width: 80, height: 92 },
-        },
+        mapApiNodeToFlowNode(node, {
+          genesisPrompt: genesisPrompt || undefined,
+          genesisActive: hasGenesis,
+        }),
       ]);
       if (hasGenesis) {
         setSelectedNodeId(node.id);

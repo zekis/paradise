@@ -35,7 +35,8 @@ export function DefaultConfigPanel({
       let parsed: unknown;
       try {
         parsed = JSON.parse(value);
-      } catch {
+      } catch (error) {
+        console.warn('Invalid JSON in default config editor:', error);
         throw new Error("Invalid JSON");
       }
       const res = await fetch(`${api}/api/settings/default-config`, {
@@ -62,7 +63,8 @@ export function DefaultConfigPanel({
       const data = await res.json();
       setTemplates(data.templates || {});
       setTemplatesError(null);
-    } catch {
+    } catch (error) {
+      console.error('Failed to load default templates:', error);
       setTemplatesError("Failed to load templates");
     } finally {
       setTemplatesLoading(false);

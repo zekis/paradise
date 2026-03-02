@@ -6,6 +6,7 @@ import asyncio
 import json
 import re
 from contextlib import AsyncExitStack
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
@@ -27,8 +28,21 @@ from nanobot.providers.base import LLMProvider
 from nanobot.session.manager import Session, SessionManager
 
 if TYPE_CHECKING:
-    from nanobot.config.schema import ChannelsConfig, ExecToolConfig
+    from nanobot.config.schema import ChannelsConfig, Config, ExecToolConfig
     from nanobot.cron.service import CronService
+
+
+@dataclass
+class AgentConfig:
+    """Grouped agent tuning parameters to reduce constructor width."""
+
+    model: str | None = None
+    temperature: float = 0.1
+    max_tokens: int = 4096
+    max_iterations: int = 40
+    memory_window: int = 100
+    brave_api_key: str | None = None
+    restrict_to_workspace: bool = False
 
 
 class AgentLoop:
@@ -50,33 +64,28 @@ class AgentLoop:
         bus: MessageBus,
         provider: LLMProvider,
         workspace: Path,
-        model: str | None = None,
-        max_iterations: int = 40,
-        temperature: float = 0.1,
-        max_tokens: int = 4096,
-        memory_window: int = 100,
-        brave_api_key: str | None = None,
+        agent_config: AgentConfig | None = None,
         exec_config: ExecToolConfig | None = None,
         cron_service: CronService | None = None,
-        restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
         mcp_servers: dict | None = None,
         channels_config: ChannelsConfig | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
+        cfg = agent_config or AgentConfig()
         self.bus = bus
         self.channels_config = channels_config
         self.provider = provider
         self.workspace = workspace
-        self.model = model or provider.get_default_model()
-        self.max_iterations = max_iterations
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.memory_window = memory_window
-        self.brave_api_key = brave_api_key
+        self.model = cfg.model or provider.get_default_model()
+        self.max_iterations = cfg.max_iterations
+        self.temperature = cfg.temperature
+        self.max_tokens = cfg.max_tokens
+        self.memory_window = cfg.memory_window
+        self.brave_api_key = cfg.brave_api_key
         self.exec_config = exec_config or ExecToolConfig()
         self.cron_service = cron_service
-        self.restrict_to_workspace = restrict_to_workspace
+        self.restrict_to_workspace = cfg.restrict_to_workspace
 
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
@@ -88,9 +97,9 @@ class AgentLoop:
             model=self.model,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
-            brave_api_key=brave_api_key,
+            brave_api_key=self.brave_api_key,
             exec_config=self.exec_config,
-            restrict_to_workspace=restrict_to_workspace,
+            restrict_to_workspace=self.restrict_to_workspace,
         )
 
         self._running = False
@@ -104,6 +113,53 @@ class AgentLoop:
         self._active_tasks: dict[str, list[asyncio.Task]] = {}  # session_key -> tasks
         self._processing_lock = asyncio.Lock()
         self._register_default_tools()
+
+    @classmethod
+    def from_config(
+        cls,
+        config: Config,
+        bus: MessageBus,
+        provider: LLMProvider,
+        *,
+        exec_config: ExecToolConfig | None = None,
+        cron_service: CronService | None = None,
+        restrict_to_workspace: bool | None = None,
+        session_manager: SessionManager | None = None,
+        mcp_servers: dict | None = None,
+    ) -> AgentLoop:
+        """Create an AgentLoop by unpacking a Config object.
+
+        Centralises the repeated config-field unpacking that every call site
+        otherwise has to do manually.  Callers may still override individual
+        knobs (``exec_config``, ``restrict_to_workspace``, etc.) when the
+        default config values are not appropriate.
+        """
+        defaults = config.agents.defaults
+        tools = config.tools
+        agent_cfg = AgentConfig(
+            model=defaults.model,
+            temperature=defaults.temperature,
+            max_tokens=defaults.max_tokens,
+            max_iterations=defaults.max_tool_iterations,
+            memory_window=defaults.memory_window,
+            brave_api_key=tools.web.search.api_key or None,
+            restrict_to_workspace=(
+                restrict_to_workspace
+                if restrict_to_workspace is not None
+                else tools.restrict_to_workspace
+            ),
+        )
+        return cls(
+            bus=bus,
+            provider=provider,
+            workspace=config.workspace_path,
+            agent_config=agent_cfg,
+            exec_config=exec_config if exec_config is not None else tools.exec,
+            cron_service=cron_service,
+            session_manager=session_manager,
+            mcp_servers=mcp_servers if mcp_servers is not None else tools.mcp_servers,
+            channels_config=config.channels,
+        )
 
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
@@ -139,8 +195,8 @@ class AgentLoop:
             if self._mcp_stack:
                 try:
                     await self._mcp_stack.aclose()
-                except Exception:
-                    pass
+                except Exception as close_err:
+                    logger.debug("Ignoring error while closing MCP stack after failed connection: {}", close_err)
                 self._mcp_stack = None
         finally:
             self._mcp_connecting = False
@@ -255,6 +311,7 @@ class AgentLoop:
             try:
                 msg = await asyncio.wait_for(self.bus.consume_inbound(), timeout=1.0)
             except asyncio.TimeoutError:
+                logger.debug("No inbound message within 1s, polling again")
                 continue
 
             if msg.content.strip().lower() == "/stop":
@@ -271,8 +328,10 @@ class AgentLoop:
         for t in tasks:
             try:
                 await t
-            except (asyncio.CancelledError, Exception):
-                pass
+            except asyncio.CancelledError:
+                logger.debug("Task cancelled during /stop for session {}", msg.session_key)
+            except Exception as exc:
+                logger.warning("Task raised during /stop for session {}: {}", msg.session_key, exc)
         sub_cancelled = await self.subagents.cancel_by_session(msg.session_key)
         total = cancelled + sub_cancelled
         content = f"⏹ Stopped {total} task(s)." if total else "No active task to stop."
@@ -307,8 +366,8 @@ class AgentLoop:
         if self._mcp_stack:
             try:
                 await self._mcp_stack.aclose()
-            except (RuntimeError, BaseExceptionGroup):
-                pass  # MCP SDK cancel scope cleanup is noisy but harmless
+            except (RuntimeError, BaseExceptionGroup) as exc:
+                logger.debug("Ignoring MCP SDK cleanup noise during close: {}", exc)
             self._mcp_stack = None
 
     def stop(self) -> None:
@@ -454,11 +513,12 @@ class AgentLoop:
         from datetime import datetime
         for m in messages[skip:]:
             entry = dict(m)
-            if entry.get("role") == "tool" and isinstance(entry.get("content"), str):
+            role = entry.get("role", "")
+            if role == "tool" and isinstance(entry.get("content"), str):
                 content = entry["content"]
                 if len(content) > self._TOOL_RESULT_MAX_CHARS:
                     entry["content"] = content[:self._TOOL_RESULT_MAX_CHARS] + "\n... (truncated)"
-            if entry.get("role") == "user" and isinstance(entry.get("content"), list):
+            if role == "user" and isinstance(entry.get("content"), list):
                 entry["content"] = [
                     {"type": "text", "text": "[image]"} if (
                         c.get("type") == "image_url"

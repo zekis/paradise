@@ -1,0 +1,269 @@
+{
+  "assessments": {
+    "cross_module_architecture": 42,
+    "convention_outlier": 55,
+    "error_consistency": 35,
+    "abstraction_fitness": 48
+  },
+  "findings": [
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "duplicated-make-provider",
+      "summary": "_make_provider is duplicated in nanobot/server.py and nanobot-src/nanobot/cli/commands.py with slightly different logic. The server.py version lacks the OpenAI Codex provider path and the bedrock check. This cross-package duplication indicates a missing shared boundary for provider factory logic.",
+      "related_files": [
+        "nanobot/server.py",
+        "nanobot-src/nanobot/cli/commands.py"
+      ],
+      "evidence": "nanobot/server.py:37 'def _make_provider(config):' creates LiteLLMProvider/CustomProvider. commands.py:244 'def _make_provider(config: Config):' creates LiteLLMProvider/CustomProvider/OpenAICodexProvider with different error handling and additional bedrock check.",
+      "suggestion": "Extract a shared provider_factory module in nanobot-src that both server.py and cli/commands.py import. This prevents the two implementations from drifting further apart.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "duplicated-workspace-templates",
+      "summary": "_ensure_workspace_templates in nanobot/server.py and _create_workspace_templates in cli/commands.py duplicate the same logic for creating workspace template files from bundled resources, with slightly different console/print output handling.",
+      "related_files": [
+        "nanobot/server.py",
+        "nanobot-src/nanobot/cli/commands.py"
+      ],
+      "evidence": "server.py:68 'def _ensure_workspace_templates():' uses print() for output. commands.py:213 'def _create_workspace_templates(workspace: Path):' uses console.print(). Both iterate templates_dir, check if dest.exists(), write files, and handle memory/MEMORY.md identically.",
+      "suggestion": "Move template initialization to a shared function in nanobot.utils or nanobot.config, accepting an optional output callback.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "duplicated-network-topology-query",
+      "summary": "Network topology query logic is duplicated between backend/app/routes/nodes.py (get_node_network) and backend/app/routes/chat.py (_get_network_context). Both perform the same parent/child/sibling edge queries and node summary construction.",
+      "related_files": [
+        "backend/app/routes/nodes.py",
+        "backend/app/routes/chat.py"
+      ],
+      "evidence": "nodes.py:735 'async def get_node_network' and chat.py:96 'async def _get_network_context' both: query edges_out/edges_in, compute child_ids/parent_ids/sibling_ids, fetch related nodes, and build identical summary dicts with id/name/identity/agent_status/agent_status_message.",
+      "suggestion": "Extract the network topology query and summary building into a shared utility function in the db module or a new services module that both routes use.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "duplicated-node-summary",
+      "summary": "_node_summary in nodes.py and _summary closure in chat.py produce identical dict structures but are defined separately, which means changes to the summary format must be synchronized in two places.",
+      "related_files": [
+        "backend/app/routes/nodes.py",
+        "backend/app/routes/chat.py"
+      ],
+      "evidence": "nodes.py:720 'def _node_summary(node, edge_type=None) -> dict: return {\"id\": str(node.id), \"name\": node.name, \"identity\": node.identity, \"agent_status\": ...}'. chat.py:129 'def _summary(n) -> dict: return {\"id\": str(n.id), \"name\": n.name, \"identity\": n.identity, \"agent_status\": ...}'",
+      "suggestion": "Define the summary builder once (e.g., as a method on the Node model or a shared utility) and import it in both route modules.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "duplicate-docker-client-instantiation",
+      "summary": "DOCKER_CLIENT = docker.from_env() is instantiated at module level in both docker_ops.py and chat.py. chat.py creates its own client for the 'run' endpoint, bypassing the docker_ops abstraction layer.",
+      "related_files": [
+        "backend/app/docker_ops.py",
+        "backend/app/routes/chat.py"
+      ],
+      "evidence": "docker_ops.py:13 'DOCKER_CLIENT = docker.from_env()'. chat.py:21 'DOCKER_CLIENT = docker.from_env()'. chat.py:361 'container = DOCKER_CLIENT.containers.get(node.container_id)' uses the local client directly.",
+      "suggestion": "chat.py should import and use the docker_ops module for container operations rather than creating its own Docker client. Add a run_command function to docker_ops.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "main-imports-private-route-function",
+      "summary": "backend/app/main.py imports the private function _recreate_container from app.routes.nodes at runtime (inside reconcile_containers). This creates an upward dependency from the app setup layer into a route handler module.",
+      "related_files": [
+        "backend/app/main.py",
+        "backend/app/routes/nodes.py"
+      ],
+      "evidence": "main.py:29 'from app.routes.nodes import _recreate_container'",
+      "suggestion": "Move _recreate_container to a shared service module (e.g., app.services or app.docker_ops) so that both main.py and routes/nodes.py can import it without creating a circular or upward dependency.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "canvasstore-callback-hub",
+      "summary": "canvasStore acts as a hub module with 16 callback registrations (8 action + 8 setter pairs). Every React Flow mutation must pass through this store, giving it a large blast radius. Changes to node data shape require updating store types, wireStoreActions, and all callers.",
+      "related_files": [
+        "frontend/src/store/canvasStore.ts",
+        "frontend/src/hooks/useCanvasSync.ts"
+      ],
+      "evidence": "canvasStore.ts defines 8 action/setter pairs: removeNode/setRemoveNode, removeEdge/setRemoveEdge, updateNodeIdentity/setUpdateNodeIdentity, updateNodeName/setUpdateNodeName, updateNodeAgentStatus/setUpdateNodeAgentStatus, updateNodeGauge/setUpdateNodeGauge, addNode/setAddNode, addEdge/setAddEdge. Each defaults to () => {} and gets wired at runtime in useCanvasSync.ts wireStoreActions.",
+      "suggestion": "Consider using React context or direct React Flow node/edge APIs instead of this callback-registration pattern. At minimum, group related callbacks into a single dispatch function to reduce the store's surface area.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "agentloop-constructor-blast-radius",
+      "summary": "AgentLoop.__init__ accepts 15 parameters, many of which are configuration values unpacked from Config. Every call site (commands.py gateway, _create_agent_loop, cron_run, server.py) must repeat the same parameter unpacking. Adding a config field requires updating all 4+ call sites.",
+      "related_files": [
+        "nanobot-src/nanobot/agent/loop.py",
+        "nanobot-src/nanobot/cli/commands.py",
+        "nanobot/server.py"
+      ],
+      "evidence": "loop.py:48-64 constructor has 15 params. commands.py:318-334 (gateway), commands.py:470-485 (_create_agent_loop), commands.py:992-1006 (cron_run), server.py:114-125 all repeat the same config unpacking pattern with config.agents.defaults.model, config.agents.defaults.temperature, etc.",
+      "suggestion": "Add a classmethod like AgentLoop.from_config(config, bus, provider) that centralizes the unpacking, or accept the Config object directly.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "mixed-logging-frameworks",
+      "summary": "The backend package uses stdlib logging exclusively, while nanobot-src uses loguru almost everywhere, with two exceptions: nanobot/agent/tools/shell.py and nanobot/channels/matrix.py which use stdlib logging. This creates inconsistency within the nanobot-src package.",
+      "related_files": [
+        "nanobot-src/nanobot/agent/tools/shell.py",
+        "nanobot-src/nanobot/channels/matrix.py",
+        "nanobot-src/nanobot/agent/loop.py"
+      ],
+      "evidence": "shell.py:4 'import logging' and shell.py:12 'logger = logging.getLogger(__name__)'. matrix.py:4 'import logging'. All other nanobot-src files use 'from loguru import logger'.",
+      "suggestion": "Convert shell.py and matrix.py to use loguru for consistency within nanobot-src. The backend using stdlib logging is intentional (different package).",
+      "confidence": "high"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "logging-accessor-inconsistency-backend",
+      "summary": "Within the backend package, logging is obtained inconsistently. Some modules use logging.getLogger(__name__), some use logging.getLogger('paradise'), and nodes.py uses __import__('logging').getLogger('paradise').",
+      "related_files": [
+        "backend/app/routes/nodes.py",
+        "backend/app/main.py",
+        "backend/app/db.py",
+        "backend/app/broadcast.py"
+      ],
+      "evidence": "nodes.py:31 'log = __import__(\"logging\").getLogger(\"paradise\")'. main.py:17 'log = logging.getLogger(\"paradise\")'. db.py:8 'logger = logging.getLogger(__name__)'. broadcast.py:8 'logger = logging.getLogger(__name__)'.",
+      "suggestion": "Standardize on either getLogger(__name__) or getLogger('paradise') across the backend, and always use the normal import pattern rather than __import__.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "mixed-response-conventions",
+      "summary": "Backend API endpoints return inconsistent response shapes. Some return Pydantic response_model objects, some return bare dicts like {'ok': True}, some return {'config': ...}, and some return domain-specific shapes. There is no consistent envelope pattern.",
+      "related_files": [
+        "backend/app/routes/nodes.py",
+        "backend/app/routes/edges.py",
+        "backend/app/routes/canvas.py"
+      ],
+      "evidence": "nodes.py:237 'return {\"ok\": True}'. nodes.py:375 'return {\"config\": config}'. nodes.py:559 'return {\"filename\": filename, \"content\": content}'. edges.py:43 returns Edge model via response_model. nodes.py:153 returns Node model via response_model.",
+      "suggestion": "Adopt a consistent response envelope for action endpoints (e.g., always {\"ok\": true, \"data\": ...}) or at minimum document the convention so new endpoints follow a pattern.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "snake-vs-camel-api-fields",
+      "summary": "The backend API uses snake_case for JSON fields (position_x, container_status, source_id), but the frontend Recommendation type uses snake_case field names from the backend directly (genesis_prompt, etc.), while NanobotNodeData uses camelCase (containerStatus, agentStatus). The translation happens inconsistently in useCanvasSync.",
+      "related_files": [
+        "frontend/src/types.ts",
+        "frontend/src/hooks/useCanvasSync.ts",
+        "backend/app/routes/nodes.py"
+      ],
+      "evidence": "types.ts:32 'export interface Recommendation { name: string; genesis_prompt: string; ... }' uses snake_case. types.ts:16 'export interface NanobotNodeData { label: string; nodeId: string; containerStatus: string | null; ... }' uses camelCase. useCanvasSync.ts:117 maps 'n.container_status' to 'containerStatus'.",
+      "suggestion": "Standardize the Recommendation interface to use camelCase to match the project's TypeScript convention, and perform the snake_case-to-camelCase mapping consistently at the API boundary.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "silent-catch-frontend",
+      "summary": "The frontend has 20+ bare 'catch {}' or 'catch { /* ignore */ }' blocks that silently swallow errors across fetch calls, SSE parsing, WebSocket message handling, and polling. No error context is preserved for debugging.",
+      "related_files": [
+        "frontend/src/hooks/useCanvasSync.ts",
+        "frontend/src/hooks/useChatSocket.ts",
+        "frontend/src/store/eventLogStore.ts"
+      ],
+      "evidence": "useCanvasSync.ts:144 'catch { setLoaded(true); }'. useCanvasSync.ts:197 'catch {}'. useCanvasSync.ts:226 'catch {}'. eventLogStore.ts:49 'catch { // Silently ignore polling errors }'. useChatSocket.ts:76 'catch { // Start empty if history fetch fails }'. useChatSocket.ts:180 'catch { // ignore parse errors }'.",
+      "suggestion": "At minimum, log errors to console.error or a monitoring service. For critical paths (initial data fetch, WebSocket message parsing), surface errors to the user or a debug panel.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "mixed-error-return-strategies-tools",
+      "summary": "Nanobot tools return errors as 'Error: ...' strings instead of raising exceptions, while the ToolRegistry appends a hint string. Some tools return JSON error objects (web_fetch), some return plain strings. The caller (agent loop) has no way to distinguish success from error except by parsing string prefixes.",
+      "related_files": [
+        "nanobot-src/nanobot/agent/tools/filesystem.py",
+        "nanobot-src/nanobot/agent/tools/web.py",
+        "nanobot-src/nanobot/agent/tools/registry.py"
+      ],
+      "evidence": "filesystem.py:56 'return f\"Error: File not found: {path}\"'. web.py:99 'return f\"Error: {e}\"'. web.py:160 'return json.dumps({\"error\": str(e), \"url\": url})'. registry.py:51 'if isinstance(result, str) and result.startswith(\"Error\"): return result + _HINT'. registry.py:54 'return f\"Error executing {name}: {str(e)}\" + _HINT'.",
+      "suggestion": "Define a ToolResult type (e.g., with success/error variants) so callers can programmatically distinguish errors. Alternatively, standardize on a single error format (always prefixed string, or always structured).",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "llm-error-as-content",
+      "summary": "Both LLM providers (LiteLLMProvider and CustomProvider) catch all exceptions from the LLM API and return them as LLMResponse with content='Error: ...' and finish_reason='error'. This means the agent loop treats LLM API failures as valid assistant messages that get saved to session history.",
+      "related_files": [
+        "nanobot-src/nanobot/providers/litellm_provider.py",
+        "nanobot-src/nanobot/providers/custom_provider.py",
+        "nanobot-src/nanobot/agent/loop.py"
+      ],
+      "evidence": "litellm_provider.py:228-232 'except Exception as e: return LLMResponse(content=f\"Error calling LLM: {str(e)}\", finish_reason=\"error\")'. custom_provider.py:33 'except Exception as e: return LLMResponse(content=f\"Error: {e}\", finish_reason=\"error\")'. loop.py:192 'response = await self.provider.chat(...)' treats all responses uniformly.",
+      "suggestion": "Either raise a typed exception from providers so the agent loop can handle LLM failures distinctly from normal responses, or check finish_reason=='error' in the agent loop before saving to session history.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "docker-ops-silent-empty-returns",
+      "summary": "docker_ops functions silently return empty/default values on failure (empty string, empty dict, empty list, None) without logging or raising, making it impossible for callers to distinguish 'file does not exist' from 'container not found' from 'API error'.",
+      "related_files": [
+        "backend/app/docker_ops.py"
+      ],
+      "evidence": "docker_ops.py:71 get_container_logs returns '' on NotFound. docker_ops.py:96 get_container_stats returns None on NotFound/KeyError. docker_ops.py:128 read_nanobot_config returns {} on NotFound/APIError/KeyError. docker_ops.py:168 read_workspace_file returns '' on NotFound/APIError.",
+      "suggestion": "Return Optional types with explicit None for 'not found' cases, or raise typed exceptions. At minimum, distinguish between 'container not found' and 'file not found within container'.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "untyped-payload-dicts",
+      "summary": "Several backend API endpoints accept bare 'dict' payloads instead of typed Pydantic models, meaning malformed input silently produces unexpected behavior via .get() with defaults rather than validation errors.",
+      "related_files": [
+        "backend/app/routes/nodes.py",
+        "backend/app/routes/canvas.py",
+        "backend/app/routes/chat.py"
+      ],
+      "evidence": "nodes.py:241 'async def clone_node(node_id: UUID, payload: dict, ...)'. nodes.py:379 'async def update_node_config(node_id: UUID, payload: dict, ...)'. canvas.py:55 'async def set_default_config(payload: dict, ...)'. chat.py:297 'async def exec_command(node_id: UUID, payload: dict):'.",
+      "suggestion": "Define Pydantic request models for these endpoints to get automatic validation, consistent error responses, and API documentation.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "canvasstore-callback-indirection",
+      "summary": "canvasStore uses a callback-registration pattern where 8 action functions are initialized as no-ops and later replaced at runtime via corresponding setter functions. This creates an indirection layer where the store doesn't contain logic itself -- it's a pass-through to functions wired from useCanvasSync.",
+      "related_files": [
+        "frontend/src/store/canvasStore.ts",
+        "frontend/src/hooks/useCanvasSync.ts"
+      ],
+      "evidence": "canvasStore.ts:32-33 'removeNode: () => {}, setRemoveNode: (fn) => set({ removeNode: fn })'. All 8 actions follow this pattern. useCanvasSync.ts:22-85 wireStoreActions sets every callback.",
+      "suggestion": "Store the React Flow setNodes/setEdges references directly in the store, or use React context to share the mutation functions. The current pattern adds indirection without meaningful abstraction.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "config-loader-get-data-dir-wrapper",
+      "summary": "config/loader.py's get_data_dir() is a one-line wrapper that just calls utils.helpers.get_data_path(). It adds an import indirection without value.",
+      "related_files": [
+        "nanobot-src/nanobot/config/loader.py",
+        "nanobot-src/nanobot/utils/helpers.py"
+      ],
+      "evidence": "loader.py:14-16 'def get_data_dir() -> Path: from nanobot.utils.helpers import get_data_path; return get_data_path()'.",
+      "suggestion": "Remove get_data_dir from loader.py and have callers import get_data_path directly from utils.helpers, or re-export it without the wrapper.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "container-create-pattern-triplication",
+      "summary": "The container creation + config writing + template writing pattern is repeated 3 times across create_node, clone_node, and create_child_node in nodes.py. Each repetition includes the same sequence: create container, apply default config, write templates with ALLOWED_WORKSPACE_FILES filtering.",
+      "related_files": [
+        "backend/app/routes/nodes.py"
+      ],
+      "evidence": "nodes.py:117-147 (create_node), nodes.py:258-294 (clone_node), nodes.py:923-950 (create_child_node) all repeat: create_nanobot_container -> write_nanobot_config from canvas_state.default_nanobot_config -> write_workspace_files_batch with ALLOWED_WORKSPACE_FILES filter. _recreate_container (line 34-68) extracts part of this but the other 3 endpoints don't use it.",
+      "suggestion": "Refactor to use _recreate_container or a similar shared function for the common container setup sequence. clone_node's file copying can be an additional step after the shared setup.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "nodes-route-module-too-large",
+      "summary": "nodes.py is 981 lines and handles node CRUD, container lifecycle, workspace file management, network topology queries, recommendations, gauge/status endpoints, and child node creation. It combines at least 4 distinct domain concerns in one file.",
+      "related_files": [
+        "backend/app/routes/nodes.py"
+      ],
+      "evidence": "nodes.py: CRUD (lines 106-237), container ops (lines 308-366), workspace files (lines 408-626), agent status/gauge (lines 629-681), identity (lines 684-717), network (lines 734-834), recommendations (lines 837-866), child creation (lines 869-981).",
+      "suggestion": "Split into focused route modules: node_crud.py, node_workspace.py, node_network.py, and extract container lifecycle into a service module.",
+      "confidence": "medium"
+    }
+  ]
+}

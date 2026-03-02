@@ -3,11 +3,11 @@ name = "paradise-backend"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.34",
-    "sqlalchemy[asyncio]>=2.0",
-    "asyncpg>=0.30",
-    "docker>=7.0",
-    "websockets>=14.0",
-    "pydantic>=2.0",
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.34,<1.0",
+    "sqlalchemy[asyncio]>=2.0,<3.0",
+    "asyncpg>=0.30,<1.0",
+    "docker>=7.0,<8.0",
+    "websockets>=16.0,<17.0",
+    "pydantic>=2.12.0,<3.0.0",
 ]
