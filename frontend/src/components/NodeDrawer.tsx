@@ -356,6 +356,7 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
           key={nodeId}
           nodeId={nodeId}
           api={api}
+          visible={activeTab === "chat"}
           genesisPrompt={genesisPrompt}
           onGenesisComplete={handleGenesisComplete}
           onIdentityUpdate={handleIdentityUpdate}
