@@ -154,6 +154,37 @@ async def _maintenance_loop():
                                     "identity.json",
                                     json.dumps(identity, indent=2),
                                 )
+
+                            # Sync gauge value from identity.json (flat or nested)
+                            gauge_src = identity if isinstance(identity, dict) else {}
+                            if "gauge" in gauge_src and isinstance(gauge_src["gauge"], dict):
+                                g = gauge_src["gauge"]
+                                gauge_src = {
+                                    "gauge_value": g.get("value", g.get("gauge_value")),
+                                    "gauge_label": g.get("label", g.get("gauge_label", "")),
+                                    "gauge_unit": g.get("unit", g.get("gauge_unit", "")),
+                                }
+                            if "gauge_value" in gauge_src:
+                                raw_gv = gauge_src.get("gauge_value")
+                                if raw_gv is not None:
+                                    try:
+                                        gv = float(raw_gv)
+                                        if 0 <= gv <= 100:
+                                            node.gauge_value = gv
+                                            node.gauge_label = str(gauge_src.get("gauge_label", ""))[:100] or None
+                                            node.gauge_unit = str(gauge_src.get("gauge_unit", ""))[:20] or None
+                                    except (TypeError, ValueError):
+                                        pass
+                                else:
+                                    node.gauge_value = None
+                                    node.gauge_label = None
+                                    node.gauge_unit = None
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+                        except Exception as exc:
+                            log.debug(
+                                "maintenance: identity read failed for %s: %s",
+                                node.name, exc,
                             except Exception:
                                 pass
 

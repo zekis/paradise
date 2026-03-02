@@ -4,6 +4,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import Icon from "@mdi/react";
 import { mdiRobot } from "@mdi/js";
 import { useCanvasStore } from "@/store/canvasStore";
+import { resolveMdiIcon } from "@/lib/mdiIcons";
 import type { NanobotNodeData, NanobotFlowNode } from "@/types";
 
 function getStatusColor(agentStatus: string | null, containerStatus: string | null): string {
@@ -22,8 +23,21 @@ function getStatusColor(agentStatus: string | null, containerStatus: string | nu
   }
 }
 
+function isNodeHealthy(agentStatus: string | null, containerStatus: string | null): boolean {
+  if (agentStatus === "ok") return true;
+  if (agentStatus === null && containerStatus === "running") return true;
+  return false;
+}
+
+function getCircleColor(agentStatus: string | null, containerStatus: string | null): string | null {
+  if (isNodeHealthy(agentStatus, containerStatus)) return null;
+  if (agentStatus === "error" || containerStatus === "error") return "var(--red)";
+  return "var(--yellow)";
+}
+
 const GAUGE_SIZE = 56;
 const GAUGE_STROKE = 3;
+const BORDER_WIDTH = 2;
 const GAUGE_RADIUS = (GAUGE_SIZE - GAUGE_STROKE) / 2;
 const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS;
 
@@ -34,7 +48,7 @@ function GaugeRing({ value, color }: { value: number; color: string }) {
     <svg
       width={GAUGE_SIZE}
       height={GAUGE_SIZE}
-      style={{ position: "absolute", top: 0, left: 0, transform: "rotate(-90deg)", pointerEvents: "none" }}
+      style={{ position: "absolute", top: -BORDER_WIDTH, left: -BORDER_WIDTH, transform: "rotate(-90deg)", pointerEvents: "none" }}
     >
       <circle
         cx={GAUGE_SIZE / 2}
@@ -79,14 +93,18 @@ const KEYFRAMES = `
 
 export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
   const d = data as NanobotNodeData;
-  const { nodeId, containerStatus, identity, agentStatus, agentStatusMessage, genesisActive, gaugeValue, gaugeLabel } = d;
+  const { nodeId, containerStatus, identity, agentStatus, agentStatusMessage, genesisActive, gaugeValue, gaugeLabel, gaugeUnit } = d;
 
   const { selectedNodeId, setSelectedNodeId } = useCanvasStore();
 
   const statusColor = getStatusColor(agentStatus, containerStatus);
   const identityColor = identity?.color || null;
+  const circleColor = getCircleColor(agentStatus, containerStatus);
   const isSelected = selectedNodeId === nodeId;
   const hasGauge = gaugeValue != null;
+  const resolvedIcon = identity?.icon ? resolveMdiIcon(identity.icon) : null;
+  const hasIconBadge = !!(resolvedIcon || identity?.emoji);
+  const gaugeColor = hasGauge ? getGaugeColor(gaugeValue!, identityColor) : undefined;
 
   return (
     <div
@@ -97,6 +115,7 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
         gap: 4,
         cursor: "pointer",
         width: 80,
+        overflow: "visible",
       }}
       onClick={() => setSelectedNodeId(nodeId)}
     >
@@ -113,24 +132,62 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
           width: 56,
           height: 56,
           borderRadius: "50%",
-          background: identityColor ? `${identityColor}15` : "var(--bg-card)",
-          border: `2px solid ${isSelected ? "var(--accent)" : identityColor || "var(--border)"}`,
+          background: circleColor ? `${circleColor}15` : "var(--bg-card)",
+          border: `${BORDER_WIDTH}px solid ${isSelected ? "var(--accent)" : circleColor || "var(--border)"}`,
           boxShadow: isSelected ? "0 0 0 2px var(--accent)" : undefined,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           position: "relative",
           transition: "border-color 0.15s, box-shadow 0.15s",
+          overflow: "visible",
         }}
-        title={hasGauge ? `${gaugeLabel ? gaugeLabel + ": " : ""}${Math.round(gaugeValue!)}%` : undefined}
+        title={hasGauge ? `${gaugeLabel ? gaugeLabel + ": " : ""}${Math.round(gaugeValue!)}${gaugeUnit || ""}` : undefined}
       >
         {hasGauge && (
-          <GaugeRing value={gaugeValue!} color={getGaugeColor(gaugeValue!, identityColor)} />
+          <GaugeRing value={gaugeValue!} color={gaugeColor!} />
         )}
-        {identity?.emoji ? (
-          <span style={{ fontSize: 24, lineHeight: 1 }}>{identity.emoji}</span>
+        {/* Icon badge — top-left, outside circle */}
+        {hasIconBadge && (
+          <div
+            style={{
+              position: "absolute",
+              top: -6,
+              left: -6,
+              width: 20,
+              height: 20,
+              borderRadius: "50%",
+              background: "var(--bg-card)",
+              border: `1.5px solid ${identityColor || "var(--border)"}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 2,
+            }}
+          >
+            {resolvedIcon ? (
+              <Icon path={resolvedIcon} size={0.45} color={identityColor || "var(--text-muted)"} />
+            ) : (
+              <span style={{ fontSize: 10, lineHeight: 1 }}>{identity?.emoji}</span>
+            )}
+          </div>
+        )}
+        {/* Circle center — gauge value or fallback icon */}
+        {hasGauge ? (
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: gaugeColor,
+              lineHeight: 1,
+              zIndex: 1,
+              position: "relative",
+            }}
+          >
+            {Math.round(gaugeValue!)}{gaugeUnit || ""}
+          </span>
         ) : (
-          <Icon path={mdiRobot} size={1.1} color="var(--text-muted)" />
+          <Icon path={resolvedIcon || mdiRobot} size={1.1} color="var(--text-muted)" />
         )}
         <span
           style={{

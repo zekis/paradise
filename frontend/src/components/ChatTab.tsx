@@ -23,7 +23,9 @@ Wait for the user to answer before proceeding to Step 2.
 
 Write these files to your workspace using the write_file tool:
 
-1. **identity.json** (FIRST): {"emoji": "<emoji>", "color": "<hex>", "description": "<one line>", "tabs": [{"name": "<Label>", "file": "<FILE.md>"}]}
+1. **identity.json** (FIRST): {"icon": "<mdiIconName>", "emoji": "<fallback emoji>", "color": "<hex>", "description": "<one line>", "tabs": [{"name": "<Label>", "file": "<FILE.md>"}]}
+   - icon: MDI icon name (preferred). Choose from: mdiServer, mdiDatabase, mdiMonitor, mdiCloud, mdiCloudSync, mdiHome, mdiHomeAutomation, mdiWeatherSunny, mdiWeatherCloudy, mdiShieldCheck, mdiShieldLock, mdiChartLine, mdiChartBar, mdiNetwork, mdiLan, mdiEarth, mdiCpu64Bit, mdiMemory, mdiHarddisk, mdiThermometer, mdiLightbulb, mdiCamera, mdiEmail, mdiCalendar, mdiClock, mdiFinance, mdiCart, mdiStore, mdiPackage, mdiDocker, mdiGithub, mdiCog, mdiWrench, mdiPower, mdiFlash, mdiLeaf, mdiWater, mdiWifi, mdiApi, mdiCodeBraces, mdiRss, mdiBug, mdiTestTube, mdiRobot
+   - emoji: fallback emoji if no icon matches
    - tabs: 1-2 custom markdown tabs relevant to your role
 2. **SOUL.md** — Personality and communication style
 3. **AGENTS.md** — Domain knowledge, task priorities, heartbeat instructions
@@ -94,7 +96,7 @@ Install any pip packages you need: \`await PARADISE.run("pip install requests")\
 - \`await PARADISE.readFile("file")\` / \`PARADISE.writeFile("file", content)\` — workspace files
 - \`await PARADISE.rename("new-name")\` — rename this node on the canvas (e.g. "pve-01", "weather-home")
 - \`await PARADISE.setStatus("ok"|"warning"|"error", "optional message")\` — set the node's status indicator. The dot on the canvas reflects this: green=ok, yellow=warning, red=error. Use this to signal faults!
-- \`await PARADISE.setGauge(0-100, "label")\` — set the analog gauge ring on the canvas node. Value 0-100 fills a circular arc around the node icon. Label describes what is being measured (e.g. "open todos", "cpu", "uptime"). Pass null to clear. Gauge color: identity color <60%, yellow 60-80%, red >80%.
+- \`await PARADISE.setGauge(0-100, "label", "unit")\` — set the analog gauge ring on the canvas node. Value 0-100 fills a circular arc around the node icon. Label describes what is being measured (e.g. "cpu", "open todos"). Unit is the display symbol shown after the value (e.g. "%", "°C", or "" for none). Pass null to clear. Gauge color: identity color <60%, yellow 60-80%, red >80%.
 - \`await PARADISE.getNetwork()\` — get your network topology: {self, parents, children, siblings} with names, identities, and statuses of connected nodes
 - \`await PARADISE.getPeerConfig(peerId)\` — get a connected peer's config and workspace files (identity.json, SOUL.md, AGENTS.md, dashboard.html, etc.)
 
@@ -105,7 +107,7 @@ Install any pip packages you need: \`await PARADISE.run("pip install requests")\
 After building, your **dashboard.html** should:
 1. Call \`PARADISE.rename("short-name")\` on first load to give this node a meaningful name (e.g. "pve-03" for a Proxmox node, "weather-nyc" for a weather agent). Keep it short (under 15 chars).
 2. Call \`PARADISE.setStatus("ok")\` when everything is working, or \`PARADISE.setStatus("error", "Cannot reach API")\` when there's a fault. Update status on each data refresh.
-3. Call \`PARADISE.setGauge(value, "label")\` to show a live metric on the node circle. Pick a value meaningful to your role — e.g. CPU % for a server monitor, open task count (as %) for a task manager, disk usage % for a storage agent. Update it alongside status on each data refresh.
+3. Call \`PARADISE.setGauge(value, "label", "unit")\` to show a live metric on the node circle. Pick a value meaningful to your role. The unit is the symbol shown after the number. Examples: \`await PARADISE.setGauge(cpu_pct, "cpu", "%")\`, \`await PARADISE.setGauge(taskCount, "tasks", "")\`. Update it alongside status on each data refresh.
 
 Start with Step 1 now — ask your clarifying questions.`;
 

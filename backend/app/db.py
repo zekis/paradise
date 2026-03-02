@@ -38,6 +38,7 @@ class Node(Base):
     agent_status_message = Column(Text, nullable=True)
     gauge_value = Column(Float, nullable=True)
     gauge_label = Column(Text, nullable=True)
+    gauge_unit = Column(Text, nullable=True)
     created_at = Column(
         String, default=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -143,6 +144,7 @@ async def create_tables():
         await conn.execute(text("ALTER TABLE edges ADD COLUMN IF NOT EXISTS target_handle VARCHAR(30)"))
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_value DOUBLE PRECISION"))
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_label TEXT"))
+        await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_unit TEXT"))
 
 
 async def get_db():

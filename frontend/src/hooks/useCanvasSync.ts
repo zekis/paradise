@@ -13,7 +13,7 @@ import {
 } from "@xyflow/react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { API_URL as API } from "@/lib/api";
-import type { NanobotNodeData } from "@/types";
+import type { NanobotNodeData, NodeIdentity } from "@/types";
 
 type NodeSetter = (fn: (nds: Node[]) => Node[]) => void;
 type EdgeSetter = (fn: (eds: Edge[]) => Edge[]) => void;
@@ -32,7 +32,7 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
     fetch(`${API}/api/edges/${edgeId}`, { method: "DELETE" }).catch(() => {});
   });
 
-  store.setUpdateNodeIdentity((nodeId: string, identity: Record<string, unknown>) => {
+  store.setUpdateNodeIdentity((nodeId: string, identity: NodeIdentity) => {
     setNodes((nds) =>
       nds.map((n) =>
         n.id === nodeId
@@ -58,11 +58,11 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
     );
   });
 
-  store.setUpdateNodeGauge((nodeId: string, value: number | null, label?: string) => {
+  store.setUpdateNodeGauge((nodeId: string, value: number | null, label?: string, unit?: string) => {
     setNodes((nds) =>
       nds.map((n) =>
         n.id === nodeId
-          ? { ...n, data: { ...n.data, gaugeValue: value, gaugeLabel: label || null } }
+          ? { ...n, data: { ...n.data, gaugeValue: value, gaugeLabel: label || null, gaugeUnit: unit || null } }
           : n
       )
     );
@@ -104,14 +104,15 @@ async function fetchCanvas(
         type: "nanobot" as const,
         position: { x: n.position_x, y: n.position_y },
         data: {
-          label: n.name,
-          nodeId: n.id,
-          containerStatus: n.container_status,
-          identity: n.identity || null,
-          agentStatus: n.agent_status || null,
-          agentStatusMessage: n.agent_status_message || null,
+          label: n.name as string,
+          nodeId: n.id as string,
+          containerStatus: (n.container_status as string) || null,
+          identity: (n.identity as NodeIdentity) || null,
+          agentStatus: (n.agent_status as string) || null,
+          agentStatusMessage: (n.agent_status_message as string) || null,
           gaugeValue: (n.gauge_value as number) ?? null,
           gaugeLabel: (n.gauge_label as string) || null,
+          gaugeUnit: (n.gauge_unit as string) || null,
         } satisfies NanobotNodeData,
         style: { width: 80, height: 92 },
       }))
@@ -170,6 +171,7 @@ export function useCanvasSync() {
                 agentStatusMessage: fresh.agent_status_message || null,
                 gaugeValue: (fresh.gauge_value as number) ?? null,
                 gaugeLabel: (fresh.gauge_label as string) || null,
+                gaugeUnit: (fresh.gauge_unit as string) || null,
               },
             };
           })

@@ -94,6 +94,7 @@ class NodeRead(BaseModel):
     agent_status_message: str | None = None
     gauge_value: float | None = None
     gauge_label: str | None = None
+    gauge_unit: str | None = None
     created_at: str | None
     updated_at: str | None
 
@@ -586,6 +587,7 @@ async def set_gauge(node_id: UUID, payload: dict, db: AsyncSession = Depends(get
     if raw_value is None:
         node.gauge_value = None
         node.gauge_label = None
+        node.gauge_unit = None
     else:
         try:
             value = float(raw_value)
@@ -595,8 +597,9 @@ async def set_gauge(node_id: UUID, payload: dict, db: AsyncSession = Depends(get
             raise HTTPException(status_code=400, detail="value must be between 0 and 100")
         node.gauge_value = value
         node.gauge_label = str(payload.get("label", ""))[:100] or None
+        node.gauge_unit = str(payload.get("unit", ""))[:20] or None
     await db.commit()
-    return {"ok": True, "gauge_value": node.gauge_value, "gauge_label": node.gauge_label}
+    return {"ok": True, "gauge_value": node.gauge_value, "gauge_label": node.gauge_label, "gauge_unit": node.gauge_unit}
 
 
 @router.get("/nodes/{node_id}/identity")

@@ -78,14 +78,14 @@ const PARADISE = {
     return await res.json();
   },
 
-  async setGauge(value, label) {
+  async setGauge(value, label, unit) {
     const res = await fetch(this.api + "/api/nodes/" + this.nodeId + "/gauge", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value: value, label: label || "" })
+      body: JSON.stringify({ value: value, label: label || "", unit: unit || "" })
     });
     if (!res.ok) throw new Error("setGauge failed: " + res.status);
-    window.parent.postMessage({ type: "paradise:gauge", nodeId: this.nodeId, value: value, label: label || "" }, "*");
+    window.parent.postMessage({ type: "paradise:gauge", nodeId: this.nodeId, value: value, label: label || "", unit: unit || "" }, "*");
   }
 };
 </script>
