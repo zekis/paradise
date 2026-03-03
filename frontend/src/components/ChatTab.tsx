@@ -87,7 +87,7 @@ Install any pip packages you need: \`await PARADISE.run("pip install requests")\
 ## HTML Design Rules
 
 **Viewport**: 320×280px. Vertical scrolling OK but keep compact.
-**Style**: Dark grayscale only. bg #0a0a0a, text #e0e0e0, muted #888, borders #222. Accent from identity.json color for highlights only. Font: system-ui, 11-12px. Padding: 8-12px.
+**Style**: Use CSS variables for all colors — var(--p-bg) for page backgrounds, var(--p-bg-card) for card/section backgrounds, var(--p-text) for text, var(--p-text-muted) for secondary text, var(--p-border) for borders, var(--p-accent) for accent highlights. These are pre-injected and auto-update for light/dark mode. Do NOT use hardcoded hex color values. Font: system-ui, 11-12px. Padding: 8-12px.
 **Icons**: SVG paths from MDI (Material Design Icons). No emoji in HTML.
 
 **JS API** (available in all HTML pages):
