@@ -4,7 +4,7 @@ import os
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Float, ForeignKey, String, Text, func
+from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, relationship
@@ -39,13 +39,8 @@ class Node(Base):
     gauge_value = Column(Float, nullable=True)
     gauge_label = Column(Text, nullable=True)
     gauge_unit = Column(Text, nullable=True)
-    created_at = Column(
-        String, default=lambda: datetime.now(timezone.utc).isoformat()
-    )
-    updated_at = Column(
-        String, default=lambda: datetime.now(timezone.utc).isoformat(),
-        onupdate=lambda: datetime.now(timezone.utc).isoformat(),
-    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     edges_out = relationship("Edge", foreign_keys="Edge.source_id", back_populates="source", cascade="all, delete-orphan")
     edges_in = relationship("Edge", foreign_keys="Edge.target_id", back_populates="target", cascade="all, delete-orphan")
@@ -60,9 +55,7 @@ class Edge(Base):
     edge_type = Column(String(30), default="connection")
     source_handle = Column(String(30), nullable=True)
     target_handle = Column(String(30), nullable=True)
-    created_at = Column(
-        String, default=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     source = relationship("Node", foreign_keys=[source_id], back_populates="edges_out")
     target = relationship("Node", foreign_keys=[target_id], back_populates="edges_in")
@@ -88,9 +81,7 @@ class ChatMessage(Base):
     content = Column(Text, nullable=False)
     message_type = Column(String(20), nullable=True, default="chat")
     display_content = Column(Text, nullable=True)
-    created_at = Column(
-        String, default=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class EventLog(Base):
@@ -102,9 +93,7 @@ class EventLog(Base):
     node_name = Column(Text, nullable=True)
     summary = Column(Text, nullable=True)
     details = Column(JSONB, nullable=True)
-    created_at = Column(
-        String, default=lambda: datetime.now(timezone.utc).isoformat(), index=True
-    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
 async def emit_event(

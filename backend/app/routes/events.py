@@ -1,5 +1,6 @@
 """Event log API — list and clear persisted events, plus SSE stream."""
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -21,7 +22,7 @@ class EventLogRead(BaseModel):
     node_name: str | None
     summary: str | None
     details: dict | None
-    created_at: str | None
+    created_at: datetime | None
 
     model_config = {"from_attributes": True}
 
@@ -37,7 +38,12 @@ async def list_events(
     """List events, newest first. Use `since` (ISO timestamp) for incremental polling."""
     query = select(EventLog)
     if since:
-        query = query.where(EventLog.created_at > since)
+        try:
+            since_dt = datetime.fromisoformat(since)
+        except ValueError:
+            since_dt = None
+        if since_dt:
+            query = query.where(EventLog.created_at > since_dt)
     if node_id:
         query = query.where(EventLog.node_id == node_id)
     if event_type:

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -97,8 +98,8 @@ class NodeRead(BaseModel):
     gauge_value: float | None = None
     gauge_label: str | None = None
     gauge_unit: str | None = None
-    created_at: str | None
-    updated_at: str | None
+    created_at: datetime | None
+    updated_at: datetime | None
 
     model_config = {"from_attributes": True}
 

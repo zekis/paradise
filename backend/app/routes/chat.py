@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from datetime import datetime
 from uuid import UUID
 
 import docker
@@ -374,7 +375,7 @@ class MessageRead(BaseModel):
     content: str
     message_type: str | None = None
     display_content: str | None = None
-    created_at: str | None
+    created_at: datetime | None
 
     model_config = {"from_attributes": True}
 
