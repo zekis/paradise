@@ -242,7 +242,7 @@ function FileEditor({
           fontSize: 10,
           fontFamily: "monospace",
           color: "var(--text-muted)",
-          background: "rgba(0,0,0,0.15)",
+          background: "var(--input-bg)",
           display: "flex",
           alignItems: "center",
           gap: 6,

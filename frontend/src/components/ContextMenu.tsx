@@ -105,7 +105,7 @@ export function ContextMenu({ position, nodeId, onClose, onDelete, onAddBot }: C
         padding: "4px 0",
         zIndex: 9999,
         minWidth: 140,
-        boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+        boxShadow: "0 4px 16px var(--shadow-md)",
       }}
     >
       {items.map((item) => (
@@ -126,7 +126,7 @@ export function ContextMenu({ position, nodeId, onClose, onDelete, onAddBot }: C
             fontSize: 11,
             textAlign: "left",
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--overlay-light)")}
           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
         >
           <Icon path={item.icon} size={0.55} color={item.color || "var(--text-muted)"} />

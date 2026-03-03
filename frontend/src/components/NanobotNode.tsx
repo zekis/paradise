@@ -55,7 +55,7 @@ function GaugeRing({ value, color }: { value: number; color: string }) {
         cy={GAUGE_SIZE / 2}
         r={GAUGE_RADIUS}
         fill="none"
-        stroke="rgba(255,255,255,0.06)"
+        stroke="var(--overlay-light)"
         strokeWidth={GAUGE_STROKE}
       />
       <circle

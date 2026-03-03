@@ -29,7 +29,7 @@ export function DeleteConfirmModal({ nodeId, label, onClose }: DeleteConfirmModa
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.6)",
+        background: "var(--backdrop)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -47,7 +47,7 @@ export function DeleteConfirmModal({ nodeId, label, onClose }: DeleteConfirmModa
           display: "flex",
           flexDirection: "column",
           gap: 12,
-          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+          boxShadow: "0 8px 24px var(--shadow-md)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

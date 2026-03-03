@@ -138,7 +138,7 @@ export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: Even
         zIndex: 2000,
         display: "flex",
         flexDirection: "column",
-        boxShadow: expanded ? "0 -4px 16px rgba(0, 0, 0, 0.3)" : undefined,
+        boxShadow: expanded ? "0 -4px 16px var(--shadow-sm)" : undefined,
       }}
     >
       {/* Header bar */}
@@ -167,7 +167,7 @@ export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: Even
               style={{
                 fontSize: 9,
                 background: "var(--accent)",
-                color: "#fff",
+                color: "var(--text)",
                 borderRadius: 8,
                 padding: "1px 6px",
                 fontWeight: 600,
@@ -233,10 +233,10 @@ export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: Even
                 gap: 8,
                 padding: "3px 12px",
                 cursor: entry.node_id ? "pointer" : "default",
-                borderBottom: "1px solid rgba(255,255,255,0.03)",
+                borderBottom: "1px solid var(--overlay-subtle)",
               }}
               onMouseOver={(e) => {
-                if (entry.node_id) (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.04)";
+                if (entry.node_id) (e.currentTarget as HTMLDivElement).style.background = "var(--overlay-subtle)";
               }}
               onMouseOut={(e) => {
                 (e.currentTarget as HTMLDivElement).style.background = "transparent";

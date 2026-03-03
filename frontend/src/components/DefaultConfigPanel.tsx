@@ -200,7 +200,7 @@ export function DefaultConfigPanel({
               spellCheck={false}
               style={{
                 flex: 1,
-                background: "rgba(0,0,0,0.3)",
+                background: "var(--input-bg)",
                 border: "1px solid var(--border)",
                 borderRadius: 4,
                 padding: 10,
@@ -297,7 +297,7 @@ export function DefaultConfigPanel({
               placeholder={`Default content for ${activeTemplate}...\nLeave empty to use built-in defaults.`}
               style={{
                 flex: 1,
-                background: "rgba(0,0,0,0.3)",
+                background: "var(--input-bg)",
                 border: "1px solid var(--border)",
                 borderRadius: 4,
                 padding: 10,

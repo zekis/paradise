@@ -87,7 +87,7 @@ Install any pip packages you need: \`await PARADISE.run("pip install requests")\
 ## HTML Design Rules
 
 **Viewport**: 320×280px. Vertical scrolling OK but keep compact.
-**Style**: Dark grayscale only. bg #0a0a0a, text #e0e0e0, muted #888, borders #222. Accent from identity.json color for highlights only. Font: system-ui, 11-12px. Padding: 8-12px.
+**Style**: Use CSS variables for all colors — var(--p-bg) for page backgrounds, var(--p-bg-card) for card/section backgrounds, var(--p-text) for text, var(--p-text-muted) for secondary text, var(--p-border) for borders, var(--p-accent) for accent highlights. These are pre-injected and auto-update for light/dark mode. Do NOT use hardcoded hex color values. Font: system-ui, 11-12px. Padding: 8-12px.
 **Icons**: SVG paths from MDI (Material Design Icons). No emoji in HTML.
 
 **JS API** (available in all HTML pages):
@@ -285,10 +285,10 @@ export function ChatTab({
                 borderRadius: 6,
                 background:
                   isToolCall
-                    ? "rgba(255, 255, 255, 0.02)"
+                    ? "var(--overlay-subtle)"
                     : m.role === "user"
                       ? "rgba(99, 102, 241, 0.15)"
-                      : "rgba(255, 255, 255, 0.05)",
+                      : "var(--overlay-light)",
                 alignSelf: m.role === "user" ? "flex-end" : "flex-start",
                 maxWidth: "85%",
                 whiteSpace: "pre-wrap",
@@ -308,7 +308,7 @@ export function ChatTab({
             style={{
               padding: "4px 8px",
               borderRadius: 6,
-              background: "rgba(255, 255, 255, 0.05)",
+              background: "var(--overlay-light)",
               alignSelf: "flex-start",
               color: "var(--text-muted)",
               fontSize: 11,
@@ -342,7 +342,7 @@ export function ChatTab({
           placeholder="Type a message..."
           style={{
             flex: 1,
-            background: "rgba(255,255,255,0.06)",
+            background: "var(--overlay-light)",
             border: "1px solid var(--border)",
             borderRadius: 4,
             padding: "6px 8px",

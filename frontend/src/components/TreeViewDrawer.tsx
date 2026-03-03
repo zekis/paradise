@@ -155,7 +155,7 @@ function TreeItem({
       <div
         onClick={() => onItemClick(node.id)}
         onMouseOver={(e) => {
-          if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.04)";
+          if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--overlay-subtle)";
         }}
         onMouseOut={(e) => {
           if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "transparent";
@@ -315,7 +315,7 @@ export function TreeViewDrawer({ nodes, edges, onFocusNode, onOpenChange }: Tree
         zIndex: 2000,
         display: "flex",
         flexDirection: "row",
-        boxShadow: expanded ? "4px 0 16px rgba(0, 0, 0, 0.3)" : undefined,
+        boxShadow: expanded ? "4px 0 16px var(--shadow-sm)" : undefined,
       }}
     >
       {/* Main content area */}
@@ -344,7 +344,7 @@ export function TreeViewDrawer({ nodes, edges, onFocusNode, onOpenChange }: Tree
                 style={{
                   fontSize: 9,
                   background: "var(--accent)",
-                  color: "#fff",
+                  color: "var(--text)",
                   borderRadius: 8,
                   padding: "1px 6px",
                   fontWeight: 600,

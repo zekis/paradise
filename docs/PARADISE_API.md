@@ -299,7 +299,7 @@ setInterval(refresh, 30000);
 ## HTML Design Rules
 
 - **Viewport**: 320x280px. Vertical scrolling OK.
-- **Style**: Dark grayscale. bg `#0a0a0a`, text `#e0e0e0`, muted `#888`, borders `#222`. Use identity color for accent highlights only.
+- **Style**: Use CSS variables for all colors — `var(--p-bg)` for page backgrounds, `var(--p-bg-card)` for card/section backgrounds, `var(--p-text)` for text, `var(--p-text-muted)` for secondary text, `var(--p-border)` for borders, `var(--p-accent)` for accent highlights. These are pre-injected and auto-update for light/dark mode. Do NOT use hardcoded hex color values.
 - **Font**: system-ui, 11-12px. Padding: 8-12px.
 - **Icons**: Use SVG paths from MDI (Material Design Icons). No emoji in HTML pages.
 

@@ -41,7 +41,7 @@ export function GenesisModal({ onClose, onCreate, parentContext }: GenesisModalP
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.7)",
+        background: "var(--backdrop)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -59,7 +59,7 @@ export function GenesisModal({ onClose, onCreate, parentContext }: GenesisModalP
           display: "flex",
           flexDirection: "column",
           gap: 16,
-          boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
+          boxShadow: "0 12px 40px var(--shadow-lg)",
         }}
       >
         {/* Header */}
@@ -93,7 +93,7 @@ export function GenesisModal({ onClose, onCreate, parentContext }: GenesisModalP
                       alignItems: "center",
                       gap: 8,
                       padding: "8px 10px",
-                      background: "rgba(255,255,255,0.04)",
+                      background: "var(--overlay-subtle)",
                       border: "1px dashed var(--border)",
                       borderRadius: 6,
                       cursor: "pointer",
@@ -104,7 +104,7 @@ export function GenesisModal({ onClose, onCreate, parentContext }: GenesisModalP
                       transition: "background 0.15s",
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(99,102,241,0.15)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "var(--overlay-subtle)")}
                   >
                     {iconPath ? (
                       <Icon path={iconPath} size={0.55} color="var(--text-muted)" style={{ flexShrink: 0 }} />
@@ -147,7 +147,7 @@ export function GenesisModal({ onClose, onCreate, parentContext }: GenesisModalP
           placeholder={parentContext ? "e.g., Custom child agent..." : "e.g., Proxmox server manager..."}
           autoFocus={!hasRecs}
           style={{
-            background: "rgba(0,0,0,0.3)",
+            background: "var(--input-bg)",
             border: "1px solid var(--border)",
             borderRadius: 6,
             padding: "10px 12px",
@@ -166,7 +166,7 @@ export function GenesisModal({ onClose, onCreate, parentContext }: GenesisModalP
                 key={ex}
                 onClick={() => setPrompt(ex)}
                 style={{
-                  background: "rgba(255,255,255,0.06)",
+                  background: "var(--overlay-light)",
                   border: "1px solid var(--border)",
                   borderRadius: 12,
                   padding: "4px 10px",
@@ -176,10 +176,10 @@ export function GenesisModal({ onClose, onCreate, parentContext }: GenesisModalP
                   transition: "background 0.15s",
                 }}
                 onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(255,255,255,0.12)")
+                  (e.currentTarget.style.background = "var(--overlay-medium)")
                 }
                 onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "rgba(255,255,255,0.06)")
+                  (e.currentTarget.style.background = "var(--overlay-light)")
                 }
               >
                 {ex}
@@ -208,7 +208,7 @@ export function GenesisModal({ onClose, onCreate, parentContext }: GenesisModalP
             onClick={() => onCreate({ genesisPrompt: prompt.trim() || null })}
             disabled={!prompt.trim()}
             style={{
-              background: prompt.trim() ? "var(--accent)" : "rgba(255,255,255,0.1)",
+              background: prompt.trim() ? "var(--accent)" : "var(--overlay-medium)",
               color: prompt.trim() ? "var(--text)" : "var(--text-muted)",
               border: "none",
               borderRadius: 6,

@@ -62,7 +62,7 @@ export function DeletableEdge({
               height: 16,
               borderRadius: "50%",
               background: "var(--red)",
-              color: "#fff",
+              color: "var(--text)",
               border: "none",
               cursor: "pointer",
               display: "flex",
@@ -71,7 +71,7 @@ export function DeletableEdge({
               fontSize: 11,
               lineHeight: 1,
               padding: 0,
-              boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
+              boxShadow: "0 2px 6px var(--shadow-sm)",
             }}
             title="Delete connection"
           >
