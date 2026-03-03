@@ -10,6 +10,7 @@ import websockets
 from docker.errors import NotFound as ContainerNotFound
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.broadcast import broadcast
