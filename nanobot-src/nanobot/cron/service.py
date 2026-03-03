@@ -65,10 +65,16 @@ class CronService:
     def __init__(
         self,
         store_path: Path,
-        on_job: Callable[[CronJob], Coroutine[Any, Any, str | None]] | None = None
+        on_job: Callable[[CronJob], Coroutine[Any, Any, str | None]] | None = None,
+        workspace: Path | None = None,
+        node_id: str | None = None,
+        backend_url: str | None = None,
     ):
         self.store_path = store_path
         self.on_job = on_job  # Callback to execute job, returns response text
+        self._workspace = workspace
+        self._node_id = node_id or ""
+        self._backend_url = backend_url or ""
         self._store: CronStore | None = None
         self._timer_task: asyncio.Task | None = None
         self._running = False
@@ -97,6 +103,7 @@ class CronService:
                         payload=CronPayload(
                             kind=j["payload"].get("kind", "agent_turn"),
                             message=j["payload"].get("message", ""),
+                            exec_command=j["payload"].get("execCommand"),
                             deliver=j["payload"].get("deliver", False),
                             channel=j["payload"].get("channel"),
                             to=j["payload"].get("to"),
@@ -144,6 +151,7 @@ class CronService:
                     "payload": {
                         "kind": j.payload.kind,
                         "message": j.payload.message,
+                        "execCommand": j.payload.exec_command,
                         "deliver": j.payload.deliver,
                         "channel": j.payload.channel,
                         "to": j.payload.to,
@@ -237,16 +245,17 @@ class CronService:
         """Execute a single job."""
         start_ms = _now_ms()
         logger.info("Cron: executing job '{}' ({})", job.name, job.id)
-        
+
         try:
-            response = None
-            if self.on_job:
-                response = await self.on_job(job)
-            
+            if job.payload.kind == "exec" and job.payload.exec_command:
+                await self._exec_command(job)
+            elif self.on_job:
+                await self.on_job(job)
+
             job.state.last_status = "ok"
             job.state.last_error = None
             logger.info("Cron: job '{}' completed", job.name)
-            
+
         except Exception as e:
             job.state.last_status = "error"
             job.state.last_error = str(e)
@@ -265,7 +274,51 @@ class CronService:
         else:
             # Compute next run
             job.state.next_run_at_ms = _compute_next_run(job.schedule, _now_ms())
-    
+
+    async def _exec_command(self, job: CronJob) -> None:
+        """Execute a shell command directly (no LLM). Push results to Paradise backend if available."""
+        proc = await asyncio.create_subprocess_shell(
+            job.payload.exec_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(self._workspace) if self._workspace else None,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"Command exited with {proc.returncode}: {stderr.decode(errors='replace')[:200]}"
+            )
+
+        output = stdout.decode(errors="replace").strip()
+        if not output or not self._node_id or not self._backend_url:
+            return
+
+        try:
+            data = json.loads(output)
+        except (json.JSONDecodeError, TypeError):
+            return
+
+        import httpx
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            if "gauge_value" in data:
+                await client.put(
+                    f"{self._backend_url}/api/nodes/{self._node_id}/gauge",
+                    json={
+                        "value": data["gauge_value"],
+                        "label": data.get("gauge_label", ""),
+                        "unit": data.get("gauge_unit", ""),
+                    },
+                )
+            if "status" in data:
+                await client.put(
+                    f"{self._backend_url}/api/nodes/{self._node_id}/agent-status",
+                    json={
+                        "status": data["status"],
+                        "message": data.get("status_message", ""),
+                    },
+                )
+
     # ========== Public API ==========
     
     def list_jobs(self, include_disabled: bool = False) -> list[CronJob]:
@@ -278,25 +331,29 @@ class CronService:
         self,
         name: str,
         schedule: CronSchedule,
-        message: str,
+        message: str = "",
         deliver: bool = False,
         channel: str | None = None,
         to: str | None = None,
         delete_after_run: bool = False,
+        exec_command: str | None = None,
     ) -> CronJob:
         """Add a new job."""
         store = self._load_store()
         _validate_schedule_for_add(schedule)
         now = _now_ms()
-        
+
+        payload_kind = "exec" if exec_command else "agent_turn"
+
         job = CronJob(
             id=str(uuid.uuid4())[:8],
             name=name,
             enabled=True,
             schedule=schedule,
             payload=CronPayload(
-                kind="agent_turn",
+                kind=payload_kind,
                 message=message,
+                exec_command=exec_command,
                 deliver=deliver,
                 channel=channel,
                 to=to,

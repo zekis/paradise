@@ -23,6 +23,7 @@ import asyncio
 import json
 import os
 import signal
+from pathlib import Path
 
 import websockets
 
@@ -30,6 +31,7 @@ PORT = int(os.environ.get("PARADISE_WS_PORT", "18790"))
 HOST = os.environ.get("PARADISE_WS_HOST", "0.0.0.0")
 
 agent_loop = None
+cron_service = None
 _ready = asyncio.Event()
 _init_error = None
 
@@ -92,9 +94,47 @@ def _ensure_workspace_templates():
     (workspace / "skills").mkdir(exist_ok=True)
 
 
+def _init_cron_service(workspace: Path, node_id: str, backend_url: str):
+    """Create the CronService with Paradise exec support."""
+    global cron_service
+
+    from nanobot.cron.service import CronService
+    from nanobot.cron.types import CronSchedule
+
+    cron_store_path = Path.home() / ".nanobot" / "cron" / "jobs.json"
+    cron_service = CronService(
+        cron_store_path,
+        workspace=workspace,
+        node_id=node_id,
+        backend_url=backend_url,
+    )
+
+    # on_job callback for agent_turn kind (requires LLM)
+    async def on_cron_job(job):
+        if agent_loop and not _init_error:
+            return await agent_loop.process_direct(
+                job.payload.message,
+                session_key=f"cron:{job.id}",
+                channel="paradise",
+                chat_id="paradise",
+            )
+    cron_service.on_job = on_cron_job
+
+    # Seed default status-update cron if no jobs exist yet
+    if not cron_service.list_jobs(include_disabled=True):
+        cron_service.add_job(
+            name="status-update",
+            schedule=CronSchedule(kind="every", every_ms=30_000),
+            exec_command="python3 status_update.py",
+        )
+        print("[paradise] Seeded default status-update cron job (every 30s)", flush=True)
+
+    return cron_service
+
+
 async def init_agent():
     """Initialize (or reinitialize) the nanobot agent from current config."""
-    global agent_loop, _init_error
+    global agent_loop, cron_service, _init_error
     _ready.clear()
     _init_error = None
 
@@ -111,6 +151,13 @@ async def init_agent():
         provider = _make_provider(config)
         session_manager = SessionManager(config.workspace_path)
 
+        node_id = os.environ.get("PARADISE_NODE_ID", "")
+        backend_url = os.environ.get("PARADISE_BACKEND_URL", "http://backend:8000")
+
+        # Init cron service (only once — survives agent reloads)
+        if cron_service is None and node_id:
+            _init_cron_service(config.workspace_path, node_id, backend_url)
+
         agent_loop = AgentLoop(
             bus=bus,
             provider=provider,
@@ -122,10 +169,10 @@ async def init_agent():
             memory_window=config.agents.defaults.memory_window,
             restrict_to_workspace=config.tools.restrict_to_workspace,
             session_manager=session_manager,
+            cron_service=cron_service,
         )
 
         # Register Paradise tools if running inside Paradise
-        node_id = os.environ.get("PARADISE_NODE_ID", "")
         if node_id:
             from nanobot.agent.tools.network import NetworkTool
             from nanobot.agent.tools.paradise import ParadiseTool
@@ -225,11 +272,22 @@ async def handle_client(websocket):
         print(f"[paradise] Client disconnected: {peer}", flush=True)
 
 
+async def _start_cron_when_ready():
+    """Wait for agent init, then start the cron service."""
+    await _ready.wait()
+    if cron_service:
+        await cron_service.start()
+        print(f"[paradise] Cron service started ({cron_service.status()['jobs']} jobs)", flush=True)
+
+
 async def main():
     print(f"[paradise] Starting WebSocket server on {HOST}:{PORT}", flush=True)
 
     # Try to init agent (will fail gracefully if no config yet)
     asyncio.create_task(init_agent())
+
+    # Start cron after agent is ready
+    asyncio.create_task(_start_cron_when_ready())
 
     stop = asyncio.get_event_loop().create_future()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -238,6 +296,10 @@ async def main():
     async with websockets.serve(handle_client, HOST, PORT):
         print(f"[paradise] Listening on ws://{HOST}:{PORT}", flush=True)
         await stop
+
+    # Cleanup
+    if cron_service:
+        cron_service.stop()
 
 
 if __name__ == "__main__":

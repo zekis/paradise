@@ -408,7 +408,7 @@ async def get_node_stats(node_id: UUID, db: AsyncSession = Depends(get_db)):
 ALLOWED_WORKSPACE_FILES = {
     "SOUL.md", "AGENTS.md", "USER.md", "HEARTBEAT.md", "TOOLS.md", "identity.json",
     "dashboard.html", "config.html", "commands.html", "children.html",
-    "settings.json", "api.py", "recommendations.json",
+    "settings.json", "api.py", "recommendations.json", "status_update.py",
 }
 
 
@@ -473,6 +473,32 @@ Get USER_ID and CHANNEL from the current session.
 
 When the user asks for a recurring/periodic task, update `HEARTBEAT.md` instead of creating a one-time cron reminder.
 
+## Automatic Status Updates
+
+A `status_update.py` script in your workspace runs every 30 seconds via cron — **no LLM invocation needed**. It updates your node's gauge ring and status dot on the canvas automatically.
+
+**During genesis**, customize `status_update.py` to monitor whatever matters for your node (CPU usage, API health, task count, temperature, etc.).
+
+The script must print a JSON object to stdout with any of these optional fields:
+```json
+{"gauge_value": 73, "gauge_label": "cpu", "gauge_unit": "%", "status": "ok", "status_message": "All nominal"}
+```
+
+You can manage the status cron job with the `cron` tool:
+- List jobs: `cron(action="list")`
+- Change interval: remove the old job and add a new one with `exec_command="python3 status_update.py"` and `every_seconds=60`
+- Add custom exec crons: `cron(action="add", exec_command="python3 my_check.py", every_seconds=10)`
+
+## Paradise State Updates
+
+Use the `set_paradise_state` tool to update your node's appearance on the canvas. This works without any dashboard HTML.
+
+- **Gauge** — show a progress ring (0-100) on your node icon: `set_paradise_state(gauge_value=73, gauge_label="cpu", gauge_unit="%")`
+- **Status** — set the status indicator dot: `set_paradise_state(status="ok")` or `set_paradise_state(status="error", status_message="API down")`
+- **Both** — set gauge and status in one call
+
+Use this during heartbeat tasks, after completing work, or when monitoring detects a change. Updates appear on the canvas immediately.
+
 ## Child Node Recommendations
 
 Write a `recommendations.json` file to suggest child nanobot nodes. Each recommendation appears as a "Create" button in your node's Children tab. When clicked, the system creates a child node connected to you and runs genesis with your context included.
@@ -532,6 +558,24 @@ If this file has no tasks (only headers and comments), the agent will skip the h
 <!-- Move completed tasks here or delete them -->
 """,
     "TOOLS.md": "",
+    "status_update.py": """#!/usr/bin/env python3
+\"\"\"Status update script — runs every 30s via cron to update node gauge and status.
+
+Output a JSON object to stdout with any of these optional fields:
+  gauge_value (0-100), gauge_label, gauge_unit, status (ok/warning/error), status_message
+
+Customize this script to monitor whatever matters for your node.
+Example: check CPU, ping a service, count tasks, etc.
+\"\"\"
+import json
+
+# Default: report OK status with no gauge
+# Replace this with your monitoring logic
+print(json.dumps({
+    "status": "ok",
+    "status_message": "Idle",
+}))
+""",
 }
 
 

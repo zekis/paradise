@@ -22,6 +22,22 @@ Get USER_ID and CHANNEL from the current session (e.g., `8281248569` and `telegr
 
 When the user asks for a recurring/periodic task, update `HEARTBEAT.md` instead of creating a one-time cron reminder.
 
+## Automatic Status Updates
+
+A `status_update.py` script in your workspace runs every 30 seconds via cron — **no LLM invocation needed**. It updates your node's gauge ring and status dot on the canvas automatically.
+
+**During genesis**, customize `status_update.py` to monitor whatever matters for your node (CPU usage, API health, task count, temperature, etc.).
+
+The script must print a JSON object to stdout with any of these optional fields:
+```json
+{"gauge_value": 73, "gauge_label": "cpu", "gauge_unit": "%", "status": "ok", "status_message": "All nominal"}
+```
+
+You can manage the status cron job with the `cron` tool:
+- List jobs: `cron(action="list")`
+- Change interval: remove the old job and add a new one with `exec_command="python3 status_update.py"` and `every_seconds=60`
+- Add custom exec crons: `cron(action="add", exec_command="python3 my_check.py", every_seconds=10)`
+
 ## Paradise State Updates
 
 Use the `set_paradise_state` tool to update your node's appearance on the canvas. This works without any dashboard HTML.

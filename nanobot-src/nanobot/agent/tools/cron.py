@@ -61,6 +61,10 @@ class CronTool(Tool):
                 "job_id": {
                     "type": "string",
                     "description": "Job ID (for remove)"
+                },
+                "exec_command": {
+                    "type": "string",
+                    "description": "Shell command to run directly (no LLM). Use instead of message for lightweight periodic tasks like status updates."
                 }
             },
             "required": ["action"]
@@ -75,16 +79,17 @@ class CronTool(Tool):
         tz: str | None = None,
         at: str | None = None,
         job_id: str | None = None,
+        exec_command: str | None = None,
         **kwargs: Any
     ) -> str:
         if action == "add":
-            return self._add_job(message, every_seconds, cron_expr, tz, at)
+            return self._add_job(message, every_seconds, cron_expr, tz, at, exec_command)
         elif action == "list":
             return self._list_jobs()
         elif action == "remove":
             return self._remove_job(job_id)
         return f"Unknown action: {action}"
-    
+
     def _add_job(
         self,
         message: str,
@@ -92,10 +97,11 @@ class CronTool(Tool):
         cron_expr: str | None,
         tz: str | None,
         at: str | None,
+        exec_command: str | None = None,
     ) -> str:
-        if not message:
-            return "Error: message is required for add"
-        if not self._channel or not self._chat_id:
+        if not message and not exec_command:
+            return "Error: message or exec_command is required for add"
+        if not exec_command and (not self._channel or not self._chat_id):
             return "Error: no session context (channel/chat_id)"
         if tz and not cron_expr:
             return "Error: tz can only be used with cron_expr"
@@ -122,21 +128,27 @@ class CronTool(Tool):
             return "Error: either every_seconds, cron_expr, or at is required"
         
         job = self._cron.add_job(
-            name=message[:30],
+            name=(exec_command or message)[:30],
             schedule=schedule,
             message=message,
-            deliver=True,
-            channel=self._channel,
-            to=self._chat_id,
+            deliver=not exec_command,
+            channel=self._channel if not exec_command else None,
+            to=self._chat_id if not exec_command else None,
             delete_after_run=delete_after,
+            exec_command=exec_command,
         )
-        return f"Created job '{job.name}' (id: {job.id})"
+        return f"Created job '{job.name}' (id: {job.id}, kind: {job.payload.kind})"
     
     def _list_jobs(self) -> str:
         jobs = self._cron.list_jobs()
         if not jobs:
             return "No scheduled jobs."
-        lines = [f"- {j.name} (id: {j.id}, {j.schedule.kind})" for j in jobs]
+        lines = []
+        for j in jobs:
+            kind_info = j.schedule.kind
+            if j.payload.kind == "exec":
+                kind_info += f", exec: {j.payload.exec_command}"
+            lines.append(f"- {j.name} (id: {j.id}, {kind_info})")
         return "Scheduled jobs:\n" + "\n".join(lines)
     
     def _remove_job(self, job_id: str | None) -> str:
