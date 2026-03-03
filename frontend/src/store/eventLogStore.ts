@@ -43,7 +43,10 @@ export const useEventLogStore = create<EventLogStore>((set, get) => ({
         // API returns newest-first, reverse to get chronological order
         const newEvents = data.reverse();
         set((state) => {
-          const merged = [...state.events, ...newEvents];
+          const existingIds = new Set(state.events.map((e) => e.id));
+          const unique = newEvents.filter((e) => !existingIds.has(e.id));
+          if (unique.length === 0) return state;
+          const merged = [...state.events, ...unique];
           return { events: merged.slice(-MAX_EVENTS) };
         });
       } catch (error) {
