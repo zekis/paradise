@@ -7,6 +7,8 @@ vi.mock("@/store/canvasStore", () => ({
   useCanvasStore: () => ({
     api: TEST_API,
     addNode: vi.fn(),
+    setNodeRebuilding: vi.fn(),
+    setSelectedNodeId: vi.fn(),
   }),
 }));
 
@@ -35,5 +37,41 @@ describe("ContextMenu", () => {
       />
     );
     expect(screen.getByText("Create")).toBeDefined();
+  });
+
+  it("disables Restart and Rebuild when rebuilding is true", () => {
+    render(
+      <ContextMenu
+        nodeId={TEST_NODE_ID}
+        rebuilding={true}
+        position={{ x: 100, y: 200 }}
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+    const restartButton = screen.getByText("Restart").closest("button");
+    const rebuildButton = screen.getByText("Rebuild").closest("button");
+    expect(restartButton?.style.opacity).toBe("0.4");
+    expect(rebuildButton?.style.opacity).toBe("0.4");
+    expect(restartButton?.style.cursor).toBe("not-allowed");
+    expect(rebuildButton?.style.cursor).toBe("not-allowed");
+  });
+
+  it("does not disable Restart and Rebuild when rebuilding is false", () => {
+    render(
+      <ContextMenu
+        nodeId={TEST_NODE_ID}
+        rebuilding={false}
+        position={{ x: 100, y: 200 }}
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+    const restartButton = screen.getByText("Restart").closest("button");
+    const rebuildButton = screen.getByText("Rebuild").closest("button");
+    expect(restartButton?.style.opacity).toBe("1");
+    expect(rebuildButton?.style.opacity).toBe("1");
+    expect(restartButton?.style.cursor).toBe("pointer");
+    expect(rebuildButton?.style.cursor).toBe("pointer");
   });
 });

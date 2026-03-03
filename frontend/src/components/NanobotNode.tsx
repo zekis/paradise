@@ -89,11 +89,15 @@ const KEYFRAMES = `
     from { transform: rotate(0deg) translateX(30px); }
     to { transform: rotate(360deg) translateX(30px); }
   }
+  @keyframes rebuild-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
 `;
 
 export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
   const d = data as NanobotNodeData;
-  const { nodeId, containerStatus, identity, agentStatus, agentStatusMessage, genesisActive, gaugeValue, gaugeLabel, gaugeUnit } = d;
+  const { nodeId, containerStatus, identity, agentStatus, agentStatusMessage, genesisActive, rebuilding, gaugeValue, gaugeLabel, gaugeUnit } = d;
 
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
   const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
@@ -114,11 +118,13 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
         flexDirection: "column",
         alignItems: "center",
         gap: 4,
-        cursor: "pointer",
+        cursor: rebuilding ? "not-allowed" : "pointer",
         width: 80,
         overflow: "visible",
+        opacity: rebuilding ? 0.6 : 1,
+        transition: "opacity 0.3s ease",
       }}
-      onClick={() => setSelectedNodeId(nodeId)}
+      onClick={() => { if (!rebuilding) setSelectedNodeId(nodeId); }}
     >
       <Handle type="target" position={Position.Top} id="top-t" style={{ top: -8 }} />
       <Handle type="source" position={Position.Top} id="top-s" style={{ top: -8 }} />
@@ -223,6 +229,30 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
             }}
           />
         ))}
+        {rebuilding && (
+          <svg
+            width={GAUGE_SIZE + 4}
+            height={GAUGE_SIZE + 4}
+            style={{
+              position: "absolute",
+              top: -(BORDER_WIDTH + 2),
+              left: -(BORDER_WIDTH + 2),
+              animation: "rebuild-spin 1.5s linear infinite",
+              pointerEvents: "none",
+            }}
+          >
+            <circle
+              cx={(GAUGE_SIZE + 4) / 2}
+              cy={(GAUGE_SIZE + 4) / 2}
+              r={(GAUGE_SIZE + 4) / 2 - 2}
+              fill="none"
+              stroke="var(--yellow)"
+              strokeWidth={2}
+              strokeDasharray="12 8"
+              strokeLinecap="round"
+            />
+          </svg>
+        )}
       </div>
       <span
         style={{

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useCanvasStore } from "@/store/canvasStore";
 
 interface NodeStats {
   container_id: string;
@@ -18,6 +19,8 @@ interface NodeStats {
 export function InfoTab({ nodeId, api }: { nodeId: string; api: string }) {
   const [info, setInfo] = useState<NodeStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const setNodeRebuilding = useCanvasStore((s) => s.setNodeRebuilding);
+  const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
 
   const load = useCallback(async () => {
     try {
@@ -87,10 +90,13 @@ export function InfoTab({ nodeId, api }: { nodeId: string; api: string }) {
       <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
         <button
           onClick={async () => {
-            await fetch(`${api}/api/nodes/${nodeId}/restart`, {
-              method: "POST",
-            });
-            setTimeout(load, 2000);
+            setNodeRebuilding(nodeId, true);
+            setSelectedNodeId(null);
+            try {
+              await fetch(`${api}/api/nodes/${nodeId}/restart`, { method: "POST" });
+            } finally {
+              setNodeRebuilding(nodeId, false);
+            }
           }}
           style={{
             background: "transparent",
@@ -107,10 +113,13 @@ export function InfoTab({ nodeId, api }: { nodeId: string; api: string }) {
         <button
           onClick={async () => {
             if (!confirm("Rebuild container from current image? This will reset the container but preserve your config.")) return;
-            await fetch(`${api}/api/nodes/${nodeId}/rebuild`, {
-              method: "POST",
-            });
-            setTimeout(load, 3000);
+            setNodeRebuilding(nodeId, true);
+            setSelectedNodeId(null);
+            try {
+              await fetch(`${api}/api/nodes/${nodeId}/rebuild`, { method: "POST" });
+            } finally {
+              setNodeRebuilding(nodeId, false);
+            }
           }}
           style={{
             background: "transparent",

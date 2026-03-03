@@ -85,6 +85,16 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
       { id: edge.id, source: edge.source, target: edge.target, type: "smoothstep" as const, sourceHandle: edge.sourceHandle, targetHandle: edge.targetHandle },
     ]);
   });
+
+  store.setSetNodeRebuilding((nodeId: string, rebuilding: boolean) => {
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, rebuilding } }
+          : n
+      )
+    );
+  });
 }
 
 async function fetchCanvas(

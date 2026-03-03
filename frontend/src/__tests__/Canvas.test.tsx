@@ -40,6 +40,7 @@ vi.mock("@/store/canvasStore", () => {
     setUpdateNodeGauge: vi.fn(),
     setAddNode: vi.fn(),
     setAddEdge: vi.fn(),
+    setSetNodeRebuilding: vi.fn(),
   };
   const useCanvasStore = Object.assign(
     (selector?: (s: typeof state) => unknown) => (selector ? selector(state) : state),
