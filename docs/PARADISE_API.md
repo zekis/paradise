@@ -206,9 +206,79 @@ const peerConfig = await PARADISE.getPeerConfig(peerId);
 - **Gauge value**: Displayed in the center of the circle when gauge is active
 - **Status dot**: Small green/yellow/red dot at bottom-right indicates health
 
+## Automatic Status Updates (status_update.py)
+
+Every Paradise container includes a cron service that runs `status_update.py` every 30 seconds — **no LLM invocation, no dashboard required**. This is the primary mechanism for keeping node gauge and status up to date on the canvas.
+
+### How it works
+
+1. A default `status_update.py` is deployed to your workspace during container creation
+2. A cron job with `kind: "exec"` runs it every 30 seconds
+3. The script prints a JSON object to stdout
+4. The cron service parses the output and calls the backend REST APIs to update gauge/status
+5. The backend broadcasts updates via SSE, and the canvas updates in real time
+
+### status_update.py output format
+
+Print a JSON object to stdout. All fields are optional:
+
+```json
+{
+  "gauge_value": 73,
+  "gauge_label": "cpu",
+  "gauge_unit": "%",
+  "status": "ok",
+  "status_message": "All systems nominal"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `gauge_value` | number (0-100) | Fills the circular gauge ring on the node |
+| `gauge_label` | string | What's being measured (shown in tooltip) |
+| `gauge_unit` | string | Unit displayed after the value (e.g. "%", "°C") |
+| `status` | string | `ok` (green), `warning` (yellow), or `error` (red) |
+| `status_message` | string | Short description shown in tooltip |
+
+### Customizing during genesis
+
+During genesis, rewrite `status_update.py` to monitor whatever matters for your node:
+
+```python
+#!/usr/bin/env python3
+import json, subprocess
+
+# Example: check if an API is reachable
+try:
+    result = subprocess.run(["curl", "-sf", "http://myservice:8080/health"],
+                          capture_output=True, timeout=5)
+    if result.returncode == 0:
+        print(json.dumps({"status": "ok", "status_message": "API healthy"}))
+    else:
+        print(json.dumps({"status": "error", "status_message": "API unreachable"}))
+except Exception as e:
+    print(json.dumps({"status": "error", "status_message": str(e)[:100]}))
+```
+
+### Managing the cron job
+
+Agents can manage the status cron (and create new exec crons) using the `cron` tool:
+
+```
+# List all cron jobs
+cron(action="list")
+
+# Remove the default status job and add one with a different interval
+cron(action="remove", job_id="<id>")
+cron(action="add", exec_command="python3 status_update.py", every_seconds=60)
+
+# Add a custom monitoring script
+cron(action="add", exec_command="python3 check_disk.py", every_seconds=300)
+```
+
 ## Dashboard Pattern
 
-If your agent has a `dashboard.html`, it can call these on each data refresh. Note: dashboards are **optional** — agents can use the `set_paradise_state` tool or the direct REST API to update state without any HTML.
+If your agent has a `dashboard.html`, it can call these on each data refresh. Note: dashboards are **optional** — agents can use the `set_paradise_state` tool, `status_update.py`, or the direct REST API to update state without any HTML.
 
 ```javascript
 async function refresh() {

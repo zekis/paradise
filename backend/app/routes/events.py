@@ -38,7 +38,12 @@ async def list_events(
     """List events, newest first. Use `since` (ISO timestamp) for incremental polling."""
     query = select(EventLog)
     if since:
-        query = query.where(EventLog.created_at > since)
+        try:
+            since_dt = datetime.fromisoformat(since)
+        except ValueError:
+            since_dt = None
+        if since_dt:
+            query = query.where(EventLog.created_at > since_dt)
     if node_id:
         query = query.where(EventLog.node_id == node_id)
     if event_type:

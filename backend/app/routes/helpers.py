@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 ALLOWED_WORKSPACE_FILES = {
     "SOUL.md", "AGENTS.md", "USER.md", "HEARTBEAT.md", "TOOLS.md", "identity.json",
     "dashboard.html", "config.html", "commands.html", "children.html",
-    "settings.json", "api.py", "recommendations.json",
+    "settings.json", "api.py", "recommendations.json", "status_update.py",
 }
 
 DEFAULT_TEMPLATES: dict[str, str] = {
@@ -80,6 +80,21 @@ Get USER_ID and CHANNEL from the current session.
 - **Rewrite**: `write_file` to replace all tasks
 
 When the user asks for a recurring/periodic task, update `HEARTBEAT.md` instead of creating a one-time cron reminder.
+
+## Automatic Status Updates
+
+A `status_update.py` script in your workspace runs every 30 seconds via cron \u2014 **no LLM invocation**.
+Customize it during genesis to monitor whatever matters for your node (CPU, API health, task count, etc.).
+
+Output format (JSON to stdout, all fields optional):
+```json
+{"gauge_value": 73, "gauge_label": "cpu", "gauge_unit": "%", "status": "ok", "status_message": "All nominal"}
+```
+
+Manage the cron job via the cron tool:
+- Change interval: remove and re-add with different `every_seconds`
+- Change script: create a new exec cron with `exec_command`
+- Disable: `cron remove <job_id>`
 
 ## Child Node Recommendations
 
@@ -140,6 +155,23 @@ If this file has no tasks (only headers and comments), the agent will skip the h
 <!-- Move completed tasks here or delete them -->
 """,
     "TOOLS.md": "",
+    "status_update.py": """#!/usr/bin/env python3
+\"\"\"Status update script \u2014 runs every 30s via cron to update node gauge and status.
+
+Output a JSON object to stdout with any of these optional fields:
+  gauge_value (0-100), gauge_label, gauge_unit, status (ok/warning/error), status_message
+
+Customize this script to monitor whatever matters for your node.
+\"\"\"
+import json
+
+# Default: report OK status with no gauge
+# Replace this with your monitoring logic
+print(json.dumps({
+    "status": "ok",
+    "status_message": "Idle",
+}))
+""",
 }
 
 

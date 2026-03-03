@@ -24,6 +24,7 @@ import json
 import os
 import signal
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import websockets
 from loguru import logger
@@ -39,6 +40,7 @@ class ServerState:
     agent_loop: object | None = None
     init_error: str | None = None
     ready: asyncio.Event = field(default_factory=asyncio.Event)
+    cron_service: object | None = None
 
 
 _state = ServerState()
@@ -69,6 +71,55 @@ def _ensure_workspace_templates():
         memory_file.write_text(tpl.read_text(encoding="utf-8"), encoding="utf-8")
 
     (workspace / "skills").mkdir(exist_ok=True)
+
+
+def _init_cron_service():
+    """Create and configure the CronService for Paradise (once only)."""
+    if _state.cron_service is not None:
+        return
+
+    node_id = os.environ.get("PARADISE_NODE_ID", "")
+    backend_url = os.environ.get("PARADISE_BACKEND_URL", "http://backend:8000")
+    workspace = Path.home() / ".nanobot" / "workspace"
+
+    from nanobot.cron.service import CronService
+    from nanobot.cron.types import CronSchedule
+
+    cron_store_path = Path.home() / ".nanobot" / "cron" / "jobs.json"
+    _state.cron_service = CronService(
+        cron_store_path,
+        workspace=workspace,
+        node_id=node_id,
+        backend_url=backend_url,
+    )
+
+    async def on_cron_job(job):
+        if _state.agent_loop and not _state.init_error:
+            return await _state.agent_loop.process_direct(
+                job.payload.message,
+                session_key=f"cron:{job.id}",
+                channel="paradise",
+                chat_id="paradise",
+            )
+
+    _state.cron_service.on_job = on_cron_job
+
+    # Seed default status-update cron if no jobs exist
+    if not _state.cron_service.list_jobs(include_disabled=True):
+        _state.cron_service.add_job(
+            name="status-update",
+            schedule=CronSchedule(kind="every", every_ms=30_000),
+            exec_command="python3 status_update.py",
+        )
+    logger.info("CronService initialized")
+
+
+async def _start_cron_when_ready():
+    """Wait for agent init, then start the cron service."""
+    await _state.ready.wait()
+    if _state.cron_service:
+        await _state.cron_service.start()
+        logger.info("CronService started")
 
 
 async def init_agent():
@@ -105,6 +156,12 @@ async def init_agent():
             from nanobot.agent.tools.paradise import ParadiseTool
             _state.agent_loop.tools.register(NetworkTool(node_id=node_id))
             _state.agent_loop.tools.register(ParadiseTool(node_id=node_id))
+
+        # Register cron tool
+        _init_cron_service()
+        if _state.cron_service:
+            from nanobot.agent.tools.cron import CronTool
+            _state.agent_loop.tools.register(CronTool(_state.cron_service))
 
         _state.ready.set()
         logger.info("Agent initialized, model={}", config.agents.defaults.model)
@@ -204,6 +261,7 @@ async def main():
 
     # Try to init agent (will fail gracefully if no config yet)
     asyncio.create_task(init_agent())
+    asyncio.create_task(_start_cron_when_ready())
 
     stop = asyncio.get_event_loop().create_future()
     for sig in (signal.SIGTERM, signal.SIGINT):
