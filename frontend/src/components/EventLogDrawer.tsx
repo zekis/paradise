@@ -45,7 +45,8 @@ function formatTime(isoString: string): string {
   try {
     const d = new Date(isoString);
     return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  } catch {
+  } catch (error) {
+    console.warn('Failed to format event log timestamp:', isoString, error);
     return "";
   }
 }

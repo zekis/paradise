@@ -66,7 +66,7 @@ class NanobotDingTalkHandler(CallbackHandler):
             sender_id = chatbot_msg.sender_staff_id or chatbot_msg.sender_id
             sender_name = chatbot_msg.sender_nick or "Unknown"
 
-            logger.info("Received DingTalk message from {} ({}): {}", sender_name, sender_id, content)
+            logger.info("Received DingTalk message from {} ({}), length={}", sender_name, sender_id, len(content))
 
             # Forward to Nanobot via _on_message (non-blocking).
             # Store reference to prevent GC before task completes.
@@ -120,15 +120,15 @@ class DingTalkChannel(BaseChannel):
                 return
 
             if not self.config.client_id or not self.config.client_secret:
-                logger.error("DingTalk client_id and client_secret not configured")
+                logger.error("DingTalk client authentication not configured")
                 return
 
             self._running = True
             self._http = httpx.AsyncClient()
 
             logger.info(
-                "Initializing DingTalk Stream Client with Client ID: {}...",
-                self.config.client_id,
+                "Initializing DingTalk Stream Client with Client ID: ...{}",
+                self.config.client_id[-4:] if self.config.client_id else "[empty]",
             )
             credential = Credential(self.config.client_id, self.config.client_secret)
             self._client = DingTalkStreamClient(credential)
@@ -144,13 +144,16 @@ class DingTalkChannel(BaseChannel):
                 try:
                     await self._client.start()
                 except Exception as e:
-                    logger.warning("DingTalk stream error: {}", e)
+                    # Intentionally swallowed: reconnect loop must survive transient
+                    # WebSocket/network errors to keep the channel alive.
+                    logger.warning("DingTalk stream error (will reconnect in 5s): {}", e)
                 if self._running:
                     logger.info("Reconnecting DingTalk stream in 5 seconds...")
                     await asyncio.sleep(5)
 
         except Exception as e:
             logger.exception("Failed to start DingTalk channel: {}", e)
+            raise
 
     async def stop(self) -> None:
         """Stop the DingTalk bot."""
@@ -176,7 +179,7 @@ class DingTalkChannel(BaseChannel):
         }
 
         if not self._http:
-            logger.warning("DingTalk HTTP client not initialized, cannot refresh token")
+            logger.warning("DingTalk HTTP client not initialized, cannot refresh auth")
             return None
 
         try:
@@ -188,7 +191,7 @@ class DingTalkChannel(BaseChannel):
             self._token_expiry = time.time() + int(res_data.get("expireIn", 7200)) - 60
             return self._access_token
         except Exception as e:
-            logger.error("Failed to get DingTalk access token: {}", e)
+            logger.error("Failed to get DingTalk auth: {}", type(e).__name__)
             return None
 
     async def send(self, msg: OutboundMessage) -> None:
@@ -220,11 +223,12 @@ class DingTalkChannel(BaseChannel):
         try:
             resp = await self._http.post(url, json=data, headers=headers)
             if resp.status_code != 200:
-                logger.error("DingTalk send failed: {}", resp.text)
+                logger.error("DingTalk send failed: status={}", resp.status_code)
             else:
                 logger.debug("DingTalk message sent to {}", msg.chat_id)
         except Exception as e:
             logger.error("Error sending DingTalk message: {}", e)
+            raise
 
     async def _on_message(self, content: str, sender_id: str, sender_name: str) -> None:
         """Handle incoming message (called by NanobotDingTalkHandler).
@@ -233,7 +237,7 @@ class DingTalkChannel(BaseChannel):
         permission checks before publishing to the bus.
         """
         try:
-            logger.info("DingTalk inbound: {} from {}", content, sender_name)
+            logger.info("DingTalk inbound from {}, length={}", sender_name, len(content))
             await self._handle_message(
                 sender_id=sender_id,
                 chat_id=sender_id,  # For private chat, chat_id == sender_id
@@ -244,4 +248,7 @@ class DingTalkChannel(BaseChannel):
                 },
             )
         except Exception as e:
-            logger.error("Error publishing DingTalk message: {}", e)
+            # Intentionally swallowed: this runs inside an asyncio.Task created
+            # by the stream handler; raising would only surface as an unobserved
+            # exception. Log with traceback for diagnosability.
+            logger.exception("Error publishing DingTalk message: {}", e)

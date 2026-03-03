@@ -1,8 +1,11 @@
 """Database setup and models."""
 
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -115,7 +118,7 @@ async def emit_event(
             ))
             await db.commit()
     except Exception:
-        pass  # Never let event logging break the caller
+        logger.warning("Failed to persist event log entry (event_type=%s)", event_type, exc_info=True)
 
 
 async def create_tables():
@@ -134,6 +137,18 @@ async def create_tables():
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_value DOUBLE PRECISION"))
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_label TEXT"))
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_unit TEXT"))
+        # Migrate timestamp columns from String to TIMESTAMPTZ
+        for table, cols in [
+            ("nodes", ["created_at", "updated_at"]),
+            ("edges", ["created_at"]),
+            ("chat_messages", ["created_at"]),
+            ("event_logs", ["created_at"]),
+        ]:
+            for col in cols:
+                await conn.execute(text(
+                    f"ALTER TABLE {table} ALTER COLUMN {col} TYPE TIMESTAMPTZ "
+                    f"USING {col}::timestamptz"
+                ))
 
 
 async def get_db():

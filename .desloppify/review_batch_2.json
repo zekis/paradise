@@ -1,0 +1,199 @@
+{
+  "assessments": {
+    "dependency_health": 62,
+    "test_strategy": 38,
+    "ai_generated_debt": 65,
+    "package_organization": 68
+  },
+  "findings": [
+    {
+      "dimension": "dependency_health",
+      "identifier": "dep-unused-websocket-client",
+      "summary": "websocket-client package is declared as a dependency in nanobot-src/pyproject.toml but is never imported anywhere in the codebase. The project uses the 'websockets' package (async) instead.",
+      "related_files": ["nanobot-src/pyproject.toml"],
+      "evidence": "\"websocket-client>=1.9.0,<2.0.0\" in pyproject.toml dependencies, but grep for 'from websocket import|import websocket\\b' returns zero matches. Only 'import websockets' (the different async library) is used.",
+      "suggestion": "Remove websocket-client from dependencies. The project uses the 'websockets' library which is a separate package.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "dep-dual-websocket-libs",
+      "summary": "Both 'websockets' and 'websocket-client' are declared as dependencies, which serve the same purpose (WebSocket connectivity) but with different APIs. Only 'websockets' is actually used.",
+      "related_files": ["nanobot-src/pyproject.toml"],
+      "evidence": "websockets>=16.0,<17.0 and websocket-client>=1.9.0,<2.0.0 both in [project.dependencies]",
+      "suggestion": "Remove websocket-client and keep only websockets which is the one actually imported.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "dep-heavy-channel-deps-mandatory",
+      "summary": "9 chat platform SDKs (telegram, slack, dingtalk, feishu, qq, discord, mochat, matrix) plus socksio, python-socks, msgpack are all mandatory dependencies despite being optional channel integrations. Only one or two channels are typically used per deployment.",
+      "related_files": ["nanobot-src/pyproject.toml", "nanobot-src/nanobot/channels/manager.py"],
+      "evidence": "All channel SDKs like 'python-telegram-bot[socks]>=22.0', 'slack-sdk>=3.39.0', 'qq-botpy>=1.2.0', 'dingtalk-stream>=0.24.0', 'lark-oapi>=1.5.0' are in core dependencies. manager.py wraps each in try/except ImportError, suggesting they were designed to be optional, but they are not declared as optional-dependencies.",
+      "suggestion": "Move channel-specific SDKs to optional dependency groups (e.g. [project.optional-dependencies] telegram = [...], slack = [...]) matching the existing 'matrix' optional group pattern.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "dep-socksio-unused-directly",
+      "summary": "socksio is declared as a dependency but is never directly imported in the codebase. It is a transitive dependency of python-socks/httpx SOCKS support.",
+      "related_files": ["nanobot-src/pyproject.toml"],
+      "evidence": "\"socksio>=1.0.0,<2.0.0\" in dependencies. grep for 'import.*socksio|from socksio' returns no matches.",
+      "suggestion": "Remove explicit socksio dependency; it is pulled in transitively by python-socks[asyncio] or httpx[socks] when needed.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "test-no-backend-tests",
+      "summary": "The entire Python backend (FastAPI app with 6 route modules, DB models, Docker orchestration, WebSocket relay) has zero test files. This is the critical orchestration layer managing containers and data persistence.",
+      "related_files": ["backend/app/main.py", "backend/app/routes/nodes.py", "backend/app/routes/chat.py", "backend/app/db.py", "backend/app/docker_ops.py"],
+      "evidence": "find backend -name '*test*' returns no results. No tests/ directory exists under backend/. The backend handles container lifecycle, DB operations, WebSocket relay, and file management - all critical paths.",
+      "suggestion": "Add integration tests for the backend API routes, at minimum for node CRUD, edge CRUD, and config operations. Use pytest-asyncio with a test database.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "test-no-nanobot-tests",
+      "summary": "The nanobot-src package (agent loop, tool execution, session management, channel routing, LLM provider integration) has zero test files despite having a pytest configuration in pyproject.toml.",
+      "related_files": ["nanobot-src/pyproject.toml", "nanobot-src/nanobot/agent/loop.py", "nanobot-src/nanobot/channels/manager.py"],
+      "evidence": "pyproject.toml declares [tool.pytest.ini_options] with testpaths = [\"tests\"], but find nanobot-src -name '*test*' returns no results. No tests/ directory exists.",
+      "suggestion": "Add unit tests for the agent loop, tool execution, session management, and message routing. The pytest config is already set up - just add the test files.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "test-frontend-shallow-mocking",
+      "summary": "Frontend tests extensively mock core dependencies (canvasStore, useChatSocket, @xyflow/react) which means the integration between components and their actual dependencies is never tested. Tests verify mocked behavior, not real behavior.",
+      "related_files": ["frontend/src/__tests__/Canvas.test.tsx", "frontend/src/__tests__/useCanvasSync.test.ts", "frontend/src/__tests__/NodeDrawer.test.tsx"],
+      "evidence": "Canvas.test.tsx mocks @xyflow/react with stubs (ReactFlow: div, useNodesState: [[], vi.fn()]), canvasStore with vi.fn() values, and fetch globally. useCanvasSync.test.ts only checks 'returns expected interface' - it never tests actual SSE handling, node updates, or edge creation.",
+      "suggestion": "Add integration-level tests that exercise real store interactions and verify actual state changes, not just interface shapes. Consider testing the SSE event handling and WebSocket reconnection logic.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "test-trivial-type-test",
+      "summary": "types.test.ts tests that TypeScript type literals satisfy interfaces, which is already guaranteed by the compiler. These tests add no runtime value.",
+      "related_files": ["frontend/src/__tests__/types.test.ts"],
+      "evidence": "Tests like 'NanobotNodeData satisfies required shape' create a typed object literal and check data.label === 'test-bot'. TypeScript compilation already ensures type correctness; the test can never fail at runtime if it compiles.",
+      "suggestion": "Remove types.test.ts or replace with tests that verify runtime behavior like serialization/deserialization of actual API responses.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "test-chat-relay-untested",
+      "summary": "The WebSocket chat relay (chat.py) is the most complex backend endpoint handling bidirectional WebSocket proxying, message persistence, identity detection, and error recovery, yet it has zero tests.",
+      "related_files": ["backend/app/routes/chat.py"],
+      "evidence": "chat_relay() is ~150 lines handling frontend<->nanobot WebSocket proxying with concurrent tasks, DB persistence, identity checking, and graceful disconnection. No test coverage exists.",
+      "suggestion": "Add tests for the chat relay using httpx-ws or similar WebSocket test client, covering connection, message routing, disconnection handling, and DB persistence.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "ai-restating-docstrings-docker",
+      "summary": "Multiple docker_ops.py functions have docstrings that merely restate the function name without adding useful information.",
+      "related_files": ["backend/app/docker_ops.py"],
+      "evidence": "def get_container_status(container_id: str) -> str: \"\"\"Get the current status of a container.\"\"\" / def restart_nanobot_container(container_id: str) -> None: \"\"\"Restart a nanobot container.\"\"\" / def read_workspace_file(container_id: str, filename: str) -> str: \"\"\"Read a file from the nanobot workspace directory.\"\"\" / def write_workspace_file(container_id: str, filename: str, content: str) -> None: \"\"\"Write a file to the nanobot workspace directory.\"\"\"",
+      "suggestion": "Remove trivial docstrings that restate the function name. Keep docstrings only where they add non-obvious context (like _recreate_container's docstring which explains side effects).",
+      "confidence": "high"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "ai-restating-docstrings-tools",
+      "summary": "Tool classes in nanobot-src use docstrings that restate the class name pattern: 'Tool to read file contents', 'Tool to write content to a file', 'Tool to execute shell commands'.",
+      "related_files": ["nanobot-src/nanobot/agent/tools/filesystem.py", "nanobot-src/nanobot/agent/tools/shell.py"],
+      "evidence": "class ReadFileTool(Tool): \"\"\"Tool to read file contents.\"\"\" / class WriteFileTool(Tool): \"\"\"Tool to write content to a file.\"\"\" / class EditFileTool(Tool): \"\"\"Tool to edit a file by replacing text.\"\"\" / class ListDirTool(Tool): \"\"\"Tool to list directory contents.\"\"\" / class ExecTool(Tool): \"\"\"Tool to execute shell commands.\"\"\"",
+      "suggestion": "Remove these restating docstrings; the class names are already descriptive. The description property on each tool class already provides the LLM-facing description.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "ai-channel-manager-boilerplate",
+      "summary": "ChannelManager._init_channels has 9 identical code blocks differing only in channel name, config attribute, and class import. This is a hallmark AI-generated boilerplate pattern.",
+      "related_files": ["nanobot-src/nanobot/channels/manager.py"],
+      "evidence": "Lines 44-154: Nine blocks each following the exact pattern: if self.config.channels.X.enabled: try: from nanobot.channels.X import XChannel; self.channels['x'] = XChannel(...); logger.info('X channel enabled') except ImportError as e: logger.warning('X channel not available: {}', e). Each block is 10-12 lines and the only variation is the channel name.",
+      "suggestion": "Replace with a data-driven loop: define a list of (name, config_attr, module, class_name) tuples and iterate, dynamically importing each channel. This reduces ~110 lines to ~15.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "ai-node-summary-duplication",
+      "summary": "The _node_summary helper in nodes.py and the _summary helper in chat.py are near-identical functions that both build the same dict structure from a Node, violating DRY.",
+      "related_files": ["backend/app/routes/nodes.py", "backend/app/routes/chat.py"],
+      "evidence": "nodes.py _node_summary returns {id, name, identity, agent_status, agent_status_message} plus optional edge_type. chat.py _summary (line 129) returns identical {id, name, identity, agent_status, agent_status_message}. chat.py also duplicates the full network-topology query logic from nodes.py get_node_network.",
+      "suggestion": "Extract the shared _node_summary and network-topology query into a shared module (e.g. app/services/network.py) and import from both route files.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "ai-container-setup-boilerplate",
+      "summary": "Container creation + config + template setup code is duplicated across create_node, _recreate_container, clone_node, and create_child_node with nearly identical patterns.",
+      "related_files": ["backend/app/routes/nodes.py"],
+      "evidence": "The pattern of: create_nanobot_container -> write_nanobot_config if default config -> write_workspace_files_batch with templates appears at lines 117-143 (create_node), 39-67 (_recreate_container), 258-294 (clone_node), and 923-947 (create_child_node). Each is 15-25 lines of near-identical container setup.",
+      "suggestion": "Extract the container creation + config + template setup into a single helper function (e.g., _setup_new_container) and call it from all four locations.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "ai-inline-style-repetition",
+      "summary": "Identical inline button style objects are repeated across multiple frontend components without extraction into shared constants or CSS classes.",
+      "related_files": ["frontend/src/components/NodeDrawer.tsx", "frontend/src/components/EventLogDrawer.tsx", "frontend/src/components/CanvasToolbar.tsx"],
+      "evidence": "NodeDrawer.tsx has at least 3 identical button style objects: { background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0 4px', lineHeight: 0, display: 'flex', alignItems: 'center' } repeated for delete button (line 270-279), close button (line 285-294). Same pattern in EventLogDrawer.tsx (line 183-191).",
+      "suggestion": "Extract common button styles into shared constants (e.g., ICON_BUTTON_STYLE) in a shared styles file or use CSS classes via globals.css.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "package_organization",
+      "identifier": "pkg-flat-components-dir",
+      "summary": "The frontend components directory contains 22 files in a flat structure with no sub-grouping, making navigation harder as the project grows. Components range from layout (Canvas, NodeDrawer) to tabs (ChatTab, ConfigTab) to modals (GenesisModal, DeleteConfirmModal).",
+      "related_files": ["frontend/src/components/"],
+      "evidence": "22 .tsx files in frontend/src/components/ with no subdirectories. Files include: Canvas.tsx, CanvasToolbar.tsx, ChatTab.tsx, ChildrenTab.tsx, ConfigTab.tsx, ContextMenu.tsx, DefaultConfigPanel.tsx, DeletableEdge.tsx, DeleteConfirmModal.tsx, EventLogDrawer.tsx, FileBrowserTab.tsx, FileTab.tsx, GenesisModal.tsx, HtmlTab.tsx, InfoTab.tsx, LogsTab.tsx, NanobotNode.tsx, NodeDrawer.tsx, TextEditor.tsx, TreeViewDrawer.tsx.",
+      "suggestion": "Group components into subdirectories by function: components/canvas/ (Canvas, CanvasToolbar, DeletableEdge, NanobotNode, ContextMenu), components/drawers/ (NodeDrawer, TreeViewDrawer, EventLogDrawer, DefaultConfigPanel), components/tabs/ (ChatTab, ConfigTab, etc.), components/modals/ (GenesisModal, DeleteConfirmModal).",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "package_organization",
+      "identifier": "pkg-nanobot-vs-nanobot-src",
+      "summary": "The project has both a 'nanobot' directory (containing only Dockerfile and server.py for deployment) and a 'nanobot-src' directory (containing the actual nanobot Python package). This naming is confusing - the deployment wrapper and the source package share the 'nanobot' prefix with different suffixes.",
+      "related_files": ["nanobot/Dockerfile", "nanobot/server.py", "nanobot-src/pyproject.toml"],
+      "evidence": "nanobot/ contains only Dockerfile and server.py (Docker image build context). nanobot-src/ contains the full Python package with pyproject.toml. The docker-compose.yml uses 'context: ./nanobot' with 'additional_contexts: nanobot-src: ./nanobot-src', showing these are deployment vs source.",
+      "suggestion": "Rename 'nanobot' to 'nanobot-docker' or 'nanobot-image' to clarify it is the Docker build context, not the source code.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "package_organization",
+      "identifier": "pkg-backend-no-init-routes",
+      "summary": "Backend routes/__init__.py imports nothing and the routes package relies on main.py importing each route module individually. The __init__.py provides no organizational value.",
+      "related_files": ["backend/app/routes/__init__.py", "backend/app/main.py"],
+      "evidence": "main.py imports: from app.routes import canvas, nodes, edges, chat, events. Each is then registered individually with app.include_router. The routes/__init__.py presumably exists but provides no aggregation.",
+      "suggestion": "Either use routes/__init__.py to export a combined router (reducing main.py coupling to route internals) or remove it if it is empty.",
+      "confidence": "low"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "dep-pydantic-version-drift",
+      "summary": "Backend requires pydantic>=2.0 (broad) while nanobot-src requires pydantic>=2.12.0,<3.0.0 (narrow). When deployed together (as in docker-compose), the resolved version depends on which constraint is evaluated first, creating potential inconsistency.",
+      "related_files": ["backend/pyproject.toml", "nanobot-src/pyproject.toml"],
+      "evidence": "backend/pyproject.toml: \"pydantic>=2.0\" / nanobot-src/pyproject.toml: \"pydantic>=2.12.0,<3.0.0\". The backend accepts pydantic 2.0-2.11 which the nanobot rejects.",
+      "suggestion": "Align pydantic version constraints across both packages, preferably both using >=2.12.0,<3.0.0 since they share a deployment context.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "test-eventlogsource-duplicated-stub",
+      "summary": "The EventSource stub class is duplicated identically in 3 test files, indicating missing test setup infrastructure.",
+      "related_files": ["frontend/src/__tests__/Canvas.test.tsx", "frontend/src/__tests__/useCanvasSync.test.ts", "frontend/src/__tests__/NodeDrawer.test.tsx"],
+      "evidence": "Identical beforeAll(() => { global.EventSource = class { onmessage = null; onerror = null; close = vi.fn(); addEventListener = vi.fn(); removeEventListener = vi.fn(); } as unknown as typeof EventSource; }); appears in Canvas.test.tsx, useCanvasSync.test.ts, and NodeDrawer.test.tsx.",
+      "suggestion": "Extract the EventSource stub into test-utils.ts (which already exists) and import it from there, or use a vitest setup file.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "test-canvas-store-mock-duplicated",
+      "summary": "The canvasStore mock is duplicated with slight variations across multiple test files, creating fragile test infrastructure that must be updated in multiple places when the store changes.",
+      "related_files": ["frontend/src/__tests__/Canvas.test.tsx", "frontend/src/__tests__/useCanvasSync.test.ts", "frontend/src/__tests__/NodeDrawer.test.tsx"],
+      "evidence": "Three different vi.mock('@/store/canvasStore') blocks: Canvas.test.tsx (lines 29-49) includes selector-based mock, useCanvasSync.test.ts (lines 24-44) includes getState mock, NodeDrawer.test.tsx (lines 16-24) includes a simpler version. All create incompatible mock shapes.",
+      "suggestion": "Create a shared factory function in test-utils.ts that produces a consistent canvasStore mock with optional overrides.",
+      "confidence": "high"
+    }
+  ]
+}

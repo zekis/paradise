@@ -94,7 +94,9 @@ class EmailChannel(BaseChannel):
                         metadata=item.get("metadata", {}),
                     )
             except Exception as e:
-                logger.error("Email polling error: {}", e)
+                # Intentionally swallowed: polling must survive transient errors
+                # (network blips, IMAP timeouts) to keep the channel alive.
+                logger.error("Email polling error (will retry in {}s): {}", poll_seconds, e)
 
             await asyncio.sleep(poll_seconds)
 
@@ -316,8 +318,9 @@ class EmailChannel(BaseChannel):
         finally:
             try:
                 client.logout()
-            except Exception:
-                pass
+            except Exception as e:
+                # Logout failure during cleanup is non-critical; log and continue
+                logger.debug("IMAP logout failed (non-critical): {}", e)
 
         return messages
 

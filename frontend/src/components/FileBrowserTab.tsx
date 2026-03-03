@@ -27,8 +27,8 @@ export function FileBrowserTab({ nodeId, api }: FileBrowserTabProps) {
         setFiles(data.files || []);
         setHasConfig(data.has_config || false);
       }
-    } catch {
-      /* ignore */
+    } catch (error) {
+      console.error(`Failed to fetch workspace files for node ${nodeId}:`, error);
     }
     setLoadingFiles(false);
   }, [api, nodeId]);
@@ -183,7 +183,8 @@ function FileEditor({
         let parsed: unknown;
         try {
           parsed = JSON.parse(value);
-        } catch {
+        } catch (error) {
+          console.warn('Invalid JSON in file editor:', error);
           throw new Error("Invalid JSON");
         }
         const res = await fetch(`${api}/api/nodes/${nodeId}/config`, {

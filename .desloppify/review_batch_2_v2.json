@@ -1,0 +1,150 @@
+{
+  "assessments": {
+    "cross_module_architecture": 76.4,
+    "dependency_health": 72.8
+  },
+  "findings": [
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "server-make-provider-passthrough",
+      "summary": "nanobot/server.py defines _make_provider() that is a pure pass-through wrapper to registry.make_provider().",
+      "related_files": ["nanobot/server.py", "nanobot-src/nanobot/providers/registry.py"],
+      "evidence": [
+        "nanobot/server.py lines 37-46: def _make_provider(config): ... from nanobot.providers.registry import make_provider; return make_provider(config)",
+        "The function adds no policy, error handling, or translation beyond what make_provider already provides"
+      ],
+      "suggestion": "Replace the _make_provider wrapper with a direct import and call of make_provider from the registry at the call site (line 92). The docstring claims RuntimeError is caught by init_agent, but that catching happens regardless of the wrapper.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "server-module-level-mutable-state",
+      "summary": "nanobot/server.py uses module-level mutable globals (agent_loop, _init_error) modified via `global` statements.",
+      "related_files": ["nanobot/server.py"],
+      "evidence": [
+        "Line 32: agent_loop = None (module-level mutable)",
+        "Line 34: _init_error = None (module-level mutable)",
+        "Line 78: global agent_loop, _init_error -- modified from init_agent()",
+        "handle_client() reads agent_loop at line 165 without synchronization"
+      ],
+      "suggestion": "Encapsulate agent_loop, _ready, and _init_error in a small Server or AppState class. Pass or reference the instance instead of using global mutation. This removes the shared mutable state coordination risk between handle_client and init_agent coroutines.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "main-imports-private-from-routes",
+      "summary": "backend/app/main.py imports a private function _recreate_container from app.routes.nodes, creating an upward dependency from the app root into a route module.",
+      "related_files": ["backend/app/main.py", "backend/app/routes/nodes.py"],
+      "evidence": [
+        "backend/app/main.py line 29: from app.routes.nodes import _recreate_container",
+        "This is a function-level import inside reconcile_containers() but it creates a dependency from the application bootstrap layer into the route layer"
+      ],
+      "suggestion": "Move _recreate_container (or its core logic) into app/routes/helpers.py or a new app/container_ops.py module. Both main.py and nodes.py can then import from the shared location, preserving the expected top-down dependency direction (app -> routes, not routes <- app).",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "dual-nanobot-directory-ambiguity",
+      "summary": "The project has both a nanobot/ directory (Dockerfile + server.py) and nanobot-src/ (the actual package), creating confusing boundary ownership.",
+      "related_files": ["nanobot/server.py", "nanobot/Dockerfile", "nanobot-src/nanobot/__init__.py"],
+      "evidence": [
+        "nanobot/ contains only Dockerfile and server.py -- it is a deployment artifact, not a Python package",
+        "nanobot-src/ contains the actual nanobot Python package with all agent, channel, provider code",
+        "nanobot/server.py imports from nanobot.providers.registry, nanobot.config.loader etc. -- the nanobot-src package",
+        "The Dockerfile copies from 'nanobot-src' and 'server.py' is placed at /opt/paradise/server.py"
+      ],
+      "suggestion": "Rename the nanobot/ deployment directory to something like deploy/ or nanobot-deploy/ to avoid confusion with the nanobot-src/nanobot Python package. This makes the boundary between deployment configuration and source code unambiguous.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "config-schema-duplicates-registry-matching",
+      "summary": "Config._match_provider() in config/schema.py reimplements model-matching logic that already exists in providers/registry.py's find_by_model().",
+      "related_files": ["nanobot-src/nanobot/config/schema.py", "nanobot-src/nanobot/providers/registry.py"],
+      "evidence": [
+        "schema.py lines 321-361: _match_provider() iterates PROVIDERS, matches by keyword, normalizes prefixes -- same logic as registry.find_by_model()",
+        "registry.py lines 406-423: find_by_model() does the same keyword matching, prefix normalization, skip gateways/local",
+        "Both functions normalize with model_lower.replace('-', '_'), split on '/', check normalized_prefix == spec.name"
+      ],
+      "suggestion": "Have Config._match_provider() delegate model-to-spec matching to registry.find_by_model() and registry.find_gateway(), only adding the config-specific logic of looking up ProviderConfig fields and checking api_key presence. This eliminates the duplicated matching logic and ensures both paths stay in sync.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "litellm-provider-sets-global-env",
+      "summary": "LiteLLMProvider._setup_env() mutates os.environ and litellm.api_base at import time, creating implicit cross-module side effects.",
+      "related_files": ["nanobot-src/nanobot/providers/litellm_provider.py"],
+      "evidence": [
+        "Line 51: litellm.api_base = api_base -- mutates a litellm global",
+        "Lines 69-71: os.environ[spec.env_key] = api_key -- mutates process environment",
+        "Lines 77-80: os.environ.setdefault(env_name, resolved) for env_extras",
+        "Line 54: litellm.suppress_debug_info = True -- mutates litellm global"
+      ],
+      "suggestion": "Pass api_key and api_base directly via kwargs to litellm.acompletion() (which is already partially done at lines 209-214) instead of mutating global state. Remove or isolate the os.environ mutations to a clearly named setup function that is called once at startup, rather than during provider construction.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "pydantic-version-range-conflict",
+      "summary": "backend requires pydantic>=2.0 (broad) while nanobot-src requires pydantic>=2.12.0 -- the ranges diverge, risking incompatibility when deployed together.",
+      "related_files": ["backend/pyproject.toml", "nanobot-src/pyproject.toml"],
+      "evidence": [
+        "backend/pyproject.toml line 12: pydantic>=2.0",
+        "nanobot-src/pyproject.toml line 22: pydantic>=2.12.0,<3.0.0",
+        "If backend is resolved first at pydantic 2.0-2.11, nanobot-src will break when installed in the same environment"
+      ],
+      "suggestion": "Align the backend pydantic requirement to >=2.12.0,<3.0.0 to match nanobot-src, or at minimum to >=2.12.0. Both packages are deployed in the same Docker environment via the Dockerfile.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "websockets-version-range-conflict",
+      "summary": "backend requires websockets>=14.0 while nanobot-src requires websockets>=16.0,<17.0 -- these ranges overlap only at 16.x.",
+      "related_files": ["backend/pyproject.toml", "nanobot-src/pyproject.toml"],
+      "evidence": [
+        "backend/pyproject.toml line 11: websockets>=14.0",
+        "nanobot-src/pyproject.toml line 24: websockets>=16.0,<17.0",
+        "The backend's loose >=14.0 range could install 14.x or 15.x which would break nanobot-src"
+      ],
+      "suggestion": "Tighten the backend websockets requirement to >=16.0,<17.0 to match nanobot-src, ensuring both packages use a compatible version in shared environments.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "socksio-declared-never-imported",
+      "summary": "socksio is declared as a dependency in the telegram optional group but is never directly imported anywhere in the codebase.",
+      "related_files": ["nanobot-src/pyproject.toml"],
+      "evidence": [
+        "pyproject.toml line 39: socksio>=1.0.0,<2.0.0 in [telegram] extras",
+        "grep for 'import socksio' or 'from socksio' returns zero matches across the entire codebase"
+      ],
+      "suggestion": "Verify whether socksio is still needed as a transitive dependency for python-telegram-bot[socks] or python-socks[asyncio]. If it is a transitive dependency pulled in automatically, remove the explicit declaration. If it is actually needed by the socks extra of python-telegram-bot, add a comment explaining the transitive need.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "openai-undeclared-direct-dependency",
+      "summary": "custom_provider.py directly imports from openai (AsyncOpenAI) but openai is not listed in pyproject.toml dependencies.",
+      "related_files": ["nanobot-src/nanobot/providers/custom_provider.py", "nanobot-src/pyproject.toml"],
+      "evidence": [
+        "custom_provider.py line 8: from openai import AsyncOpenAI",
+        "pyproject.toml dependencies list does not include 'openai'",
+        "openai is available as a transitive dependency via litellm, but relying on transitive deps is fragile"
+      ],
+      "suggestion": "Add 'openai>=1.0.0' as an explicit dependency in pyproject.toml, or restructure CustomProvider to use litellm/httpx directly (similar to how LiteLLMProvider uses litellm.acompletion) to avoid the undeclared dependency.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "backend-missing-upper-bounds",
+      "summary": "backend/pyproject.toml specifies only lower bounds for all dependencies, risking breakage from future major version releases.",
+      "related_files": ["backend/pyproject.toml"],
+      "evidence": [
+        "All 7 dependencies use only >= lower bounds: fastapi>=0.115, uvicorn>=0.34, sqlalchemy>=2.0, asyncpg>=0.30, docker>=7.0, websockets>=14.0, pydantic>=2.0",
+        "In contrast, nanobot-src/pyproject.toml correctly pins upper bounds: litellm>=1.81.5,<2.0.0, httpx>=0.28.0,<1.0.0, etc."
+      ],
+      "suggestion": "Add upper-bound version constraints to the backend dependencies, e.g. fastapi>=0.115,<1.0 and sqlalchemy>=2.0,<3.0. This prevents silent breakage when dependencies release new major versions with breaking changes.",
+      "confidence": "medium"
+    }
+  ]
+}

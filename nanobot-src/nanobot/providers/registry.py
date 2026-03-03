@@ -403,24 +403,36 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
 # Lookup helpers
 # ---------------------------------------------------------------------------
 
-def find_by_model(model: str) -> ProviderSpec | None:
-    """Match a standard provider by model-name keyword (case-insensitive).
-    Skips gateways/local — those are matched by api_key/api_base instead."""
+def _match_spec_by_model(
+    model: str,
+    specs: tuple[ProviderSpec, ...] | list[ProviderSpec],
+) -> ProviderSpec | None:
+    """Core model-to-spec matching: prefix first, then keyword.
+
+    Shared by :func:`find_by_model` (standard providers only) and
+    ``Config._match_provider`` (all providers with credential checks).
+    """
     model_lower = model.lower()
     model_normalized = model_lower.replace("-", "_")
     model_prefix = model_lower.split("/", 1)[0] if "/" in model_lower else ""
     normalized_prefix = model_prefix.replace("-", "_")
-    std_specs = [s for s in PROVIDERS if not s.is_gateway and not s.is_local]
 
     # Prefer explicit provider prefix — prevents `github-copilot/...codex` matching openai_codex.
-    for spec in std_specs:
+    for spec in specs:
         if model_prefix and normalized_prefix == spec.name:
             return spec
 
-    for spec in std_specs:
+    for spec in specs:
         if any(kw in model_lower or kw.replace("-", "_") in model_normalized for kw in spec.keywords):
             return spec
     return None
+
+
+def find_by_model(model: str) -> ProviderSpec | None:
+    """Match a standard provider by model-name keyword (case-insensitive).
+    Skips gateways/local — those are matched by api_key/api_base instead."""
+    std_specs = [s for s in PROVIDERS if not s.is_gateway and not s.is_local]
+    return _match_spec_by_model(model, std_specs)
 
 
 def find_gateway(
@@ -460,3 +472,56 @@ def find_by_name(name: str) -> ProviderSpec | None:
         if spec.name == name:
             return spec
     return None
+
+
+# ---------------------------------------------------------------------------
+# Shared provider factory
+# ---------------------------------------------------------------------------
+
+def make_provider(config):
+    """Create the appropriate LLM provider instance from *config*.
+
+    Handles custom endpoints, OAuth-based providers (e.g. OpenAI Codex),
+    bedrock (no API key needed), and standard LiteLLM-routed providers.
+
+    Raises ``RuntimeError`` when a required API key is missing so that
+    callers (CLI, WebSocket server, etc.) can surface the error in their
+    own way.
+    """
+    from nanobot.providers.litellm_provider import LiteLLMProvider
+    from nanobot.providers.openai_codex_provider import OpenAICodexProvider
+    from nanobot.providers.custom_provider import CustomProvider
+
+    model = config.agents.defaults.model
+    provider_name = config.get_provider_name(model)
+    p = config.get_provider(model)
+
+    # OpenAI Codex (OAuth)
+    if provider_name == "openai_codex" or model.startswith("openai-codex/"):
+        return OpenAICodexProvider(default_model=model)
+
+    # Custom: direct OpenAI-compatible endpoint, bypasses LiteLLM
+    if provider_name == "custom":
+        return CustomProvider(
+            api_key=p.api_key if p else "no-key",
+            api_base=config.get_api_base(model) or "http://localhost:8000/v1",
+            default_model=model,
+        )
+
+    # Check whether an API key is required.
+    # Bedrock models and OAuth providers do not need one.
+    spec = find_by_name(provider_name)
+    needs_key = not model.startswith("bedrock/") and not (spec and spec.is_oauth)
+    if needs_key and not (p and p.api_key):
+        raise RuntimeError(
+            f"No API key configured for provider '{provider_name}'. "
+            "Set it in ~/.nanobot/config.json under the providers section."
+        )
+
+    return LiteLLMProvider(
+        api_key=p.api_key if p else None,
+        api_base=config.get_api_base(model),
+        default_model=model,
+        extra_headers=p.extra_headers if p else None,
+        provider_name=provider_name,
+    )

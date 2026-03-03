@@ -275,7 +275,7 @@ class FeishuChannel(BaseChannel):
             return
         
         if not self.config.app_id or not self.config.app_secret:
-            logger.error("Feishu app_id and app_secret not configured")
+            logger.error("Feishu app authentication not configured")
             return
         
         self._running = True
@@ -310,7 +310,9 @@ class FeishuChannel(BaseChannel):
                 try:
                     self._ws_client.start()
                 except Exception as e:
-                    logger.warning("Feishu WebSocket error: {}", e)
+                    # Intentionally swallowed: reconnect loop must survive transient
+                    # WebSocket/network errors to keep the channel alive.
+                    logger.warning("Feishu WebSocket error (will reconnect in 5s): {}", e)
                 if self._running:
                     import time; time.sleep(5)
         
@@ -331,6 +333,8 @@ class FeishuChannel(BaseChannel):
             try:
                 self._ws_client.stop()
             except Exception as e:
+                # Intentionally swallowed: shutdown must complete even if
+                # the WebSocket client fails to stop cleanly.
                 logger.warning("Error stopping WebSocket client: {}", e)
         logger.info("Feishu bot stopped")
     
@@ -352,6 +356,8 @@ class FeishuChannel(BaseChannel):
             else:
                 logger.debug("Added {} reaction to message {}", emoji_type, message_id)
         except Exception as e:
+            # Intentionally swallowed: reactions are best-effort UI feedback
+            # and must not interrupt message processing.
             logger.warning("Error adding reaction: {}", e)
 
     async def _add_reaction(self, message_id: str, emoji_type: str = "THUMBSUP") -> None:
@@ -368,7 +374,7 @@ class FeishuChannel(BaseChannel):
     
     # Regex to match markdown tables (header + separator + data rows)
     _TABLE_RE = re.compile(
-        r"((?:^[ \t]*\|.+\|[ \t]*\n)(?:^[ \t]*\|[-:\s|]+\|[ \t]*\n)(?:^[ \t]*\|.+\|[ \t]*\n?)+)",
+        r"((?:^[ \t]*\|.+\|[ \t]*\n)(?:^[ \t]*\|[-: \t|]+\|[ \t]*\n)(?:^[ \t]*\|.+\|[ \t]*\n?)+)",
         re.MULTILINE,
     )
 
@@ -656,7 +662,8 @@ class FeishuChannel(BaseChannel):
 
         except Exception as e:
             logger.error("Error sending Feishu message: {}", e)
-    
+            raise
+
     def _on_message_sync(self, data: "P2ImMessageReceiveV1") -> None:
         """
         Sync handler for incoming messages (called from WebSocket thread).
@@ -756,4 +763,8 @@ class FeishuChannel(BaseChannel):
             )
 
         except Exception as e:
-            logger.error("Error processing Feishu message: {}", e)
+            # Intentionally swallowed: this handler is fired via
+            # run_coroutine_threadsafe from the WebSocket thread; raising here
+            # would only surface as an unobserved Future exception. Log with
+            # traceback so individual message failures are diagnosable.
+            logger.exception("Error processing Feishu message: {}", e)

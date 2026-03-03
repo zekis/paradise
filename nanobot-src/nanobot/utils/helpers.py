@@ -15,15 +15,7 @@ def get_data_path() -> Path:
 
 
 def get_workspace_path(workspace: str | None = None) -> Path:
-    """
-    Get the workspace path.
-    
-    Args:
-        workspace: Optional workspace path. Defaults to ~/.nanobot/workspace.
-    
-    Returns:
-        Expanded and ensured workspace path.
-    """
+    """Get the workspace path, defaulting to ~/.nanobot/workspace."""
     if workspace:
         path = Path(workspace).expanduser()
     else:
@@ -64,15 +56,7 @@ def safe_filename(name: str) -> str:
 
 
 def parse_session_key(key: str) -> tuple[str, str]:
-    """
-    Parse a session key into channel and chat_id.
-    
-    Args:
-        key: Session key in format "channel:chat_id"
-    
-    Returns:
-        Tuple of (channel, chat_id)
-    """
+    """Parse a 'channel:chat_id' session key into (channel, chat_id)."""
     parts = key.split(":", 1)
     if len(parts) != 2:
         raise ValueError(f"Invalid session key: {key}")

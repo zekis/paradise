@@ -23,48 +23,27 @@ import asyncio
 import json
 import os
 import signal
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import websockets
+from loguru import logger
 
 PORT = int(os.environ.get("PARADISE_WS_PORT", "18790"))
 HOST = os.environ.get("PARADISE_WS_HOST", "0.0.0.0")
 
-agent_loop = None
-cron_service = None
-_ready = asyncio.Event()
-_init_error = None
+
+@dataclass
+class ServerState:
+    """Mutable server state encapsulated in a single object."""
+
+    agent_loop: object | None = None
+    init_error: str | None = None
+    ready: asyncio.Event = field(default_factory=asyncio.Event)
+    cron_service: object | None = None
 
 
-def _make_provider(config):
-    """Create LLM provider — mirrors nanobot.cli.commands._make_provider."""
-    from nanobot.providers.litellm_provider import LiteLLMProvider
-    from nanobot.providers.custom_provider import CustomProvider
-
-    model = config.agents.defaults.model
-    provider_name = config.get_provider_name(model)
-    p = config.get_provider(model)
-
-    if provider_name == "custom":
-        return CustomProvider(
-            api_key=p.api_key if p else "no-key",
-            api_base=config.get_api_base(model) or "http://localhost:8000/v1",
-            default_model=model,
-        )
-
-    if not p or not p.api_key:
-        raise RuntimeError(
-            f"No API key configured for provider '{provider_name}'. "
-            "Set it in the Conf tab under providers."
-        )
-
-    return LiteLLMProvider(
-        api_key=p.api_key,
-        api_base=config.get_api_base(model),
-        default_model=model,
-        extra_headers=p.extra_headers if p else None,
-        provider_name=provider_name,
-    )
+_state = ServerState()
 
 
 def _ensure_workspace_templates():
@@ -82,7 +61,7 @@ def _ensure_workspace_templates():
         dest = workspace / item.name
         if not dest.exists():
             dest.write_text(item.read_text(encoding="utf-8"), encoding="utf-8")
-            print(f"[paradise] Created {item.name}", flush=True)
+            logger.info("Created {}", item.name)
 
     memory_dir = workspace / "memory"
     memory_dir.mkdir(exist_ok=True)
@@ -94,49 +73,59 @@ def _ensure_workspace_templates():
     (workspace / "skills").mkdir(exist_ok=True)
 
 
-def _init_cron_service(workspace: Path, node_id: str, backend_url: str):
-    """Create the CronService with Paradise exec support."""
-    global cron_service
+def _init_cron_service():
+    """Create and configure the CronService for Paradise (once only)."""
+    if _state.cron_service is not None:
+        return
+
+    node_id = os.environ.get("PARADISE_NODE_ID", "")
+    backend_url = os.environ.get("PARADISE_BACKEND_URL", "http://backend:8000")
+    workspace = Path.home() / ".nanobot" / "workspace"
 
     from nanobot.cron.service import CronService
     from nanobot.cron.types import CronSchedule
 
     cron_store_path = Path.home() / ".nanobot" / "cron" / "jobs.json"
-    cron_service = CronService(
+    _state.cron_service = CronService(
         cron_store_path,
         workspace=workspace,
         node_id=node_id,
         backend_url=backend_url,
     )
 
-    # on_job callback for agent_turn kind (requires LLM)
     async def on_cron_job(job):
-        if agent_loop and not _init_error:
-            return await agent_loop.process_direct(
+        if _state.agent_loop and not _state.init_error:
+            return await _state.agent_loop.process_direct(
                 job.payload.message,
                 session_key=f"cron:{job.id}",
                 channel="paradise",
                 chat_id="paradise",
             )
-    cron_service.on_job = on_cron_job
 
-    # Seed default status-update cron if no jobs exist yet
-    if not cron_service.list_jobs(include_disabled=True):
-        cron_service.add_job(
+    _state.cron_service.on_job = on_cron_job
+
+    # Seed default status-update cron if no jobs exist
+    if not _state.cron_service.list_jobs(include_disabled=True):
+        _state.cron_service.add_job(
             name="status-update",
             schedule=CronSchedule(kind="every", every_ms=30_000),
             exec_command="python3 status_update.py",
         )
-        print("[paradise] Seeded default status-update cron job (every 30s)", flush=True)
+    logger.info("CronService initialized")
 
-    return cron_service
+
+async def _start_cron_when_ready():
+    """Wait for agent init, then start the cron service."""
+    await _state.ready.wait()
+    if _state.cron_service:
+        await _state.cron_service.start()
+        logger.info("CronService started")
 
 
 async def init_agent():
     """Initialize (or reinitialize) the nanobot agent from current config."""
-    global agent_loop, cron_service, _init_error
-    _ready.clear()
-    _init_error = None
+    _state.ready.clear()
+    _state.init_error = None
 
     try:
         _ensure_workspace_templates()
@@ -146,59 +135,54 @@ async def init_agent():
         from nanobot.agent.loop import AgentLoop
         from nanobot.session.manager import SessionManager
 
+        from nanobot.providers.registry import make_provider
+
         config = load_config()
         bus = MessageBus()
-        provider = _make_provider(config)
+        provider = make_provider(config)
         session_manager = SessionManager(config.workspace_path)
 
-        node_id = os.environ.get("PARADISE_NODE_ID", "")
-        backend_url = os.environ.get("PARADISE_BACKEND_URL", "http://backend:8000")
-
-        # Init cron service (only once — survives agent reloads)
-        if cron_service is None and node_id:
-            _init_cron_service(config.workspace_path, node_id, backend_url)
-
-        agent_loop = AgentLoop(
+        _state.agent_loop = AgentLoop.from_config(
+            config,
             bus=bus,
             provider=provider,
-            workspace=config.workspace_path,
-            model=config.agents.defaults.model,
-            temperature=config.agents.defaults.temperature,
-            max_tokens=config.agents.defaults.max_tokens,
-            max_iterations=config.agents.defaults.max_tool_iterations,
-            memory_window=config.agents.defaults.memory_window,
-            restrict_to_workspace=config.tools.restrict_to_workspace,
             session_manager=session_manager,
-            cron_service=cron_service,
         )
 
         # Register Paradise tools if running inside Paradise
+        node_id = os.environ.get("PARADISE_NODE_ID", "")
         if node_id:
             from nanobot.agent.tools.network import NetworkTool
             from nanobot.agent.tools.paradise import ParadiseTool
-            agent_loop.tools.register(NetworkTool(node_id=node_id))
-            agent_loop.tools.register(ParadiseTool(node_id=node_id))
+            _state.agent_loop.tools.register(NetworkTool(node_id=node_id))
+            _state.agent_loop.tools.register(ParadiseTool(node_id=node_id))
 
-        _ready.set()
-        print(f"[paradise] Agent initialized, model={config.agents.defaults.model}", flush=True)
+        # Register cron tool
+        _init_cron_service()
+        if _state.cron_service:
+            from nanobot.agent.tools.cron import CronTool
+            _state.agent_loop.tools.register(CronTool(_state.cron_service))
+
+        _state.ready.set()
+        logger.info("Agent initialized, model={}", config.agents.defaults.model)
     except Exception as exc:
-        _init_error = str(exc)
-        _ready.set()  # unblock clients so they get the error
-        print(f"[paradise] Agent init failed: {exc}", flush=True)
+        _state.init_error = str(exc)
+        _state.ready.set()  # unblock clients so they get the error
+        logger.error("Agent init failed: {}", exc)
 
 
 async def handle_client(websocket):
     """Handle a single WebSocket client connection."""
-    await _ready.wait()
+    await _state.ready.wait()
 
     peer = websocket.remote_address
-    print(f"[paradise] Client connected: {peer}", flush=True)
+    logger.info("Client connected: {}", peer)
 
     # Send initial status
-    if _init_error:
+    if _state.init_error:
         await websocket.send(json.dumps({
             "type": "status", "ready": False,
-            "message": f"Agent not ready: {_init_error}. Configure a model in the Conf tab and send {{\"type\": \"reload\"}}.",
+            "message": f"Agent not ready: {_state.init_error}. Configure a model in the Conf tab and send {{\"type\": \"reload\"}}.",
         }))
     else:
         await websocket.send(json.dumps({"type": "status", "ready": True, "message": "Agent ready"}))
@@ -222,8 +206,8 @@ async def handle_client(websocket):
             if msg_type == "reload":
                 await websocket.send(json.dumps({"type": "status", "ready": False, "message": "Reloading..."}))
                 await init_agent()
-                if _init_error:
-                    await websocket.send(json.dumps({"type": "status", "ready": False, "message": f"Reload failed: {_init_error}"}))
+                if _state.init_error:
+                    await websocket.send(json.dumps({"type": "status", "ready": False, "message": f"Reload failed: {_state.init_error}"}))
                 else:
                     await websocket.send(json.dumps({"type": "status", "ready": True, "message": "Agent reloaded"}))
                 continue
@@ -234,7 +218,7 @@ async def handle_client(websocket):
                 await websocket.send(json.dumps({"type": "error", "message": "Empty message"}))
                 continue
 
-            if agent_loop is None or _init_error:
+            if _state.agent_loop is None or _state.init_error:
                 await websocket.send(json.dumps({
                     "type": "error",
                     "message": "No model configured. Use the Conf tab to set providers and model, then save.",
@@ -254,7 +238,7 @@ async def handle_client(websocket):
                     pass
 
             try:
-                response = await agent_loop.process_direct(
+                response = await _state.agent_loop.process_direct(
                     content,
                     session_key=session_key,
                     channel="paradise",
@@ -269,24 +253,14 @@ async def handle_client(websocket):
     except websockets.ConnectionClosed:
         pass
     finally:
-        print(f"[paradise] Client disconnected: {peer}", flush=True)
-
-
-async def _start_cron_when_ready():
-    """Wait for agent init, then start the cron service."""
-    await _ready.wait()
-    if cron_service:
-        await cron_service.start()
-        print(f"[paradise] Cron service started ({cron_service.status()['jobs']} jobs)", flush=True)
+        logger.info("Client disconnected: {}", peer)
 
 
 async def main():
-    print(f"[paradise] Starting WebSocket server on {HOST}:{PORT}", flush=True)
+    logger.info("Starting WebSocket server on {}:{}", HOST, PORT)
 
     # Try to init agent (will fail gracefully if no config yet)
     asyncio.create_task(init_agent())
-
-    # Start cron after agent is ready
     asyncio.create_task(_start_cron_when_ready())
 
     stop = asyncio.get_event_loop().create_future()
@@ -294,12 +268,8 @@ async def main():
         asyncio.get_event_loop().add_signal_handler(sig, stop.set_result, None)
 
     async with websockets.serve(handle_client, HOST, PORT):
-        print(f"[paradise] Listening on ws://{HOST}:{PORT}", flush=True)
+        logger.info("Listening on ws://{}:{}", HOST, PORT)
         await stop
-
-    # Cleanup
-    if cron_service:
-        cron_service.stop()
 
 
 if __name__ == "__main__":

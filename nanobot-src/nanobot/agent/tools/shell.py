@@ -6,12 +6,23 @@ import re
 from pathlib import Path
 from typing import Any
 
+from loguru import logger
+
 from nanobot.agent.tools.base import Tool
 
 
 class ExecTool(Tool):
-    """Tool to execute shell commands."""
-    
+    name = "exec"
+    description = "Execute a shell command and return its output. Use with caution."
+    parameters = {
+        "type": "object",
+        "properties": {
+            "command": {"type": "string", "description": "The shell command to execute"},
+            "working_dir": {"type": "string", "description": "Optional working directory for the command"},
+        },
+        "required": ["command"],
+    }
+
     def __init__(
         self,
         timeout: int = 60,
@@ -37,31 +48,6 @@ class ExecTool(Tool):
         self.allow_patterns = allow_patterns or []
         self.restrict_to_workspace = restrict_to_workspace
         self.path_append = path_append
-    
-    @property
-    def name(self) -> str:
-        return "exec"
-    
-    @property
-    def description(self) -> str:
-        return "Execute a shell command and return its output. Use with caution."
-    
-    @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "command": {
-                    "type": "string",
-                    "description": "The shell command to execute"
-                },
-                "working_dir": {
-                    "type": "string",
-                    "description": "Optional working directory for the command"
-                }
-            },
-            "required": ["command"]
-        }
     
     async def execute(self, command: str, working_dir: str | None = None, **kwargs: Any) -> str:
         cwd = working_dir or self.working_dir or os.getcwd()
@@ -94,7 +80,7 @@ class ExecTool(Tool):
                 try:
                     await asyncio.wait_for(process.wait(), timeout=5.0)
                 except asyncio.TimeoutError:
-                    pass
+                    logger.warning("Killed process did not exit within 5 s after timeout")
                 return f"Error: Command timed out after {self.timeout} seconds"
             
             output_parts = []
@@ -150,7 +136,8 @@ class ExecTool(Tool):
             for raw in win_paths + posix_paths:
                 try:
                     p = Path(raw.strip()).resolve()
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Could not resolve path %r in command guard: %s", raw.strip(), exc)
                     continue
                 if p.is_absolute() and cwd_path not in p.parents and p != cwd_path:
                     return "Error: Command blocked by safety guard (path outside working dir)"

@@ -1,0 +1,511 @@
+{
+  "session": {
+    "id": "ext_20260302_141352_d1f1faed",
+    "token": "8548ca4856c4b21ef42cbf349244c90a"
+  },
+  "assessments": {
+    "ai_generated_debt": 85.0,
+    "abstraction_fitness": 82.0,
+    "convention_outlier": 78.0,
+    "cross_module_architecture": 76.4,
+    "dependency_health": 72.8,
+    "design_coherence": 62.0,
+    "error_consistency": 55.0
+  },
+  "findings": [
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "docstring-restates-class-name",
+      "summary": "Several BaseChannel and Tool subclass docstrings restate the class name without adding insight.",
+      "related_files": [
+        "nanobot-src/nanobot/channels/discord.py",
+        "nanobot-src/nanobot/channels/slack.py",
+        "nanobot-src/nanobot/channels/whatsapp.py",
+        "nanobot-src/nanobot/agent/tools/filesystem.py",
+        "nanobot-src/nanobot/agent/tools/shell.py"
+      ],
+      "evidence": [
+        "DiscordChannel docstring: 'Discord channel using Gateway websocket.' — restates the class name and import path",
+        "SlackChannel docstring: 'Slack channel using Socket Mode.' — same pattern",
+        "ReadFileTool docstring: 'Tool to read file contents.' — the name 'ReadFileTool' already conveys this",
+        "ExecTool docstring: 'Tool to execute shell commands.' — identical pattern across all 12 Tool subclasses"
+      ],
+      "suggestion": "Remove one-line docstrings that restate the class name. Reserve docstrings for non-obvious behavior, caveats, or usage notes.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "base-channel-verbose-arg-docstrings",
+      "summary": "BaseChannel methods have multi-line Args docstrings on parameters whose types and names are already self-documenting.",
+      "related_files": [
+        "nanobot-src/nanobot/channels/base.py"
+      ],
+      "evidence": [
+        "is_allowed() has a 5-line docstring for a 1-param method 'sender_id: The sender's identifier.' — the type hint str already says this",
+        "_handle_message() has a 10-line Args section documenting 'content: Message text content', 'media: Optional list of media URLs' which are self-evident from type hints",
+        "send() has 4-line docstring for single-param method: 'msg: The message to send' — adds nothing beyond the type hint"
+      ],
+      "suggestion": "Trim docstrings on base class methods to a single purpose line. The Args sections restate type hints; remove them.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "loader-print-instead-of-logger",
+      "summary": "config/loader.py uses bare print() for error output instead of the project's loguru logger.",
+      "related_files": [
+        "nanobot-src/nanobot/config/loader.py"
+      ],
+      "evidence": [
+        "Line 33: print(f'Warning: Failed to load config from {path}: {e}')",
+        "Line 34: print('Using default configuration.')",
+        "Every other nanobot-src module uses 'from loguru import logger' for structured logging"
+      ],
+      "suggestion": "Replace the two print() calls with logger.warning() to maintain consistent logging.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "utils-helpers-trivial-docstrings",
+      "summary": "nanobot/utils/helpers.py has multi-line Args/Returns docstrings on trivial 2-5 line utility functions.",
+      "related_files": [
+        "nanobot-src/nanobot/utils/helpers.py"
+      ],
+      "evidence": [
+        "get_workspace_path() has a 7-line docstring (Args + Returns) for a 4-line function body",
+        "parse_session_key() has a 6-line docstring (Args + Returns) for a 3-line function body"
+      ],
+      "suggestion": "Reduce multi-line docstrings to single-line summaries for trivial utility functions.",
+      "confidence": "low"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "split-message-duplicated-across-channels",
+      "summary": "The _split_message() function is independently implemented in telegram.py and discord.py with nearly identical logic.",
+      "related_files": [
+        "nanobot-src/nanobot/channels/telegram.py",
+        "nanobot-src/nanobot/channels/discord.py"
+      ],
+      "evidence": [
+        "telegram.py:81 defines _split_message(content, max_len=4000) with line-break-preferring chunking",
+        "discord.py:23 defines _split_message(content, max_len=MAX_MESSAGE_LEN) with identical chunking logic",
+        "Both functions: find last newline, fall back to space, fall back to hard cut — same algorithm"
+      ],
+      "suggestion": "Extract a shared split_message(content, max_len) function into channels/base.py or a channels/utils.py module.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "agent-loop-wide-constructor",
+      "summary": "AgentLoop.__init__ accepts 14 parameters, making it a wide parameter bag despite the from_config classmethod.",
+      "related_files": [
+        "nanobot-src/nanobot/agent/loop.py"
+      ],
+      "evidence": [
+        "AgentLoop.__init__ has 14 named params",
+        "The from_config classmethod centralizes unpacking but doesn't reduce the init surface",
+        "Parameters like brave_api_key, temperature, max_tokens, memory_window could be grouped into a config/defaults object"
+      ],
+      "suggestion": "Consider accepting an AgentDefaults config object for the LLM-related knobs to reduce the init signature.",
+      "confidence": "low"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "tool-property-boilerplate",
+      "summary": "All 12 Tool subclasses repeat the same @property boilerplate for name, description, and parameters instead of using class attributes.",
+      "related_files": [
+        "nanobot-src/nanobot/agent/tools/base.py",
+        "nanobot-src/nanobot/agent/tools/filesystem.py",
+        "nanobot-src/nanobot/agent/tools/message.py",
+        "nanobot-src/nanobot/agent/tools/spawn.py",
+        "nanobot-src/nanobot/agent/tools/shell.py"
+      ],
+      "evidence": [
+        "base.py defines name, description, parameters as @property @abstractmethod",
+        "WebSearchTool and WebFetchTool already use class attributes directly without @property",
+        "ReadFileTool, WriteFileTool, EditFileTool, ListDirTool, ExecTool, MessageTool, SpawnTool, CronTool all implement 3 @property methods each"
+      ],
+      "suggestion": "Change the base Tool class to accept name/description/parameters as regular class attributes.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "cron-store-manual-serialization",
+      "summary": "CronService manually serializes/deserializes CronJob dataclasses to/from JSON dicts instead of using Pydantic.",
+      "related_files": [
+        "nanobot-src/nanobot/cron/service.py"
+      ],
+      "evidence": [
+        "_load_store() manually constructs CronJob from nested dict access over 30 lines",
+        "_save_store() manually serializes back to nested dicts over 30 lines",
+        "The config module already uses Pydantic models with model_validate/model_dump"
+      ],
+      "suggestion": "Convert CronJob and related types to Pydantic models and use model_validate/model_dump for serialization.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "logging-framework-split",
+      "summary": "Backend uses stdlib logging while nanobot-src uses loguru — two logging frameworks with no interop bridge.",
+      "related_files": [
+        "backend/app/routes/nodes.py",
+        "backend/app/routes/chat.py",
+        "backend/app/docker_ops.py",
+        "backend/app/main.py",
+        "nanobot-src/nanobot/channels/base.py",
+        "nanobot-src/nanobot/agent/loop.py"
+      ],
+      "evidence": [
+        "All 6 backend/app modules use 'import logging; logger = logging.getLogger(__name__)'",
+        "All 20+ nanobot-src modules use 'from loguru import logger'",
+        "No loguru intercept handler or stdlib-to-loguru bridge configured"
+      ],
+      "suggestion": "Choose one logging strategy or add a loguru intercept handler in the backend's startup to unify output.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "tool-definition-style-inconsistency",
+      "summary": "Tool subclasses use two incompatible patterns for defining name/description/parameters.",
+      "related_files": [
+        "nanobot-src/nanobot/agent/tools/web.py",
+        "nanobot-src/nanobot/agent/tools/filesystem.py",
+        "nanobot-src/nanobot/agent/tools/shell.py",
+        "nanobot-src/nanobot/agent/tools/message.py"
+      ],
+      "evidence": [
+        "WebSearchTool and WebFetchTool define them as class-level attributes",
+        "ReadFileTool, WriteFileTool, EditFileTool, ListDirTool, ExecTool, etc. define them as @property methods",
+        "Both patterns work but the inconsistency is surprising"
+      ],
+      "suggestion": "Standardize all tool subclasses to use class-level attributes (matching WebSearchTool/WebFetchTool).",
+      "confidence": "high"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "channel-status-table-not-data-driven",
+      "summary": "The channels_status CLI command hardcodes 9 channel display blocks instead of iterating over channel config.",
+      "related_files": [
+        "nanobot-src/nanobot/cli/commands.py",
+        "nanobot-src/nanobot/channels/manager.py"
+      ],
+      "evidence": [
+        "cli/commands.py lines 611-688: channels_status() has 9 sequential blocks",
+        "channels/manager.py lines 37-50: _CHANNEL_DEFS is a data-driven list",
+        "Adding a new channel requires updating both"
+      ],
+      "suggestion": "Make channels_status() data-driven by iterating over channel metadata.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "init-py-inconsistent-content",
+      "summary": "Package __init__.py files have inconsistent content: some have docstrings, one is empty.",
+      "related_files": [
+        "nanobot-src/nanobot/channels/__init__.py",
+        "nanobot-src/nanobot/agent/__init__.py",
+        "nanobot-src/nanobot/providers/__init__.py",
+        "backend/app/routes/__init__.py"
+      ],
+      "evidence": [
+        "channels/__init__.py has docstring, agent/__init__.py has docstring",
+        "backend/app/routes/__init__.py is empty (no docstring)",
+        "None export any symbols"
+      ],
+      "suggestion": "Pick one convention and apply consistently.",
+      "confidence": "low"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "server-make-provider-passthrough",
+      "summary": "nanobot/server.py defines _make_provider() that is a pure pass-through wrapper to registry.make_provider().",
+      "related_files": ["nanobot/server.py", "nanobot-src/nanobot/providers/registry.py"],
+      "evidence": [
+        "nanobot/server.py lines 37-46: def _make_provider(config): ... from nanobot.providers.registry import make_provider; return make_provider(config)",
+        "The function adds no policy, error handling, or translation beyond what make_provider already provides"
+      ],
+      "suggestion": "Replace the _make_provider wrapper with a direct import and call of make_provider from the registry.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "server-module-level-mutable-state",
+      "summary": "nanobot/server.py uses module-level mutable globals (agent_loop, _init_error) modified via `global` statements.",
+      "related_files": ["nanobot/server.py"],
+      "evidence": [
+        "Line 32: agent_loop = None (module-level mutable)",
+        "Line 34: _init_error = None (module-level mutable)",
+        "Line 78: global agent_loop, _init_error -- modified from init_agent()",
+        "handle_client() reads agent_loop at line 165 without synchronization"
+      ],
+      "suggestion": "Encapsulate agent_loop, _ready, and _init_error in a small Server or AppState class.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "main-imports-private-from-routes",
+      "summary": "backend/app/main.py imports _recreate_container from app.routes.node_status, creating a dependency from app root into route layer.",
+      "related_files": ["backend/app/main.py", "backend/app/routes/node_status.py"],
+      "evidence": [
+        "backend/app/main.py line 29: from app.routes.node_status import _recreate_container",
+        "This creates a dependency from the application bootstrap layer into the route layer"
+      ],
+      "suggestion": "Move _recreate_container into a shared module like app/container_ops.py.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "dual-nanobot-directory-ambiguity",
+      "summary": "The project has both nanobot/ (Dockerfile + server.py) and nanobot-src/ (actual package), creating confusing boundaries.",
+      "related_files": ["nanobot/server.py", "nanobot/Dockerfile", "nanobot-src/nanobot/__init__.py"],
+      "evidence": [
+        "nanobot/ contains only Dockerfile and server.py -- deployment artifact",
+        "nanobot-src/ contains the actual nanobot Python package",
+        "nanobot/server.py imports from the nanobot-src package"
+      ],
+      "suggestion": "Rename the nanobot/ deployment directory to deploy/ or nanobot-deploy/.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "config-schema-duplicates-registry-matching",
+      "summary": "Config._match_provider() reimplements model-matching logic that already exists in registry.find_by_model().",
+      "related_files": ["nanobot-src/nanobot/config/schema.py", "nanobot-src/nanobot/providers/registry.py"],
+      "evidence": [
+        "schema.py _match_provider() and registry.find_by_model() both iterate PROVIDERS, match by keyword, normalize prefixes",
+        "Both normalize with model_lower.replace('-', '_'), split on '/', check normalized_prefix == spec.name"
+      ],
+      "suggestion": "Have Config._match_provider() delegate to registry.find_by_model().",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "litellm-provider-sets-global-env",
+      "summary": "LiteLLMProvider._setup_env() mutates os.environ and litellm globals during construction.",
+      "related_files": ["nanobot-src/nanobot/providers/litellm_provider.py"],
+      "evidence": [
+        "Line 51: litellm.api_base = api_base -- mutates litellm global",
+        "Lines 69-71: os.environ[spec.env_key] = api_key -- mutates process environment",
+        "Line 54: litellm.suppress_debug_info = True -- mutates litellm global"
+      ],
+      "suggestion": "Pass api_key and api_base directly via kwargs to litellm.acompletion() instead of mutating global state.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "pydantic-version-range-conflict",
+      "summary": "backend requires pydantic>=2.0 while nanobot-src requires >=2.12.0 -- ranges diverge.",
+      "related_files": ["backend/pyproject.toml", "nanobot-src/pyproject.toml"],
+      "evidence": [
+        "backend/pyproject.toml: pydantic>=2.0",
+        "nanobot-src/pyproject.toml: pydantic>=2.12.0,<3.0.0"
+      ],
+      "suggestion": "Align backend pydantic requirement to >=2.12.0,<3.0.0.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "websockets-version-range-conflict",
+      "summary": "backend requires websockets>=14.0 vs nanobot-src's >=16.0,<17.0 -- overlap only at 16.x.",
+      "related_files": ["backend/pyproject.toml", "nanobot-src/pyproject.toml"],
+      "evidence": [
+        "backend/pyproject.toml: websockets>=14.0",
+        "nanobot-src/pyproject.toml: websockets>=16.0,<17.0"
+      ],
+      "suggestion": "Tighten backend websockets requirement to >=16.0,<17.0.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "socksio-declared-never-imported",
+      "summary": "socksio is declared in telegram optional group but never directly imported.",
+      "related_files": ["nanobot-src/pyproject.toml"],
+      "evidence": [
+        "pyproject.toml: socksio>=1.0.0,<2.0.0 in [telegram] extras",
+        "grep for 'import socksio' returns zero matches"
+      ],
+      "suggestion": "Verify if socksio is needed as transitive dep; if so add comment, if not remove.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "openai-undeclared-direct-dependency",
+      "summary": "custom_provider.py imports from openai but openai is not listed in dependencies.",
+      "related_files": ["nanobot-src/nanobot/providers/custom_provider.py", "nanobot-src/pyproject.toml"],
+      "evidence": [
+        "custom_provider.py: from openai import AsyncOpenAI",
+        "openai not in pyproject.toml dependencies"
+      ],
+      "suggestion": "Add openai>=1.0.0 as explicit dependency or restructure CustomProvider.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "backend-missing-upper-bounds",
+      "summary": "backend/pyproject.toml specifies only lower bounds for all dependencies.",
+      "related_files": ["backend/pyproject.toml"],
+      "evidence": [
+        "All 7 dependencies use only >= lower bounds",
+        "nanobot-src correctly pins upper bounds"
+      ],
+      "suggestion": "Add upper-bound version constraints to backend dependencies.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "nodes-py-monolith-mixing-seven-concerns",
+      "summary": "nodes.py (798 LOC) handles 7 distinct domain concerns in one file.",
+      "related_files": ["backend/app/routes/nodes.py"],
+      "evidence": [
+        "28 route handler functions across 7 domain concerns in a single file",
+        "Network topology has no relationship to workspace file CRUD",
+        "21 disconnected function clusters per static analysis"
+      ],
+      "suggestion": "Split into focused route modules: node_crud, node_container, node_workspace, node_network, node_children.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "identity-name-sync-duplicated-three-locations",
+      "summary": "Identity name-sync pattern duplicated in nodes.py, chat.py, and main.py.",
+      "related_files": ["backend/app/routes/nodes.py", "backend/app/routes/chat.py", "backend/app/main.py"],
+      "evidence": [
+        "All three use json.loads -> name comparison -> json.dumps(indent=2) -> write_workspace_file sequence"
+      ],
+      "suggestion": "Extract a shared sync_identity_name() function in helpers.py.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "network-topology-query-duplicated",
+      "summary": "Network topology query implemented independently in nodes.py and chat.py with near-identical logic.",
+      "related_files": ["backend/app/routes/nodes.py", "backend/app/routes/chat.py"],
+      "evidence": [
+        "Both use identical SQL patterns for edge queries and sibling computation",
+        "Only difference is chat.py omits edge_type in node_summary"
+      ],
+      "suggestion": "Extract shared get_network_topology() in helpers.py.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "agent-loop-init-too-many-params",
+      "summary": "AgentLoop.__init__ accepts 14 parameters.",
+      "related_files": ["nanobot-src/nanobot/agent/loop.py"],
+      "evidence": [
+        "14 named params, many related config values should be grouped",
+        "from_config classmethod exists but raw init remains wide"
+      ],
+      "suggestion": "Group LLM-related params into AgentDefaults dataclass.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "cron-store-manual-serialization-design",
+      "summary": "CronService manual JSON serialization is fragile and duplicative.",
+      "related_files": ["nanobot-src/nanobot/cron/service.py"],
+      "evidence": [
+        "_load_store/_save_store manually pack/unpack dicts over 60+ lines",
+        "Project already uses Pydantic extensively"
+      ],
+      "suggestion": "Convert CronJob types to Pydantic BaseModel subclasses.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "chat-relay-deeply-nested-closures",
+      "summary": "chat_relay WebSocket handler has 3-4 levels of nested closures.",
+      "related_files": ["backend/app/routes/chat.py"],
+      "evidence": [
+        "146-line function with nested async closures",
+        "nonlocal frontend_connected flag creates implicit coupling"
+      ],
+      "suggestion": "Extract closures as module-level async functions.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "llm-providers-return-errors-as-content",
+      "summary": "LLM providers return errors as content strings instead of raising.",
+      "related_files": ["nanobot-src/nanobot/providers/litellm_provider.py", "nanobot-src/nanobot/providers/custom_provider.py"],
+      "evidence": [
+        "Both catch all exceptions and return LLMResponse(content='Error...')",
+        "finish_reason='error' is set but never checked by any caller"
+      ],
+      "suggestion": "Raise a custom LLMError or check finish_reason == 'error' in the agent loop.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "tools-return-error-strings-not-exceptions",
+      "summary": "Tools return 'Error: ...' strings but registry also catches exceptions — dual error path.",
+      "related_files": ["nanobot-src/nanobot/agent/tools/registry.py", "nanobot-src/nanobot/agent/tools/filesystem.py"],
+      "evidence": [
+        "Registry checks result.startswith('Error') — fragile string-prefix convention",
+        "WebFetchTool returns JSON-encoded errors breaking the pattern"
+      ],
+      "suggestion": "Define ToolError or ToolResult type for consistent error detection.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "docker-ops-mixed-error-strategies",
+      "summary": "docker_ops.py uses three different error strategies inconsistently.",
+      "related_files": ["backend/app/docker_ops.py"],
+      "evidence": [
+        "get_* return None/strings, write_* silently log, run_container_command propagates",
+        "No clear rule for which strategy applies"
+      ],
+      "suggestion": "Get functions return Optional, mutation functions raise on failure.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "backend-routes-inconsistent-error-propagation",
+      "summary": "Some routes raise HTTPException on container errors, others return 200 with error state hidden in config.",
+      "related_files": ["backend/app/routes/nodes.py"],
+      "evidence": [
+        "create_node/clone_node return 200 with error in config",
+        "restart_node/rebuild_node raise HTTPException 500"
+      ],
+      "suggestion": "Choose one strategy: always raise or always return with distinct status.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "server-py-print-vs-logging",
+      "summary": "nanobot/server.py uses print() instead of logging/loguru.",
+      "related_files": ["nanobot/server.py"],
+      "evidence": [
+        "5+ print() calls in server.py",
+        "Backend uses logging, nanobot-src uses loguru — server.py uses neither"
+      ],
+      "suggestion": "Replace print() with loguru logger.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "silent-exception-swallowing-in-channels",
+      "summary": "Multiple channels silently swallow exceptions with bare except:pass.",
+      "related_files": ["nanobot-src/nanobot/channels/matrix.py", "nanobot-src/nanobot/channels/qq.py", "nanobot/server.py"],
+      "evidence": [
+        "matrix.py has 4 silent suppression instances",
+        "server.py on_progress wraps websocket.send in except Exception: pass"
+      ],
+      "suggestion": "Add logger.debug() to all bare except:pass blocks.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "web-fetch-tool-json-error-vs-string-error",
+      "summary": "WebFetchTool returns JSON-encoded errors while all other tools return plain strings.",
+      "related_files": ["nanobot-src/nanobot/agent/tools/web.py"],
+      "evidence": [
+        "WebFetchTool returns json.dumps({'error': ...})",
+        "All other tools return f'Error: ...' strings",
+        "Registry startswith('Error') check won't match JSON errors"
+      ],
+      "suggestion": "Change WebFetchTool to use plain string format matching other tools.",
+      "confidence": "high"
+    }
+  ]
+}

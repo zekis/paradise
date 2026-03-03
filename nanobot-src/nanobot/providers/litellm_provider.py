@@ -2,6 +2,7 @@
 
 import json
 import json_repair
+import logging
 import os
 from typing import Any
 
@@ -10,6 +11,8 @@ from litellm import acompletion
 
 from nanobot.providers.base import LLMProvider, LLMResponse, ToolCallRequest
 from nanobot.providers.registry import find_by_model, find_gateway
+
+logger = logging.getLogger(__name__)
 
 
 # Standard OpenAI chat-completion message keys plus reasoning_content for
@@ -43,25 +46,29 @@ class LiteLLMProvider(LLMProvider):
         # api_key / api_base are fallback for auto-detection.
         self._gateway = find_gateway(provider_name, api_key, api_base)
         
-        # Configure environment variables
+        # Set env vars that some LiteLLM sub-providers read at call time.
+        # api_key and api_base are also passed directly via kwargs in chat(),
+        # but certain backends only check env vars.
         if api_key:
             self._setup_env(api_key, api_base, default_model)
-        
-        if api_base:
-            litellm.api_base = api_base
-        
+
         # Disable LiteLLM logging noise
         litellm.suppress_debug_info = True
         # Drop unsupported parameters for providers (e.g., gpt-5 rejects some params)
         litellm.drop_params = True
-    
+
     def _setup_env(self, api_key: str, api_base: str | None, model: str) -> None:
-        """Set environment variables based on detected provider."""
+        """Set provider-specific env vars that LiteLLM sub-backends expect.
+
+        We prefer passing ``api_key`` / ``api_base`` directly in
+        :pymethod:`chat` kwargs, but some LiteLLM backends only check
+        env vars (e.g. ``GEMINI_API_KEY``).  This method sets those
+        as *defaults* (``setdefault``) so explicit env vars are never
+        overwritten — except for gateways, which intentionally replace
+        any existing key.
+        """
         spec = self._gateway or find_by_model(model)
-        if not spec:
-            return
-        if not spec.env_key:
-            # OAuth/provider-only specs (for example: openai_codex)
+        if not spec or not spec.env_key:
             return
 
         # Gateway/local overrides existing env; standard provider doesn't
@@ -225,9 +232,9 @@ class LiteLLMProvider(LLMProvider):
             response = await acompletion(**kwargs)
             return self._parse_response(response)
         except Exception as e:
-            # Return error as content for graceful handling
+            logger.warning("LiteLLM chat error (model=%s): %s", model, e, exc_info=True)
             return LLMResponse(
-                content=f"Error calling LLM: {str(e)}",
+                content=f"Error calling LLM: {e}",
                 finish_reason="error",
             )
     

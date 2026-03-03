@@ -8,67 +8,35 @@ from nanobot.cron.types import CronSchedule
 
 
 class CronTool(Tool):
-    """Tool to schedule reminders and recurring tasks."""
-    
+    name = "cron"
+    description = "Schedule reminders and recurring tasks. Actions: add, list, remove."
+    parameters = {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["add", "list", "remove"], "description": "Action to perform"},
+            "message": {"type": "string", "description": "Reminder message (for add)"},
+            "every_seconds": {"type": "integer", "description": "Interval in seconds (for recurring tasks)"},
+            "cron_expr": {"type": "string", "description": "Cron expression like '0 9 * * *' (for scheduled tasks)"},
+            "tz": {"type": "string", "description": "IANA timezone for cron expressions (e.g. 'America/Vancouver')"},
+            "at": {"type": "string", "description": "ISO datetime for one-time execution (e.g. '2026-02-12T10:30:00')"},
+            "job_id": {"type": "string", "description": "Job ID (for remove)"},
+            "exec_command": {
+                "type": "string",
+                "description": "Shell command to run directly (no LLM). Use instead of message for lightweight periodic tasks like status updates."
+            },
+        },
+        "required": ["action"],
+    }
+
     def __init__(self, cron_service: CronService):
         self._cron = cron_service
         self._channel = ""
         self._chat_id = ""
-    
+
     def set_context(self, channel: str, chat_id: str) -> None:
         """Set the current session context for delivery."""
         self._channel = channel
         self._chat_id = chat_id
-    
-    @property
-    def name(self) -> str:
-        return "cron"
-    
-    @property
-    def description(self) -> str:
-        return "Schedule reminders and recurring tasks. Actions: add, list, remove."
-    
-    @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "action": {
-                    "type": "string",
-                    "enum": ["add", "list", "remove"],
-                    "description": "Action to perform"
-                },
-                "message": {
-                    "type": "string",
-                    "description": "Reminder message (for add)"
-                },
-                "every_seconds": {
-                    "type": "integer",
-                    "description": "Interval in seconds (for recurring tasks)"
-                },
-                "cron_expr": {
-                    "type": "string",
-                    "description": "Cron expression like '0 9 * * *' (for scheduled tasks)"
-                },
-                "tz": {
-                    "type": "string",
-                    "description": "IANA timezone for cron expressions (e.g. 'America/Vancouver')"
-                },
-                "at": {
-                    "type": "string",
-                    "description": "ISO datetime for one-time execution (e.g. '2026-02-12T10:30:00')"
-                },
-                "job_id": {
-                    "type": "string",
-                    "description": "Job ID (for remove)"
-                },
-                "exec_command": {
-                    "type": "string",
-                    "description": "Shell command to run directly (no LLM). Use instead of message for lightweight periodic tasks like status updates."
-                }
-            },
-            "required": ["action"]
-        }
     
     async def execute(
         self,
@@ -89,7 +57,7 @@ class CronTool(Tool):
         elif action == "remove":
             return self._remove_job(job_id)
         return f"Unknown action: {action}"
-
+    
     def _add_job(
         self,
         message: str,
@@ -99,7 +67,7 @@ class CronTool(Tool):
         at: str | None,
         exec_command: str | None = None,
     ) -> str:
-        if not message and not exec_command:
+        if not exec_command and not message:
             return "Error: message or exec_command is required for add"
         if not exec_command and (not self._channel or not self._chat_id):
             return "Error: no session context (channel/chat_id)"
@@ -127,17 +95,24 @@ class CronTool(Tool):
         else:
             return "Error: either every_seconds, cron_expr, or at is required"
         
-        job = self._cron.add_job(
-            name=(exec_command or message)[:30],
-            schedule=schedule,
-            message=message,
-            deliver=not exec_command,
-            channel=self._channel if not exec_command else None,
-            to=self._chat_id if not exec_command else None,
-            delete_after_run=delete_after,
-            exec_command=exec_command,
-        )
-        return f"Created job '{job.name}' (id: {job.id}, kind: {job.payload.kind})"
+        if exec_command:
+            job = self._cron.add_job(
+                name=(message or exec_command)[:30],
+                schedule=schedule,
+                exec_command=exec_command,
+                delete_after_run=delete_after,
+            )
+        else:
+            job = self._cron.add_job(
+                name=message[:30],
+                schedule=schedule,
+                message=message,
+                deliver=True,
+                channel=self._channel,
+                to=self._chat_id,
+                delete_after_run=delete_after,
+            )
+        return f"Created job '{job.name}' (id: {job.id})"
     
     def _list_jobs(self) -> str:
         jobs = self._cron.list_jobs()
@@ -145,10 +120,8 @@ class CronTool(Tool):
             return "No scheduled jobs."
         lines = []
         for j in jobs:
-            kind_info = j.schedule.kind
-            if j.payload.kind == "exec":
-                kind_info += f", exec: {j.payload.exec_command}"
-            lines.append(f"- {j.name} (id: {j.id}, {kind_info})")
+            kind_label = j.payload.kind if j.payload else j.schedule.kind
+            lines.append(f"- {j.name} (id: {j.id}, {kind_label}, {j.schedule.kind})")
         return "Scheduled jobs:\n" + "\n".join(lines)
     
     def _remove_job(self, job_id: str | None) -> str:

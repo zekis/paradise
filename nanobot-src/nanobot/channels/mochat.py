@@ -18,6 +18,8 @@ from nanobot.channels.base import BaseChannel
 from nanobot.config.schema import MochatConfig
 from nanobot.utils.helpers import get_data_path
 
+# Intentional swallow: socketio is an optional dependency for websocket mode.
+# When absent, the channel falls back to HTTP polling.
 try:
     import socketio
     SOCKETIO_AVAILABLE = True
@@ -25,6 +27,8 @@ except ImportError:
     socketio = None
     SOCKETIO_AVAILABLE = False
 
+# Intentional swallow: msgpack is an optional serializer optimization.
+# When absent, JSON serialization is used instead.
 try:
     import msgpack  # noqa: F401
     MSGPACK_AVAILABLE = True
@@ -251,7 +255,7 @@ class MochatChannel(BaseChannel):
     async def start(self) -> None:
         """Start Mochat channel workers and websocket connection."""
         if not self.config.claw_token:
-            logger.error("Mochat claw_token not configured")
+            logger.error("Mochat authentication not configured")
             return
 
         self._running = True
@@ -282,7 +286,9 @@ class MochatChannel(BaseChannel):
             try:
                 await self._socket.disconnect()
             except Exception:
-                pass
+                # Best-effort disconnect during shutdown; socket may already
+                # be closed or the remote may be unreachable.
+                logger.debug("Ignored error disconnecting Mochat socket during stop")
             self._socket = None
 
         if self._cursor_save_task:
@@ -298,7 +304,7 @@ class MochatChannel(BaseChannel):
     async def send(self, msg: OutboundMessage) -> None:
         """Send outbound message to session or panel."""
         if not self.config.claw_token:
-            logger.warning("Mochat claw_token missing, skip send")
+            logger.warning("Mochat authentication missing, skip send")
             return
 
         parts = ([msg.content.strip()] if msg.content and msg.content.strip() else [])
@@ -322,6 +328,9 @@ class MochatChannel(BaseChannel):
                 await self._api_send("/api/claw/sessions/send", "sessionId", target.id,
                                      content, msg.reply_to)
         except Exception as e:
+            # Intentional swallow: outbound send failures are transient network
+            # issues that must not crash the dispatch loop. Logged for operator
+            # visibility into repeated delivery problems.
             logger.error("Failed to send Mochat message: {}", e)
 
     # ---- config / init helpers ---------------------------------------------
@@ -380,7 +389,7 @@ class MochatChannel(BaseChannel):
 
         @client.event
         async def connect_error(data: Any) -> None:
-            logger.error("Mochat websocket connect error: {}", data)
+            logger.error("Mochat websocket connect error (type={})", type(data).__name__)
 
         @client.on("claw.session.events")
         async def on_session_events(payload: dict[str, Any]) -> None:
@@ -411,7 +420,9 @@ class MochatChannel(BaseChannel):
             try:
                 await client.disconnect()
             except Exception:
-                pass
+                # Best-effort cleanup after a failed connect attempt;
+                # the client may not have a live transport to close.
+                logger.debug("Ignored error during post-failure socket cleanup")
             self._socket = None
             return False
 
@@ -488,6 +499,8 @@ class MochatChannel(BaseChannel):
             try:
                 await self._refresh_targets(subscribe_new=self._ws_ready)
             except Exception as e:
+                # Intentional swallow: periodic refresh is best-effort; a single
+                # failure should not kill the background loop.
                 logger.warning("Mochat refresh failed: {}", e)
             if self._fallback_mode:
                 await self._ensure_fallback_workers()
@@ -836,6 +849,8 @@ class MochatChannel(BaseChannel):
         try:
             data = json.loads(self._cursor_path.read_text("utf-8"))
         except Exception as e:
+            # Intentional swallow: a corrupt or unreadable cursor file should
+            # not prevent startup. Cursors will be rebuilt from live data.
             logger.warning("Failed to read Mochat cursor file: {}", e)
             return
         cursors = data.get("cursors") if isinstance(data, dict) else None
@@ -852,6 +867,9 @@ class MochatChannel(BaseChannel):
                 "cursors": self._session_cursor,
             }, ensure_ascii=False, indent=2) + "\n", "utf-8")
         except Exception as e:
+            # Intentional swallow: cursor persistence is best-effort. A write
+            # failure (e.g. disk full) is non-fatal; cursors live in memory and
+            # will be retried on the next debounce cycle.
             logger.warning("Failed to save Mochat cursor file: {}", e)
 
     # ---- HTTP helpers ------------------------------------------------------
@@ -868,6 +886,9 @@ class MochatChannel(BaseChannel):
         try:
             parsed = response.json()
         except Exception:
+            # Intentional fallback: if the response body is not valid JSON,
+            # treat it as raw text. Downstream code handles both dict and str.
+            logger.debug("Mochat response not JSON-parseable, using raw text for {}", path)
             parsed = response.text
         if isinstance(parsed, dict) and isinstance(parsed.get("code"), int):
             if parsed["code"] != 200:

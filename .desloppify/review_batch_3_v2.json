@@ -1,0 +1,236 @@
+{
+  "assessments": {
+    "design_coherence": 62.0,
+    "error_consistency": 55.0
+  },
+  "findings": [
+    {
+      "dimension": "design_coherence",
+      "identifier": "nodes-py-monolith-mixing-seven-concerns",
+      "summary": "nodes.py (798 LOC) handles node CRUD, container lifecycle, workspace files, identity sync, network topology, recommendations, and child creation in one file.",
+      "related_files": [
+        "backend/app/routes/nodes.py"
+      ],
+      "evidence": [
+        "28 route handler functions across 7 distinct domain concerns in a single 798-line file",
+        "Network topology query (lines 574-631) has no relationship to workspace file CRUD (lines 397-484)",
+        "Recommendations parsing (lines 677-706) and child node creation (lines 727-797) are domain features unrelated to container lifecycle (lines 291-340)",
+        "The file has 21 disconnected function clusters per static analysis"
+      ],
+      "suggestion": "Split into focused route modules: node_crud.py (create/read/update/delete), node_container.py (restart/rebuild/logs/stats), node_workspace.py (files read/write/list), node_network.py (topology/peer config), node_children.py (recommendations/child creation). Each module would be under 200 LOC with a clear single responsibility.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "identity-name-sync-duplicated-three-locations",
+      "summary": "The pattern of reading identity.json, checking name drift, writing corrected identity back is duplicated verbatim across three separate code paths.",
+      "related_files": [
+        "backend/app/routes/nodes.py",
+        "backend/app/routes/chat.py",
+        "backend/app/main.py"
+      ],
+      "evidence": [
+        "nodes.py get_node_identity (lines 556-565): reads identity, checks name != node.name, writes back corrected copy",
+        "chat.py _check_identity (lines 56-70): identical pattern with read, name drift check, JSON dumps, write_workspace_file",
+        "main.py _refresh_identities (lines 174-192): same pattern applied in maintenance loop",
+        "All three use the same json.loads -> name comparison -> json.dumps(indent=2) -> write_workspace_file sequence"
+      ],
+      "suggestion": "Extract a shared async function like `sync_identity_name(container_id: str, expected_name: str, identity: dict) -> dict` in helpers.py that performs the drift check and write-back. All three call sites become one-liners.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "network-topology-query-duplicated",
+      "summary": "The network topology query (parents/children/siblings via edges) is implemented independently in nodes.py and chat.py with near-identical logic.",
+      "related_files": [
+        "backend/app/routes/nodes.py",
+        "backend/app/routes/chat.py"
+      ],
+      "evidence": [
+        "nodes.py get_node_network (lines 574-631): queries edges_out, edges_in, sibling_ids, fetches all related nodes, builds summary dicts",
+        "chat.py _get_network_context (lines 104-142): same edge queries, same sibling computation, same node_summary calls",
+        "Both use identical SQL patterns: select(Edge).where(Edge.source_id == node_id) and Edge.target_id == node_id",
+        "Only difference is chat.py omits edge_type in node_summary calls"
+      ],
+      "suggestion": "Extract a shared `async def get_network_topology(node_id: UUID, db: AsyncSession) -> dict` in helpers.py that both endpoints call. The edge_type inclusion can be controlled by an optional parameter.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "agent-loop-init-too-many-params",
+      "summary": "AgentLoop.__init__ accepts 14 parameters, many of which are related configuration values that should be grouped.",
+      "related_files": [
+        "nanobot-src/nanobot/agent/loop.py"
+      ],
+      "evidence": [
+        "Lines 48-65: __init__(self, bus, provider, workspace, model, max_iterations, temperature, max_tokens, memory_window, brave_api_key, exec_config, cron_service, restrict_to_workspace, session_manager, mcp_servers, channels_config)",
+        "model, max_iterations, temperature, max_tokens, memory_window are all agent behavior params that already exist as AgentDefaults in config/schema.py",
+        "brave_api_key is a single tool config value threaded through the constructor",
+        "The from_config classmethod (lines 108-150) exists precisely because the constructor is too wide"
+      ],
+      "suggestion": "The from_config classmethod is the right direction but the raw __init__ should accept a smaller surface. Group model/temperature/max_tokens/max_iterations/memory_window into a single AgentDefaults (or a new AgentParams dataclass) parameter, and pass tools config as a single ToolsConfig rather than extracting brave_api_key/exec_config/restrict_to_workspace individually.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "cron-store-manual-serialization",
+      "summary": "CronService manually serializes/deserializes CronJob dataclasses to/from JSON dicts instead of using Pydantic or dataclass_json, creating a fragile repeated structural pattern.",
+      "related_files": [
+        "nanobot-src/nanobot/cron/service.py"
+      ],
+      "evidence": [
+        "Lines 84-113: _load_store manually unpacks each JSON field into CronJob, CronSchedule, CronPayload, CronJobState constructors with get() calls and camelCase-to-snake_case mapping",
+        "Lines 130-165: _save_store manually packs every field back into dicts with the reverse camelCase mapping",
+        "Both directions repeat every field name twice and any new field requires updating both methods",
+        "The project already uses Pydantic extensively (config/schema.py has 20+ Pydantic models with camelCase alias support)"
+      ],
+      "suggestion": "Convert CronJob, CronSchedule, CronPayload, and CronJobState to Pydantic BaseModel subclasses (with the same camelCase alias generator used in config/schema.py). Replace _load_store/_save_store with CronStore.model_validate_json() / store.model_dump_json(by_alias=True, indent=2). This eliminates 80+ lines of manual mapping.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "chat-relay-deeply-nested-closures",
+      "summary": "The chat_relay WebSocket handler contains 3-4 levels of nested closures and try/except blocks, making control flow hard to follow.",
+      "related_files": [
+        "backend/app/routes/chat.py"
+      ],
+      "evidence": [
+        "Lines 146-292: chat_relay is a single 146-line function with nested async def frontend_to_nanobot (line 171) and nanobot_to_frontend (line 201)",
+        "Inside nanobot_to_frontend, there are 4 levels: try -> async for -> try -> if/elif branches each with their own try/except + async with",
+        "The nonlocal frontend_connected flag (lines 169, 172, 202) creates implicit coupling between the closures",
+        "The task management logic (lines 263-280) adds another layer of complexity at the same indentation level"
+      ],
+      "suggestion": "Extract frontend_to_nanobot and nanobot_to_frontend as module-level async functions that accept their dependencies (websocket, nanobot_ws, node_id, container_id, node_name) as parameters. Use an asyncio.Event for the frontend_connected signal instead of nonlocal. This flattens the nesting by one level and makes each function independently testable.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "llm-providers-return-errors-as-content",
+      "summary": "Both LLM providers catch all exceptions and return error messages as LLMResponse.content strings instead of raising, making API call failures indistinguishable from valid LLM responses.",
+      "related_files": [
+        "nanobot-src/nanobot/providers/litellm_provider.py",
+        "nanobot-src/nanobot/providers/custom_provider.py"
+      ],
+      "evidence": [
+        "litellm_provider.py lines 227-232: except Exception as e: return LLMResponse(content=f'Error calling LLM: {str(e)}', finish_reason='error')",
+        "custom_provider.py lines 32-33: except Exception as e: return LLMResponse(content=f'Error: {e}', finish_reason='error')",
+        "The caller in agent/loop.py _run_agent_loop (line 236) has no way to distinguish an LLM error from a valid response containing the word 'Error'",
+        "finish_reason='error' is set but never checked by any caller — the agent loop only checks response.has_tool_calls (line 244) and response.content (line 276)"
+      ],
+      "suggestion": "Either raise a custom LLMError exception from the providers and catch it in the agent loop, or check finish_reason == 'error' in _run_agent_loop before proceeding. The current pattern means authentication failures, rate limits, and network errors silently become 'assistant' messages stored in session history.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "tools-return-error-strings-not-exceptions",
+      "summary": "All nanobot tools return errors as 'Error: ...' string prefixes instead of raising exceptions, but the registry also catches exceptions and converts them to the same format, creating a dual error path.",
+      "related_files": [
+        "nanobot-src/nanobot/agent/tools/registry.py",
+        "nanobot-src/nanobot/agent/tools/filesystem.py",
+        "nanobot-src/nanobot/agent/tools/shell.py",
+        "nanobot-src/nanobot/agent/tools/network.py",
+        "nanobot-src/nanobot/agent/tools/paradise.py",
+        "nanobot-src/nanobot/agent/tools/web.py"
+      ],
+      "evidence": [
+        "registry.py line 51: checks if isinstance(result, str) and result.startswith('Error') to append a hint — a fragile string-prefix convention",
+        "registry.py line 54: also catches Exception and returns 'Error executing {name}: ...' — so tools have two ways to report errors",
+        "filesystem.py: all 4 tool classes catch Exception and return f'Error: ...' strings (lines 65, 109, 171, 244)",
+        "paradise.py lines 77-79: returns error string for HTTPStatusError, but lines 78-79 return early on first sub-operation failure, skipping subsequent operations",
+        "web.py WebSearchTool line 99: returns f'Error: {e}' while WebFetchTool line 160: returns json.dumps({'error': str(e)}) — two different error formats in sibling tools"
+      ],
+      "suggestion": "Standardize on one strategy. The recommended approach for LLM tool calls is to always return strings (since they go back to the LLM), but define a ToolError dataclass or use a Result type so the registry can detect errors without string-prefix matching. For example: return ToolResult(success=False, message='...') or raise ToolError('...') and let the registry format it consistently. Also unify the error format — WebFetchTool should not return JSON-encoded errors when all other tools return plain strings.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "docker-ops-mixed-error-strategies",
+      "summary": "docker_ops.py functions use three different error strategies: return None, silently log and continue, or propagate exceptions to caller — with no clear rule for which strategy applies.",
+      "related_files": [
+        "backend/app/docker_ops.py"
+      ],
+      "evidence": [
+        "get_container_status (lines 56-65): returns 'not_found' or 'unknown' strings — never None, never raises",
+        "get_container_logs (lines 68-77): returns None on NotFound AND on APIError — caller cannot distinguish 'missing container' from 'API failure'",
+        "get_container_stats (lines 80-101): returns None on NotFound or KeyError — swallows KeyError which could mask bugs in stats parsing",
+        "write_nanobot_config (lines 144-158): silently logs and returns on failure — caller cannot know the write failed",
+        "write_workspace_file (lines 191-203): same silent pattern — failure is invisible to caller",
+        "run_container_command (lines 230-247): propagates NotFound and APIError directly — opposite of all sibling functions",
+        "stop_nanobot_container (lines 46-53): swallows NotFound (reasonable) but would propagate APIError (inconsistent with other functions)"
+      ],
+      "suggestion": "Adopt a consistent pattern: functions that are informational (get_*) should return Optional types with None for any failure. Functions that perform mutations (write_*, create_*) should raise on failure so callers can decide how to handle it. run_container_command already follows the 'raise' pattern — extend it to write_nanobot_config and write_workspace_file, then let the route handlers decide whether to catch or propagate.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "backend-routes-inconsistent-error-propagation",
+      "summary": "Backend route handlers use inconsistent strategies: some raise HTTPException on container errors, others silently catch and set node.container_status = 'error', hiding failures from the API caller.",
+      "related_files": [
+        "backend/app/routes/nodes.py"
+      ],
+      "evidence": [
+        "create_node (lines 121-126): catches setup_container Exception, sets node.config = {'error': str(exc)}, returns 200 success — caller sees a 'created' node with error state buried in config",
+        "rebuild_node (lines 331-335): catches setup_container Exception, raises HTTPException 500 — caller gets a clear error",
+        "restart_node (lines 304-308): catches _recreate_container Exception, raises HTTPException 500 — consistent with rebuild",
+        "clone_node (lines 269-271): catches Exception, sets error state, returns 200 — same silent pattern as create_node",
+        "create_child_node (lines 763-767): catches Exception, sets error state, returns 200 — same silent pattern",
+        "Three operations silently succeed with error state vs two operations that properly fail — inconsistent caller experience"
+      ],
+      "suggestion": "Choose one strategy for container creation failures. The cleanest approach: always raise HTTPException on failure (matching restart/rebuild), so callers get a clear 500 error. If the intent is to create the DB record even when the container fails, document this as an explicit design decision and return a distinct HTTP status (e.g., 207 Multi-Status or include a top-level 'warnings' field in the response).",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "server-py-print-vs-logging",
+      "summary": "nanobot/server.py uses print() for all output instead of the logging/loguru infrastructure used everywhere else in the codebase.",
+      "related_files": [
+        "nanobot/server.py"
+      ],
+      "evidence": [
+        "server.py line 64: print(f'[paradise] Created {item.name}', flush=True)",
+        "server.py line 111: print(f'[paradise] Agent initialized, model=...', flush=True)",
+        "server.py line 115: print(f'[paradise] Agent init failed: {exc}', flush=True)",
+        "server.py line 123: print(f'[paradise] Client connected: {peer}', flush=True)",
+        "server.py line 200: print(f'[paradise] Client disconnected: {peer}', flush=True)",
+        "Backend uses logging.getLogger (main.py, nodes.py, docker_ops.py, chat.py), nanobot-src uses loguru logger everywhere — server.py uses neither"
+      ],
+      "suggestion": "Replace all print() calls in server.py with loguru's logger (matching the nanobot-src convention since server.py imports from nanobot.*). This ensures consistent log formatting, log levels, and output routing. Agent init failures should be logger.error, connections should be logger.info, etc.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "silent-exception-swallowing-in-channels",
+      "summary": "Multiple channel implementations silently swallow exceptions with bare 'except Exception: pass' or 'except: pass', losing error context for debugging.",
+      "related_files": [
+        "nanobot-src/nanobot/channels/matrix.py",
+        "nanobot-src/nanobot/channels/qq.py",
+        "nanobot/server.py"
+      ],
+      "evidence": [
+        "matrix.py has 4 'except handler silently suppresses error' instances and 1 'empty except block (except: pass)' per static analysis",
+        "qq.py has 1 'except handler silently suppresses error', 1 'empty except block', and 3 'catch block that only logs'",
+        "server.py lines 181-182: on_progress callback wraps websocket.send in try/except Exception: pass — progress delivery failures are completely invisible",
+        "The existing_findings data shows 14 files with 'Except handler silently suppresses error' or 'Catch block that only logs' — a systemic pattern across channels"
+      ],
+      "suggestion": "At minimum, add logger.debug() to all bare except:pass blocks so that failures are traceable when debug logging is enabled. For the server.py on_progress callback, at least log at debug level so WebSocket delivery failures during progress streaming can be diagnosed.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "web-fetch-tool-json-error-vs-string-error",
+      "summary": "WebFetchTool returns errors as JSON-encoded objects while all other tools return plain error strings, breaking the uniform tool error format.",
+      "related_files": [
+        "nanobot-src/nanobot/agent/tools/web.py"
+      ],
+      "evidence": [
+        "web.py line 128: WebFetchTool returns json.dumps({'error': '...', 'url': url}) for URL validation failure",
+        "web.py line 160: returns json.dumps({'error': str(e), 'url': url}) for fetch exceptions",
+        "web.py WebSearchTool line 99: returns f'Error: {e}' — plain string format matching all other tools",
+        "filesystem.py, shell.py, network.py, paradise.py, cron.py all return plain 'Error: ...' strings",
+        "registry.py line 51 checks result.startswith('Error') which will NOT match JSON-encoded error objects from WebFetchTool"
+      ],
+      "suggestion": "Change WebFetchTool's error returns to use the same plain string format as all other tools: return f'Error fetching {url}: {error_msg}'. If structured error data is needed, return the error string for the LLM and log the structured details via logger.",
+      "confidence": "high"
+    }
+  ]
+}

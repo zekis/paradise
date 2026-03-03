@@ -1,5 +1,7 @@
 """Canvas viewport state."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +15,14 @@ class CanvasViewport(BaseModel):
     viewport_x: float = 0.0
     viewport_y: float = 0.0
     zoom: float = 1.0
+
+
+class DefaultConfigRequest(BaseModel):
+    config: dict[str, Any] | None = None
+
+
+class DefaultTemplatesRequest(BaseModel):
+    templates: dict[str, str] | None = None
 
 
 @router.get("/canvas", response_model=CanvasViewport)
@@ -52,12 +62,12 @@ async def get_default_config(db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/settings/default-config")
-async def set_default_config(payload: dict, db: AsyncSession = Depends(get_db)):
+async def set_default_config(request: DefaultConfigRequest, db: AsyncSession = Depends(get_db)):
     state = await db.get(CanvasState, "default")
     if not state:
         state = CanvasState(id="default")
         db.add(state)
-    state.default_nanobot_config = payload.get("config")
+    state.default_nanobot_config = request.config
     await db.commit()
     return {"ok": True}
 
@@ -71,11 +81,11 @@ async def get_default_templates(db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/settings/default-templates")
-async def set_default_templates(payload: dict, db: AsyncSession = Depends(get_db)):
+async def set_default_templates(request: DefaultTemplatesRequest, db: AsyncSession = Depends(get_db)):
     state = await db.get(CanvasState, "default")
     if not state:
         state = CanvasState(id="default")
         db.add(state)
-    state.default_agent_templates = payload.get("templates")
+    state.default_agent_templates = request.templates
     await db.commit()
     return {"ok": True}

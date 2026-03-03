@@ -10,6 +10,7 @@ import {
   mdiPlus,
 } from "@mdi/js";
 import { useCanvasStore } from "@/store/canvasStore";
+import { mapApiNodeToNodeData } from "@/lib/mappers";
 
 interface ContextMenuProps {
   position: { x: number; y: number };
@@ -57,14 +58,7 @@ export function ContextMenu({ position, nodeId, onClose, onDelete, onAddBot }: C
     addNode({
       id: node.id,
       position: { x: node.position_x, y: node.position_y },
-      data: {
-        label: node.name,
-        nodeId: node.id,
-        containerStatus: node.container_status,
-        identity: node.identity || null,
-        agentStatus: node.agent_status || null,
-        agentStatusMessage: node.agent_status_message || null,
-      },
+      data: mapApiNodeToNodeData(node),
     });
   };
 

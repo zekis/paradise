@@ -22,7 +22,7 @@ class EventLogRead(BaseModel):
     node_name: str | None
     summary: str | None
     details: dict | None
-    created_at: datetime | None
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

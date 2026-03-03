@@ -28,7 +28,7 @@ class EdgeRead(BaseModel):
     edge_type: str
     source_handle: str | None
     target_handle: str | None
-    created_at: datetime | None
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
