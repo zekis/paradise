@@ -52,4 +52,11 @@ describe("canvasStore", () => {
     useCanvasStore.getState().addNode(node);
     expect(mockFn).toHaveBeenCalledWith(node);
   });
+
+  it("wires setNodeRebuilding callback", () => {
+    const mockFn = vi.fn();
+    useCanvasStore.getState().setSetNodeRebuilding(mockFn);
+    useCanvasStore.getState().setNodeRebuilding("test-id", true);
+    expect(mockFn).toHaveBeenCalledWith("test-id", true);
+  });
 });

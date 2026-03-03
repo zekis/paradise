@@ -317,6 +317,11 @@ function CanvasInner() {
         <ContextMenu
           position={contextMenu}
           nodeId={contextMenu.nodeId}
+          rebuilding={
+            contextMenu.nodeId
+              ? !!(nodes.find((n) => n.id === contextMenu.nodeId)?.data as NanobotNodeData | undefined)?.rebuilding
+              : false
+          }
           onClose={handleContextMenuClose}
           onDelete={handleContextMenuDelete}
           onAddBot={handleContextMenuAddBot}

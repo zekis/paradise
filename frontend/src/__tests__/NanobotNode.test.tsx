@@ -155,4 +155,34 @@ describe("NanobotNode", () => {
     // No badge should be rendered, only the fallback robot icon in center
     expect(container.textContent).not.toContain("🌡️");
   });
+
+  it("renders rebuild spinner SVG when rebuilding is true", () => {
+    const { container } = render(
+      <NanobotNode {...defaultProps} data={{ ...defaultData, rebuilding: true }} />
+    );
+    const svgs = container.querySelectorAll("svg");
+    const spinnerSvg = Array.from(svgs).find(
+      (svg) => svg.style.animation?.includes("rebuild-spin")
+    );
+    expect(spinnerSvg).toBeDefined();
+  });
+
+  it("does not render rebuild spinner when rebuilding is false", () => {
+    const { container } = render(
+      <NanobotNode {...defaultProps} data={{ ...defaultData, rebuilding: false }} />
+    );
+    const svgs = container.querySelectorAll("svg");
+    const spinnerSvg = Array.from(svgs).find(
+      (svg) => svg.style.animation?.includes("rebuild-spin")
+    );
+    expect(spinnerSvg).toBeUndefined();
+  });
+
+  it("reduces opacity when rebuilding", () => {
+    const { container } = render(
+      <NanobotNode {...defaultProps} data={{ ...defaultData, rebuilding: true }} />
+    );
+    const outerDiv = container.firstChild as HTMLElement;
+    expect(outerDiv.style.opacity).toBe("0.6");
+  });
 });

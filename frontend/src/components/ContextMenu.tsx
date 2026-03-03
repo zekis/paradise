@@ -15,6 +15,7 @@ import { mapApiNodeToNodeData } from "@/lib/mappers";
 interface ContextMenuProps {
   position: { x: number; y: number };
   nodeId?: string;
+  rebuilding?: boolean;
   onClose: () => void;
   onDelete?: () => void;
   onAddBot?: () => void;
@@ -26,11 +27,14 @@ interface MenuItem {
   action: () => void;
   color?: string;
   separator?: boolean;
+  disabled?: boolean;
 }
 
-export function ContextMenu({ position, nodeId, onClose, onDelete, onAddBot }: ContextMenuProps) {
+export function ContextMenu({ position, nodeId, rebuilding, onClose, onDelete, onAddBot }: ContextMenuProps) {
   const api = useCanvasStore((s) => s.api);
   const addNode = useCanvasStore((s) => s.addNode);
+  const setNodeRebuilding = useCanvasStore((s) => s.setNodeRebuilding);
+  const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
 
   useEffect(() => {
     const dismiss = () => onClose();
@@ -65,20 +69,32 @@ export function ContextMenu({ position, nodeId, onClose, onDelete, onAddBot }: C
   const handleRestart = async () => {
     if (!nodeId) return;
     onClose();
-    await fetch(`${api}/api/nodes/${nodeId}/restart`, { method: "POST" });
+    setNodeRebuilding(nodeId, true);
+    setSelectedNodeId(null);
+    try {
+      await fetch(`${api}/api/nodes/${nodeId}/restart`, { method: "POST" });
+    } finally {
+      setNodeRebuilding(nodeId, false);
+    }
   };
 
   const handleRebuild = async () => {
     if (!nodeId) return;
     onClose();
-    await fetch(`${api}/api/nodes/${nodeId}/rebuild`, { method: "POST" });
+    setNodeRebuilding(nodeId, true);
+    setSelectedNodeId(null);
+    try {
+      await fetch(`${api}/api/nodes/${nodeId}/rebuild`, { method: "POST" });
+    } finally {
+      setNodeRebuilding(nodeId, false);
+    }
   };
 
   const items: MenuItem[] = nodeId
     ? [
         { icon: mdiContentCopy, label: "Clone", action: handleClone },
-        { icon: mdiRestart, label: "Restart", action: handleRestart },
-        { icon: mdiWrench, label: "Rebuild", action: handleRebuild },
+        { icon: mdiRestart, label: "Restart", action: handleRestart, disabled: rebuilding },
+        { icon: mdiWrench, label: "Rebuild", action: handleRebuild, disabled: rebuilding },
         {
           icon: mdiDeleteOutline,
           label: "Delete",
@@ -111,7 +127,7 @@ export function ContextMenu({ position, nodeId, onClose, onDelete, onAddBot }: C
       {items.map((item) => (
         <button
           key={item.label}
-          onClick={item.action}
+          onClick={item.disabled ? undefined : item.action}
           style={{
             display: "flex",
             alignItems: "center",
@@ -122,11 +138,12 @@ export function ContextMenu({ position, nodeId, onClose, onDelete, onAddBot }: C
             border: "none",
             borderTop: item.separator ? "1px solid var(--border)" : "none",
             color: item.color || "var(--text)",
-            cursor: "pointer",
+            cursor: item.disabled ? "not-allowed" : "pointer",
             fontSize: 11,
             textAlign: "left",
+            opacity: item.disabled ? 0.4 : 1,
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--overlay-light)")}
+          onMouseEnter={(e) => { if (!item.disabled) e.currentTarget.style.background = "var(--overlay-light)"; }}
           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
         >
           <Icon path={item.icon} size={0.55} color={item.color || "var(--text-muted)"} />
