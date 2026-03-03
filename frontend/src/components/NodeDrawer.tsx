@@ -225,7 +225,7 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
               }}
               autoFocus
               style={{
-                background: "rgba(0,0,0,0.3)",
+                background: "var(--input-bg)",
                 border: "1px solid var(--border)",
                 borderRadius: 3,
                 color: "var(--text)",

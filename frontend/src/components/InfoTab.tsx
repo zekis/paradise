@@ -149,7 +149,7 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
     <div
       style={{
         height: 4,
-        background: "rgba(255,255,255,0.1)",
+        background: "var(--overlay-medium)",
         borderRadius: 2,
         overflow: "hidden",
       }}

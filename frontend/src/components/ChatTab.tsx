@@ -285,10 +285,10 @@ export function ChatTab({
                 borderRadius: 6,
                 background:
                   isToolCall
-                    ? "rgba(255, 255, 255, 0.02)"
+                    ? "var(--overlay-subtle)"
                     : m.role === "user"
                       ? "rgba(99, 102, 241, 0.15)"
-                      : "rgba(255, 255, 255, 0.05)",
+                      : "var(--overlay-light)",
                 alignSelf: m.role === "user" ? "flex-end" : "flex-start",
                 maxWidth: "85%",
                 whiteSpace: "pre-wrap",
@@ -308,7 +308,7 @@ export function ChatTab({
             style={{
               padding: "4px 8px",
               borderRadius: 6,
-              background: "rgba(255, 255, 255, 0.05)",
+              background: "var(--overlay-light)",
               alignSelf: "flex-start",
               color: "var(--text-muted)",
               fontSize: 11,
@@ -342,7 +342,7 @@ export function ChatTab({
           placeholder="Type a message..."
           style={{
             flex: 1,
-            background: "rgba(255,255,255,0.06)",
+            background: "var(--overlay-light)",
             border: "1px solid var(--border)",
             borderRadius: 4,
             padding: "6px 8px",

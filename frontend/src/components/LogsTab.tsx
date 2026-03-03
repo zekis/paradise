@@ -55,7 +55,7 @@ export function LogsTab({ nodeId, api }: { nodeId: string; api: string }) {
         ref={logRef}
         style={{
           flex: 1,
-          background: "rgba(0,0,0,0.3)",
+          background: "var(--input-bg)",
           border: "1px solid var(--border)",
           borderRadius: 4,
           padding: 8,
