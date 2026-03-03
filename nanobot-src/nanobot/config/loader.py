@@ -3,18 +3,13 @@
 import json
 from pathlib import Path
 
+from loguru import logger
 from nanobot.config.schema import Config
 
 
 def get_config_path() -> Path:
     """Get the default configuration file path."""
     return Path.home() / ".nanobot" / "config.json"
-
-
-def get_data_dir() -> Path:
-    """Get the nanobot data directory."""
-    from nanobot.utils.helpers import get_data_path
-    return get_data_path()
 
 
 def load_config(config_path: Path | None = None) -> Config:
@@ -36,8 +31,8 @@ def load_config(config_path: Path | None = None) -> Config:
             data = _migrate_config(data)
             return Config.model_validate(data)
         except (json.JSONDecodeError, ValueError) as e:
-            print(f"Warning: Failed to load config from {path}: {e}")
-            print("Using default configuration.")
+            logger.warning("Failed to load config from {}: {}", path, e)
+            logger.warning("Using default configuration.")
 
     return Config()
 

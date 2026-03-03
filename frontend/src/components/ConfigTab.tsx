@@ -13,7 +13,7 @@ export function ConfigTab({ nodeId, api }: { nodeId: string; api: string }) {
 
   const saveFn = useCallback(async (value: string) => {
     let parsed: unknown;
-    try { parsed = JSON.parse(value); } catch { throw new Error("Invalid JSON"); }
+    try { parsed = JSON.parse(value); } catch (error) { console.warn('Invalid JSON in config editor:', error); throw new Error("Invalid JSON"); }
     const res = await fetch(`${api}/api/nodes/${nodeId}/config`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

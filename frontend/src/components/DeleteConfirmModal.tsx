@@ -16,7 +16,9 @@ export function DeleteConfirmModal({ nodeId, label, onClose }: DeleteConfirmModa
 
   const handleDelete = () => {
     removeNode(nodeId);
-    fetch(`${api}/api/nodes/${nodeId}`, { method: "DELETE" }).catch(() => {});
+    fetch(`${api}/api/nodes/${nodeId}`, { method: "DELETE" }).catch((error) => {
+      console.error(`Failed to delete node ${nodeId}:`, error);
+    });
     onClose();
   };
 

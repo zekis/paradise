@@ -73,8 +73,8 @@ export function useChatSocket({
           content: m.display_content || m.content,
           message_type: m.message_type,
         })));
-      } catch {
-        // Start empty if history fetch fails
+      } catch (error) {
+        console.error(`Failed to fetch chat history for node ${nodeId}:`, error);
       }
     })();
     return () => { cancelled = true; };
@@ -94,7 +94,9 @@ export function useChatSocket({
           onIdentityUpdateRef.current?.(data.identity);
           onGenesisCompleteRef.current?.();
         }
-      } catch { /* ignore */ }
+      } catch (error) {
+        console.warn(`Failed to fetch identity for node ${nodeId} on reconnect:`, error);
+      }
     })();
     return () => { cancelled = true; };
   }, [connected, api, nodeId]);
@@ -177,8 +179,8 @@ export function useChatSocket({
             setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${msg.message}`, message_type: "error" }]);
           }
         }
-      } catch {
-        // ignore parse errors
+      } catch (error) {
+        console.warn(`Failed to parse WebSocket message for node ${nodeId}:`, error);
       }
     };
 
@@ -198,8 +200,8 @@ export function useChatSocket({
               message_type: m.message_type,
             })));
           }
-        } catch {
-          // Keep existing messages if fetch fails
+        } catch (error) {
+          console.error(`Failed to reload chat history on WebSocket reconnect for node ${nodeId}:`, error);
         }
         if (mountedRef.current) setTimeout(connect, 2000);
       })();

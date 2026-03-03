@@ -63,7 +63,7 @@ class QQChannel(BaseChannel):
             return
 
         if not self.config.app_id or not self.config.secret:
-            logger.error("QQ app_id and secret not configured")
+            logger.error("QQ app authentication not configured")
             return
 
         self._running = True

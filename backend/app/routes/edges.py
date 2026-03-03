@@ -1,5 +1,6 @@
 """Edge CRUD for canvas connections."""
 
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -27,7 +28,7 @@ class EdgeRead(BaseModel):
     edge_type: str
     source_handle: str | None
     target_handle: str | None
-    created_at: str | None
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

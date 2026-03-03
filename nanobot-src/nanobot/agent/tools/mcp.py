@@ -96,4 +96,6 @@ async def connect_mcp_servers(
 
             logger.info("MCP server '{}': connected, {} tools registered", name, len(tools.tools))
         except Exception as e:
+            # Intentionally swallowed: a single server failure must not prevent
+            # the remaining MCP servers from connecting.
             logger.error("MCP server '{}': failed to connect: {}", name, e)

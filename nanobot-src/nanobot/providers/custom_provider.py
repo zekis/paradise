@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import json_repair
 from openai import AsyncOpenAI
 
 from nanobot.providers.base import LLMProvider, LLMResponse, ToolCallRequest
+
+logger = logging.getLogger(__name__)
 
 
 class CustomProvider(LLMProvider):
@@ -30,7 +33,8 @@ class CustomProvider(LLMProvider):
         try:
             return self._parse(await self._client.chat.completions.create(**kwargs))
         except Exception as e:
-            return LLMResponse(content=f"Error: {e}", finish_reason="error")
+            logger.warning("Custom provider chat error (model=%s): %s", kwargs["model"], e, exc_info=True)
+            return LLMResponse(content=f"Error calling LLM: {e}", finish_reason="error")
 
     def _parse(self, response: Any) -> LLMResponse:
         choice = response.choices[0]

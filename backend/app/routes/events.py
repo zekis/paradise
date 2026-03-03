@@ -1,5 +1,6 @@
 """Event log API — list and clear persisted events, plus SSE stream."""
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -21,7 +22,7 @@ class EventLogRead(BaseModel):
     node_name: str | None
     summary: str | None
     details: dict | None
-    created_at: str | None
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

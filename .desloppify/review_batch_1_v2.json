@@ -1,0 +1,215 @@
+{
+  "assessments": {
+    "ai_generated_debt": 85.0,
+    "abstraction_fitness": 82.0,
+    "convention_outlier": 78.0
+  },
+  "findings": [
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "docstring-restates-class-name",
+      "summary": "Several BaseChannel and Tool subclass docstrings restate the class name without adding insight.",
+      "related_files": [
+        "nanobot-src/nanobot/channels/discord.py",
+        "nanobot-src/nanobot/channels/slack.py",
+        "nanobot-src/nanobot/channels/whatsapp.py",
+        "nanobot-src/nanobot/agent/tools/filesystem.py",
+        "nanobot-src/nanobot/agent/tools/shell.py"
+      ],
+      "evidence": [
+        "DiscordChannel docstring: 'Discord channel using Gateway websocket.' — restates the class name and import path",
+        "SlackChannel docstring: 'Slack channel using Socket Mode.' — same pattern",
+        "ReadFileTool docstring: 'Tool to read file contents.' — the name 'ReadFileTool' already conveys this",
+        "ExecTool docstring: 'Tool to execute shell commands.' — identical pattern across all 12 Tool subclasses"
+      ],
+      "suggestion": "Remove one-line docstrings that restate the class name. Reserve docstrings for non-obvious behavior, caveats, or usage notes (e.g. WhatsAppChannel's bridge architecture note is genuinely useful).",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "base-channel-verbose-arg-docstrings",
+      "summary": "BaseChannel methods have multi-line Args docstrings on parameters whose types and names are already self-documenting.",
+      "related_files": [
+        "nanobot-src/nanobot/channels/base.py"
+      ],
+      "evidence": [
+        "is_allowed() has a 5-line docstring for a 1-param method 'sender_id: The sender's identifier.' — the type hint str already says this",
+        "_handle_message() has a 10-line Args section documenting 'content: Message text content', 'media: Optional list of media URLs' which are self-evident from type hints",
+        "send() has 4-line docstring for single-param method: 'msg: The message to send' — adds nothing beyond the type hint"
+      ],
+      "suggestion": "Trim docstrings on base class methods to a single purpose line. The Args sections restate type hints; remove them and keep only non-obvious constraints like 'session_key: Optional session key override (e.g. thread-scoped sessions)' which adds real context.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "loader-print-instead-of-logger",
+      "summary": "config/loader.py uses bare print() for error output instead of the project's loguru logger.",
+      "related_files": [
+        "nanobot-src/nanobot/config/loader.py"
+      ],
+      "evidence": [
+        "Line 33: print(f'Warning: Failed to load config from {path}: {e}')",
+        "Line 34: print('Using default configuration.')",
+        "Every other nanobot-src module uses 'from loguru import logger' for structured logging"
+      ],
+      "suggestion": "Replace the two print() calls with logger.warning() to maintain consistent logging with the rest of the nanobot-src package.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "utils-helpers-trivial-docstrings",
+      "summary": "nanobot/utils/helpers.py has multi-line Args/Returns docstrings on trivial 2-5 line utility functions.",
+      "related_files": [
+        "nanobot-src/nanobot/utils/helpers.py"
+      ],
+      "evidence": [
+        "get_workspace_path() has a 7-line docstring (Args + Returns) for a 4-line function body",
+        "parse_session_key() has a 6-line docstring (Args + Returns) for a 3-line function body",
+        "timestamp() docstring 'Get current timestamp in ISO format.' is reasonable, but the others are disproportionate"
+      ],
+      "suggestion": "Reduce multi-line docstrings to single-line summaries for trivial utility functions. The type hints already document args and returns.",
+      "confidence": "low"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "split-message-duplicated-across-channels",
+      "summary": "The _split_message() function is independently implemented in telegram.py and discord.py with nearly identical logic.",
+      "related_files": [
+        "nanobot-src/nanobot/channels/telegram.py",
+        "nanobot-src/nanobot/channels/discord.py"
+      ],
+      "evidence": [
+        "telegram.py:81 defines _split_message(content, max_len=4000) with line-break-preferring chunking",
+        "discord.py:23 defines _split_message(content, max_len=MAX_MESSAGE_LEN) with identical chunking logic",
+        "Both functions: find last newline, fall back to space, fall back to hard cut — same algorithm"
+      ],
+      "suggestion": "Extract a shared split_message(content, max_len) function into channels/base.py or a channels/utils.py module, parameterized by the platform's max message length.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "agent-loop-wide-constructor",
+      "summary": "AgentLoop.__init__ accepts 14 parameters, making it a wide parameter bag despite the from_config classmethod mitigating some pain.",
+      "related_files": [
+        "nanobot-src/nanobot/agent/loop.py"
+      ],
+      "evidence": [
+        "AgentLoop.__init__ has 14 named params: bus, provider, workspace, model, max_iterations, temperature, max_tokens, memory_window, brave_api_key, exec_config, cron_service, restrict_to_workspace, session_manager, mcp_servers, channels_config",
+        "The from_config classmethod centralizes unpacking but doesn't reduce the init surface — the wide signature persists for direct callers",
+        "Parameters like brave_api_key, temperature, max_tokens, memory_window could be grouped into a config/defaults object"
+      ],
+      "suggestion": "Consider accepting an AgentDefaults or similar config object for the LLM-related knobs (model, temperature, max_tokens, memory_window, max_iterations) to reduce the init signature to ~8 params. The from_config pattern already exists and could construct this intermediate object.",
+      "confidence": "low"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "tool-property-boilerplate",
+      "summary": "All 12 Tool subclasses repeat the same @property boilerplate for name, description, and parameters instead of using class attributes.",
+      "related_files": [
+        "nanobot-src/nanobot/agent/tools/base.py",
+        "nanobot-src/nanobot/agent/tools/filesystem.py",
+        "nanobot-src/nanobot/agent/tools/message.py",
+        "nanobot-src/nanobot/agent/tools/spawn.py",
+        "nanobot-src/nanobot/agent/tools/shell.py"
+      ],
+      "evidence": [
+        "base.py defines name, description, parameters as @property @abstractmethod — requiring 3 boilerplate property methods per subclass",
+        "WebSearchTool and WebFetchTool already use class attributes directly (name = 'web_search', description = '...', parameters = {...}) without @property, proving the pattern works",
+        "ReadFileTool, WriteFileTool, EditFileTool, ListDirTool, ExecTool, MessageTool, SpawnTool, CronTool all implement 3 @property methods each, totaling ~108 lines of pure boilerplate"
+      ],
+      "suggestion": "Change the base Tool class to accept name/description/parameters as regular class attributes (not abstract properties). WebSearchTool and WebFetchTool already demonstrate this works. This eliminates ~9 lines per tool class.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "cron-store-manual-serialization",
+      "summary": "CronService manually serializes/deserializes CronJob dataclasses to/from JSON dicts instead of using Pydantic or dataclass-based serialization.",
+      "related_files": [
+        "nanobot-src/nanobot/cron/service.py"
+      ],
+      "evidence": [
+        "_load_store() manually constructs CronJob, CronSchedule, CronPayload, CronJobState from nested dict access over 30 lines (lines 86-113)",
+        "_save_store() manually serializes back to nested dicts over 30 lines (lines 130-165)",
+        "The config module already uses Pydantic models with model_validate/model_dump for the same serialization pattern"
+      ],
+      "suggestion": "Convert CronJob and related types to Pydantic models (the project already depends on Pydantic) and use model_validate/model_dump for serialization. This would replace ~60 lines of manual dict construction with ~2 lines each.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "logging-framework-split",
+      "summary": "Backend uses stdlib logging while nanobot-src uses loguru — two logging frameworks in the same project with no interop bridge.",
+      "related_files": [
+        "backend/app/routes/nodes.py",
+        "backend/app/routes/chat.py",
+        "backend/app/docker_ops.py",
+        "backend/app/main.py",
+        "nanobot-src/nanobot/channels/base.py",
+        "nanobot-src/nanobot/agent/loop.py"
+      ],
+      "evidence": [
+        "All 6 backend/app modules use 'import logging; logger = logging.getLogger(__name__)'",
+        "All 20+ nanobot-src modules use 'from loguru import logger'",
+        "config/loader.py uses neither — it uses bare print() (separate finding)",
+        "No loguru intercept handler or stdlib-to-loguru bridge configured in the codebase"
+      ],
+      "suggestion": "Choose one logging strategy for the project. Since nanobot-src is the larger package and already standardized on loguru, the simplest path is adding a loguru intercept handler in the backend's startup to unify output. Alternatively, if the backend/app is intentionally a separate service, document the convention boundary.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "tool-definition-style-inconsistency",
+      "summary": "Tool subclasses use two incompatible patterns for defining name/description/parameters: abstract @property methods vs class-level attributes.",
+      "related_files": [
+        "nanobot-src/nanobot/agent/tools/web.py",
+        "nanobot-src/nanobot/agent/tools/filesystem.py",
+        "nanobot-src/nanobot/agent/tools/shell.py",
+        "nanobot-src/nanobot/agent/tools/message.py"
+      ],
+      "evidence": [
+        "WebSearchTool and WebFetchTool define name, description, parameters as class-level attributes: 'name = \"web_search\"', 'parameters = {...}'",
+        "ReadFileTool, WriteFileTool, EditFileTool, ListDirTool, ExecTool, MessageTool, SpawnTool, CronTool all define them as @property methods",
+        "Both patterns work because Python properties and class attributes are both accessible via self.name, but the inconsistency is surprising"
+      ],
+      "suggestion": "Standardize all tool subclasses to use one pattern. Class-level attributes are simpler (less boilerplate) — migrate the @property-based tools to match WebSearchTool/WebFetchTool. Update Tool base class to not require abstract properties.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "channel-status-table-not-data-driven",
+      "summary": "The channels_status CLI command hardcodes 9 channel display blocks instead of iterating over channel config like ChannelManager._CHANNEL_DEFS does.",
+      "related_files": [
+        "nanobot-src/nanobot/cli/commands.py",
+        "nanobot-src/nanobot/channels/manager.py"
+      ],
+      "evidence": [
+        "cli/commands.py lines 611-688: channels_status() has 9 sequential blocks — one per channel — each with custom display logic",
+        "channels/manager.py lines 37-50: _CHANNEL_DEFS is a data-driven list that ChannelManager iterates over to initialize channels",
+        "Adding a new channel requires updating both the data-driven _CHANNEL_DEFS and the hardcoded status table — they will drift"
+      ],
+      "suggestion": "Make channels_status() data-driven by iterating over the channel configs (or a shared channel metadata list) rather than having one block per channel. Each channel could expose a display_config() method or the metadata could include display hints.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "init-py-inconsistent-content",
+      "summary": "Package __init__.py files have inconsistent content: some have docstrings, one is empty, and none export symbols.",
+      "related_files": [
+        "nanobot-src/nanobot/channels/__init__.py",
+        "nanobot-src/nanobot/agent/__init__.py",
+        "nanobot-src/nanobot/agent/tools/__init__.py",
+        "nanobot-src/nanobot/providers/__init__.py",
+        "backend/app/routes/__init__.py"
+      ],
+      "evidence": [
+        "channels/__init__.py: '\"\"\"Chat channels module with plugin architecture.\"\"\"'",
+        "agent/__init__.py: '\"\"\"Agent core module.\"\"\"'",
+        "providers/__init__.py: '\"\"\"LLM provider abstraction module.\"\"\"'",
+        "backend/app/routes/__init__.py: empty file (no docstring)",
+        "None of these __init__.py files export any symbols — they all serve only as package markers"
+      ],
+      "suggestion": "Pick one convention and apply it consistently: either all __init__.py files have a module docstring, or none do. Since these are all pure marker files, the minimal approach (empty or one-line docstring) would be cleanest. Add a docstring to routes/__init__.py or remove docstrings from the others.",
+      "confidence": "low"
+    }
+  ]
+}

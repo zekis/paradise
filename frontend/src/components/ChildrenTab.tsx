@@ -6,6 +6,7 @@ import { mdiPlus, mdiChevronRight } from "@mdi/js";
 import { resolveMdiIcon } from "@/lib/mdiIcons";
 import { useCanvasStore } from "@/store/canvasStore";
 import type { NanobotNodeData, Recommendation } from "@/types";
+import { mapApiNodeToNodeData } from "@/lib/mappers";
 
 interface ChildNode {
   id: string;
@@ -39,8 +40,8 @@ export function ChildrenTab({ nodeId, api }: { nodeId: string; api: string }) {
         const recsData = await recsRes.json();
         setRecommendations(recsData.recommendations || []);
       }
-    } catch {
-      /* ignore */
+    } catch (error) {
+      console.error(`Failed to fetch children/recommendations for node ${nodeId}:`, error);
     }
     setLoading(false);
   }, [api, nodeId]);
@@ -58,8 +59,8 @@ export function ChildrenTab({ nodeId, api }: { nodeId: string; api: string }) {
         if (msg.event === "recommendations_ready" && msg.node_id === nodeId) {
           fetchData();
         }
-      } catch {
-        /* ignore */
+      } catch (error) {
+        console.warn('Failed to parse SSE recommendations_ready event:', error);
       }
     };
     es.onmessage = handler;
@@ -94,16 +95,10 @@ export function ChildrenTab({ nodeId, api }: { nodeId: string; api: string }) {
         addNode({
           id: n.id,
           position: { x: n.position_x, y: n.position_y },
-          data: {
-            label: n.name,
-            nodeId: n.id,
-            containerStatus: n.container_status,
-            identity: null,
-            agentStatus: null,
-            agentStatusMessage: null,
+          data: mapApiNodeToNodeData(n, {
             genesisPrompt: data.genesis_prompt,
             genesisActive: true,
-          } satisfies NanobotNodeData,
+          }) satisfies NanobotNodeData,
         });
 
         addEdge({
@@ -124,8 +119,8 @@ export function ChildrenTab({ nodeId, api }: { nodeId: string; api: string }) {
         // Select the new node to open its drawer and trigger genesis
         setSelectedNodeId(n.id);
       }
-    } catch {
-      /* ignore */
+    } catch (error) {
+      console.error(`Failed to create child node "${rec.name}" for node ${nodeId}:`, error);
     }
     setCreating(null);
   };

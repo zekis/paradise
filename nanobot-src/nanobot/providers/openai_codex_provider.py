@@ -5,13 +5,15 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 from typing import Any, AsyncGenerator
 
 import httpx
-from loguru import logger
 
 from oauth_cli_kit import get_token as get_codex_token
 from nanobot.providers.base import LLMProvider, LLMResponse, ToolCallRequest
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CODEX_URL = "https://chatgpt.com/backend-api/codex/responses"
 DEFAULT_ORIGINATOR = "nanobot"
@@ -57,21 +59,16 @@ class OpenAICodexProvider(LLMProvider):
         url = DEFAULT_CODEX_URL
 
         try:
-            try:
-                content, tool_calls, finish_reason = await _request_codex(url, headers, body, verify=True)
-            except Exception as e:
-                if "CERTIFICATE_VERIFY_FAILED" not in str(e):
-                    raise
-                logger.warning("SSL certificate verification failed for Codex API; retrying with verify=False")
-                content, tool_calls, finish_reason = await _request_codex(url, headers, body, verify=False)
+            content, tool_calls, finish_reason = await _request_codex(url, headers, body)
             return LLMResponse(
                 content=content,
                 tool_calls=tool_calls,
                 finish_reason=finish_reason,
             )
         except Exception as e:
+            logger.warning("Codex provider chat error (model=%s): %s", model, e, exc_info=True)
             return LLMResponse(
-                content=f"Error calling Codex: {str(e)}",
+                content=f"Error calling LLM: {e}",
                 finish_reason="error",
             )
 
@@ -101,9 +98,8 @@ async def _request_codex(
     url: str,
     headers: dict[str, str],
     body: dict[str, Any],
-    verify: bool,
 ) -> tuple[str, list[ToolCallRequest], str]:
-    async with httpx.AsyncClient(timeout=60.0, verify=verify) as client:
+    async with httpx.AsyncClient(timeout=60.0, verify=True) as client:
         async with client.stream("POST", url, headers=headers, json=body) as response:
             if response.status_code != 200:
                 text = await response.aread()

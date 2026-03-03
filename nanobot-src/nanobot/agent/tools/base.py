@@ -5,13 +5,32 @@ from typing import Any
 
 
 class Tool(ABC):
+    """Abstract base class for agent tools.
+
+    Subclasses define ``name``, ``description``, and ``parameters`` as
+    plain class attributes (no ``@property`` boilerplate needed).
+
+    Error-handling convention
+    -------------------------
+    Tools should signal **expected** errors (file not found, invalid input,
+    network failures, etc.) by returning a string that starts with
+    ``"Error: "`` from ``execute()``.  They should **not** raise exceptions
+    for foreseeable failure modes.
+
+    The ``ToolRegistry`` wraps ``execute()`` in a safety net that catches
+    any *unexpected* exception and converts it to an error string so the
+    agent loop never crashes.  Those unexpected exceptions are logged at
+    WARNING level for operator visibility.
+
+    In short:
+    - **Expected errors** -> return ``"Error: <description>"``
+    - **Unexpected errors** -> let them propagate; the registry catches them
     """
-    Abstract base class for agent tools.
-    
-    Tools are capabilities that the agent can use to interact with
-    the environment, such as reading files, executing commands, etc.
-    """
-    
+
+    name: str = ""
+    description: str = ""
+    parameters: dict[str, Any] = {}
+
     _TYPE_MAP = {
         "string": str,
         "integer": int,
@@ -20,35 +39,14 @@ class Tool(ABC):
         "array": list,
         "object": dict,
     }
-    
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Tool name used in function calls."""
-        pass
-    
-    @property
-    @abstractmethod
-    def description(self) -> str:
-        """Description of what the tool does."""
-        pass
-    
-    @property
-    @abstractmethod
-    def parameters(self) -> dict[str, Any]:
-        """JSON Schema for tool parameters."""
-        pass
-    
+
     @abstractmethod
     async def execute(self, **kwargs: Any) -> str:
-        """
-        Execute the tool with given parameters.
-        
-        Args:
-            **kwargs: Tool-specific parameters.
-        
-        Returns:
-            String result of the tool execution.
+        """Execute the tool with given parameters.
+
+        Returns the tool result as a string.  For errors, return a string
+        starting with ``"Error: "`` rather than raising an exception.
+        See class docstring for the full error-handling convention.
         """
         pass
 

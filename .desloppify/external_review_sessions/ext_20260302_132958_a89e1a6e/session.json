@@ -1,0 +1,20 @@
+{
+  "session_id": "ext_20260302_132958_a89e1a6e",
+  "status": "submitted",
+  "runner": "claude",
+  "created_at": "2026-03-02T13:29:58+00:00",
+  "expires_at": "2026-03-03T13:29:58+00:00",
+  "ttl_hours": 24,
+  "token": "ded931d6377c6656c9c64641c8014e8e",
+  "attest": "I validated this review was completed without awareness of overall score and is unbiased.",
+  "packet_path": "/var/tmp/vibe-kanban/worktrees/0228-run-deslopify-to/paradise/.desloppify/review_packets/holistic_packet_20260302_132958.json",
+  "blind_packet_path": "/var/tmp/vibe-kanban/worktrees/0228-run-deslopify-to/paradise/.desloppify/review_packet_blind.json",
+  "packet_sha256": "812ee3034f72cbf251d3dc3b29b18d3c99e081753ccc72606f9201f8534af3d8",
+  "template_path": "/var/tmp/vibe-kanban/worktrees/0228-run-deslopify-to/paradise/.desloppify/external_review_sessions/ext_20260302_132958_a89e1a6e/review_result.template.json",
+  "launch_prompt_path": "/var/tmp/vibe-kanban/worktrees/0228-run-deslopify-to/paradise/.desloppify/external_review_sessions/ext_20260302_132958_a89e1a6e/claude_launch_prompt.md",
+  "instructions_path": "/var/tmp/vibe-kanban/worktrees/0228-run-deslopify-to/paradise/.desloppify/external_review_sessions/ext_20260302_132958_a89e1a6e/reviewer_instructions.md",
+  "expected_output_path": "/var/tmp/vibe-kanban/worktrees/0228-run-deslopify-to/paradise/.desloppify/external_review_sessions/ext_20260302_132958_a89e1a6e/review_result.json",
+  "submitted_at": "2026-03-02T13:53:51+00:00",
+  "submitted_input_file": "/var/tmp/vibe-kanban/worktrees/0228-run-deslopify-to/paradise/.desloppify/external_review_sessions/ext_20260302_132958_a89e1a6e/review_result.json",
+  "submitted_canonical_file": "/var/tmp/vibe-kanban/worktrees/0228-run-deslopify-to/paradise/.desloppify/external_review_sessions/ext_20260302_132958_a89e1a6e/canonical_import_20260302_135351.json"
+}

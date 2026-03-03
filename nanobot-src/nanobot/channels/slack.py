@@ -19,7 +19,6 @@ from nanobot.config.schema import SlackConfig
 
 
 class SlackChannel(BaseChannel):
-    """Slack channel using Socket Mode."""
 
     name = "slack"
 
@@ -33,7 +32,7 @@ class SlackChannel(BaseChannel):
     async def start(self) -> None:
         """Start the Slack Socket Mode client."""
         if not self.config.bot_token or not self.config.app_token:
-            logger.error("Slack bot/app token not configured")
+            logger.error("Slack authentication not configured")
             return
         if self.config.mode != "socket":
             logger.error("Unsupported Slack mode: {}", self.config.mode)

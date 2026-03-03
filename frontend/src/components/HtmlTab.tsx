@@ -146,6 +146,7 @@ export function HtmlTab({
         setHtml(null);
       }
     } catch (err) {
+      console.error(`Failed to load HTML file "${filename}" for node ${nodeId}:`, err);
       if (!cached) setError("Failed to load");
     }
     setLoading(false);

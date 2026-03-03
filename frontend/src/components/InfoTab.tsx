@@ -24,7 +24,8 @@ export function InfoTab({ nodeId, api }: { nodeId: string; api: string }) {
       const res = await fetch(`${api}/api/nodes/${nodeId}/stats`);
       const data = await res.json();
       setInfo(data);
-    } catch {
+    } catch (error) {
+      console.error(`Failed to fetch node stats for node ${nodeId}:`, error);
       setInfo(null);
     } finally {
       setLoading(false);

@@ -1,8 +1,27 @@
-"""Base LLM provider interface."""
+"""Base LLM provider interface.
 
+Error-handling convention
+-------------------------
+Provider ``chat()`` methods must **never** raise exceptions to the caller.
+Instead they catch all errors internally and return an ``LLMResponse`` with
+``finish_reason="error"`` and the error description in ``content``.
+
+This is a deliberate design choice: the agent loop
+(``nanobot.agent.loop.AgentLoop._run_agent_loop``) calls ``provider.chat()``
+in a tight iteration loop and treats the response as an assistant message.
+Raising would crash the loop, while returning the error as content lets the
+agent surface the problem gracefully (or retry on the next iteration).
+
+Implementations should log the underlying exception at WARNING level before
+returning the error response so that operators can diagnose issues.
+"""
+
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -15,13 +34,19 @@ class ToolCallRequest:
 
 @dataclass
 class LLMResponse:
-    """Response from an LLM provider."""
+    """Response from an LLM provider.
+
+    When ``finish_reason`` is ``"error"``, the ``content`` field contains a
+    human-readable error description (not a normal assistant message).
+    Callers can check ``finish_reason`` to distinguish errors from normal
+    completions.
+    """
     content: str | None
     tool_calls: list[ToolCallRequest] = field(default_factory=list)
     finish_reason: str = "stop"
     usage: dict[str, int] = field(default_factory=dict)
     reasoning_content: str | None = None  # Kimi, DeepSeek-R1 etc.
-    
+
     @property
     def has_tool_calls(self) -> bool:
         """Check if response contains tool calls."""
@@ -31,9 +56,13 @@ class LLMResponse:
 class LLMProvider(ABC):
     """
     Abstract base class for LLM providers.
-    
+
     Implementations should handle the specifics of each provider's API
     while maintaining a consistent interface.
+
+    Error handling: ``chat()`` must catch all exceptions and return an
+    ``LLMResponse(content="Error: ...", finish_reason="error")`` instead
+    of raising.  See module docstring for rationale.
     """
     
     def __init__(self, api_key: str | None = None, api_base: str | None = None):

@@ -8,6 +8,7 @@ import select
 import sys
 
 import typer
+from loguru import logger
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
@@ -45,6 +46,8 @@ def _flush_pending_tty_input() -> None:
         if not os.isatty(fd):
             return
     except Exception:
+        # stdin may be redirected or unavailable (e.g. piped input, pytest).
+        logger.debug("Cannot obtain stdin fd for TTY flush")
         return
 
     try:
@@ -52,7 +55,9 @@ def _flush_pending_tty_input() -> None:
         termios.tcflush(fd, termios.TCIFLUSH)
         return
     except Exception:
-        pass
+        # termios unavailable (Windows) or fd not a terminal; fall through
+        # to the select-based drain below.
+        logger.debug("termios flush unavailable, falling back to select drain")
 
     try:
         while True:
@@ -62,6 +67,9 @@ def _flush_pending_tty_input() -> None:
             if not os.read(fd, 4096):
                 break
     except Exception:
+        # select/read may fail on non-POSIX platforms; safe to ignore since
+        # flushing stale input is strictly best-effort.
+        logger.debug("select-based TTY drain failed, skipping flush")
         return
 
 
@@ -73,7 +81,9 @@ def _restore_terminal() -> None:
         import termios
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, _SAVED_TERM_ATTRS)
     except Exception:
-        pass
+        # Best-effort: terminal may already be gone (e.g. process exiting,
+        # stdin closed). Nothing useful to do if restore fails.
+        logger.debug("Failed to restore terminal attributes")
 
 
 def _init_prompt_session() -> None:
@@ -85,7 +95,9 @@ def _init_prompt_session() -> None:
         import termios
         _SAVED_TERM_ATTRS = termios.tcgetattr(sys.stdin.fileno())
     except Exception:
-        pass
+        # termios unavailable (Windows) or stdin is not a real terminal;
+        # terminal restore will be skipped since _SAVED_TERM_ATTRS stays None.
+        logger.debug("Cannot save terminal attributes (termios unavailable or non-TTY stdin)")
 
     history_file = Path.home() / ".nanobot" / "history" / "cli_history"
     history_file.parent.mkdir(parents=True, exist_ok=True)
@@ -230,41 +242,18 @@ def _create_workspace_templates(workspace: Path):
 
 
 def _make_provider(config: Config):
-    """Create the appropriate LLM provider from config."""
-    from nanobot.providers.litellm_provider import LiteLLMProvider
-    from nanobot.providers.openai_codex_provider import OpenAICodexProvider
-    from nanobot.providers.custom_provider import CustomProvider
+    """Create the appropriate LLM provider from config.
 
-    model = config.agents.defaults.model
-    provider_name = config.get_provider_name(model)
-    p = config.get_provider(model)
+    Delegates to the shared ``make_provider`` factory in the provider
+    registry and translates ``RuntimeError`` into a CLI-friendly exit.
+    """
+    from nanobot.providers.registry import make_provider
 
-    # OpenAI Codex (OAuth)
-    if provider_name == "openai_codex" or model.startswith("openai-codex/"):
-        return OpenAICodexProvider(default_model=model)
-
-    # Custom: direct OpenAI-compatible endpoint, bypasses LiteLLM
-    if provider_name == "custom":
-        return CustomProvider(
-            api_key=p.api_key if p else "no-key",
-            api_base=config.get_api_base(model) or "http://localhost:8000/v1",
-            default_model=model,
-        )
-
-    from nanobot.providers.registry import find_by_name
-    spec = find_by_name(provider_name)
-    if not model.startswith("bedrock/") and not (p and p.api_key) and not (spec and spec.is_oauth):
-        console.print("[red]Error: No API key configured.[/red]")
-        console.print("Set one in ~/.nanobot/config.json under providers section")
-        raise typer.Exit(1)
-
-    return LiteLLMProvider(
-        api_key=p.api_key if p else None,
-        api_base=config.get_api_base(model),
-        default_model=model,
-        extra_headers=p.extra_headers if p else None,
-        provider_name=provider_name,
-    )
+    try:
+        return make_provider(config)
+    except RuntimeError as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
 # ============================================================================
@@ -278,7 +267,8 @@ def gateway(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
 ):
     """Start the nanobot gateway."""
-    from nanobot.config.loader import load_config, get_data_dir
+    from nanobot.config.loader import load_config
+    from nanobot.utils.helpers import get_data_path
     from nanobot.bus.queue import MessageBus
     from nanobot.agent.loop import AgentLoop
     from nanobot.channels.manager import ChannelManager
@@ -286,39 +276,29 @@ def gateway(
     from nanobot.cron.service import CronService
     from nanobot.cron.types import CronJob
     from nanobot.heartbeat.service import HeartbeatService
-    
+
     if verbose:
         import logging
         logging.basicConfig(level=logging.DEBUG)
-    
+
     console.print(f"{__logo__} Starting nanobot gateway on port {port}...")
-    
+
     config = load_config()
     bus = MessageBus()
     provider = _make_provider(config)
     session_manager = SessionManager(config.workspace_path)
-    
+
     # Create cron service first (callback set after agent creation)
-    cron_store_path = get_data_dir() / "cron" / "jobs.json"
+    cron_store_path = get_data_path() / "cron" / "jobs.json"
     cron = CronService(cron_store_path)
     
     # Create agent with cron service
-    agent = AgentLoop(
+    agent = AgentLoop.from_config(
+        config,
         bus=bus,
         provider=provider,
-        workspace=config.workspace_path,
-        model=config.agents.defaults.model,
-        temperature=config.agents.defaults.temperature,
-        max_tokens=config.agents.defaults.max_tokens,
-        max_iterations=config.agents.defaults.max_tool_iterations,
-        memory_window=config.agents.defaults.memory_window,
-        brave_api_key=config.tools.web.search.api_key or None,
-        exec_config=config.tools.exec,
         cron_service=cron,
-        restrict_to_workspace=config.tools.restrict_to_workspace,
         session_manager=session_manager,
-        mcp_servers=config.tools.mcp_servers,
-        channels_config=config.channels,
     )
     
     # Set cron callback (needs agent)
@@ -432,6 +412,147 @@ def gateway(
 # ============================================================================
 
 
+def _create_agent_loop(config, logs: bool):
+    """Create a MessageBus, CronService, and AgentLoop from *config*.
+
+    Returns ``(bus, agent_loop)`` ready to use for single-message or
+    interactive mode.  Logging is enabled/disabled based on *logs*.
+    """
+    from nanobot.utils.helpers import get_data_path
+    from nanobot.bus.queue import MessageBus
+    from nanobot.agent.loop import AgentLoop
+    from nanobot.cron.service import CronService
+
+    bus = MessageBus()
+    provider = _make_provider(config)
+
+    # Create cron service for tool usage (no callback needed for CLI unless running)
+    cron_store_path = get_data_path() / "cron" / "jobs.json"
+    cron = CronService(cron_store_path)
+
+    if logs:
+        logger.enable("nanobot")
+    else:
+        logger.disable("nanobot")
+
+    agent_loop = AgentLoop.from_config(
+        config,
+        bus=bus,
+        provider=provider,
+        cron_service=cron,
+    )
+    return bus, agent_loop
+
+
+def _make_thinking_ctx(logs: bool):
+    """Return a context-manager that shows a spinner when *logs* are off."""
+    if logs:
+        from contextlib import nullcontext
+        return nullcontext()
+    return console.status("[dim]nanobot is thinking...[/dim]", spinner="dots")
+
+
+def _run_agent_interactive(bus, agent_loop, session_id: str, markdown: bool, logs: bool) -> None:
+    """Run the interactive (REPL) agent session.
+
+    Extracted from the ``agent`` command to keep individual functions short.
+    """
+    from nanobot.bus.events import InboundMessage
+
+    _init_prompt_session()
+    console.print(f"{__logo__} Interactive mode (type [bold]exit[/bold] or [bold]Ctrl+C[/bold] to quit)\n")
+
+    if ":" in session_id:
+        cli_channel, cli_chat_id = session_id.split(":", 1)
+    else:
+        cli_channel, cli_chat_id = "cli", session_id
+
+    def _exit_on_sigint(signum, frame):
+        _restore_terminal()
+        console.print("\nGoodbye!")
+        os._exit(0)
+
+    signal.signal(signal.SIGINT, _exit_on_sigint)
+
+    async def run_interactive():
+        bus_task = asyncio.create_task(agent_loop.run())
+        turn_done = asyncio.Event()
+        turn_done.set()
+        turn_response: list[str] = []
+
+        async def _consume_outbound():
+            while True:
+                try:
+                    msg = await asyncio.wait_for(bus.consume_outbound(), timeout=1.0)
+                    if msg.metadata.get("_progress"):
+                        is_tool_hint = msg.metadata.get("_tool_hint", False)
+                        ch = agent_loop.channels_config
+                        if ch and is_tool_hint and not ch.send_tool_hints:
+                            pass  # intentionally suppress tool-hint progress
+                        elif ch and not is_tool_hint and not ch.send_progress:
+                            pass  # intentionally suppress non-hint progress
+                        else:
+                            console.print(f"  [dim]↳ {msg.content}[/dim]")
+                    elif not turn_done.is_set():
+                        if msg.content:
+                            turn_response.append(msg.content)
+                        turn_done.set()
+                    elif msg.content:
+                        console.print()
+                        _print_agent_response(msg.content, render_markdown=markdown)
+                except asyncio.TimeoutError:
+                    continue
+                except asyncio.CancelledError:
+                    break
+
+        outbound_task = asyncio.create_task(_consume_outbound())
+
+        try:
+            while True:
+                try:
+                    _flush_pending_tty_input()
+                    user_input = await _read_interactive_input_async()
+                    command = user_input.strip()
+                    if not command:
+                        continue
+
+                    if _is_exit_command(command):
+                        _restore_terminal()
+                        console.print("\nGoodbye!")
+                        break
+
+                    turn_done.clear()
+                    turn_response.clear()
+
+                    await bus.publish_inbound(InboundMessage(
+                        channel=cli_channel,
+                        sender_id="user",
+                        chat_id=cli_chat_id,
+                        content=user_input,
+                    ))
+
+                    with _make_thinking_ctx(logs):
+                        await turn_done.wait()
+
+                    if turn_response:
+                        _print_agent_response(turn_response[0], render_markdown=markdown)
+                except KeyboardInterrupt:
+                    _restore_terminal()
+                    console.print("\nGoodbye!")
+                    break
+                except EOFError:
+                    _restore_terminal()
+                    console.print("\nGoodbye!")
+                    break
+        finally:
+            agent_loop.stop()
+            outbound_task.cancel()
+            await asyncio.gather(bus_task, outbound_task, return_exceptions=True)
+            await agent_loop.close_mcp()
+
+    asyncio.run(run_interactive())
+
+
 @app.command()
 def agent(
     message: str = typer.Option(None, "--message", "-m", help="Message to send to the agent"),
@@ -440,50 +561,10 @@ def agent(
     logs: bool = typer.Option(False, "--logs/--no-logs", help="Show nanobot runtime logs during chat"),
 ):
     """Interact with the agent directly."""
-    from nanobot.config.loader import load_config, get_data_dir
-    from nanobot.bus.queue import MessageBus
-    from nanobot.agent.loop import AgentLoop
-    from nanobot.cron.service import CronService
-    from loguru import logger
-    
+    from nanobot.config.loader import load_config
+
     config = load_config()
-    
-    bus = MessageBus()
-    provider = _make_provider(config)
-
-    # Create cron service for tool usage (no callback needed for CLI unless running)
-    cron_store_path = get_data_dir() / "cron" / "jobs.json"
-    cron = CronService(cron_store_path)
-
-    if logs:
-        logger.enable("nanobot")
-    else:
-        logger.disable("nanobot")
-    
-    agent_loop = AgentLoop(
-        bus=bus,
-        provider=provider,
-        workspace=config.workspace_path,
-        model=config.agents.defaults.model,
-        temperature=config.agents.defaults.temperature,
-        max_tokens=config.agents.defaults.max_tokens,
-        max_iterations=config.agents.defaults.max_tool_iterations,
-        memory_window=config.agents.defaults.memory_window,
-        brave_api_key=config.tools.web.search.api_key or None,
-        exec_config=config.tools.exec,
-        cron_service=cron,
-        restrict_to_workspace=config.tools.restrict_to_workspace,
-        mcp_servers=config.tools.mcp_servers,
-        channels_config=config.channels,
-    )
-    
-    # Show spinner when logs are off (no output to miss); skip when logs are on
-    def _thinking_ctx():
-        if logs:
-            from contextlib import nullcontext
-            return nullcontext()
-        # Animated spinner is safe to use with prompt_toolkit input handling
-        return console.status("[dim]nanobot is thinking...[/dim]", spinner="dots")
+    bus, agent_loop = _create_agent_loop(config, logs)
 
     async def _cli_progress(content: str, *, tool_hint: bool = False) -> None:
         ch = agent_loop.channels_config
@@ -494,109 +575,16 @@ def agent(
         console.print(f"  [dim]↳ {content}[/dim]")
 
     if message:
-        # Single message mode — direct call, no bus needed
+        # Single message mode -- direct call, no bus needed
         async def run_once():
-            with _thinking_ctx():
+            with _make_thinking_ctx(logs):
                 response = await agent_loop.process_direct(message, session_id, on_progress=_cli_progress)
             _print_agent_response(response, render_markdown=markdown)
             await agent_loop.close_mcp()
 
         asyncio.run(run_once())
     else:
-        # Interactive mode — route through bus like other channels
-        from nanobot.bus.events import InboundMessage
-        _init_prompt_session()
-        console.print(f"{__logo__} Interactive mode (type [bold]exit[/bold] or [bold]Ctrl+C[/bold] to quit)\n")
-
-        if ":" in session_id:
-            cli_channel, cli_chat_id = session_id.split(":", 1)
-        else:
-            cli_channel, cli_chat_id = "cli", session_id
-
-        def _exit_on_sigint(signum, frame):
-            _restore_terminal()
-            console.print("\nGoodbye!")
-            os._exit(0)
-
-        signal.signal(signal.SIGINT, _exit_on_sigint)
-
-        async def run_interactive():
-            bus_task = asyncio.create_task(agent_loop.run())
-            turn_done = asyncio.Event()
-            turn_done.set()
-            turn_response: list[str] = []
-
-            async def _consume_outbound():
-                while True:
-                    try:
-                        msg = await asyncio.wait_for(bus.consume_outbound(), timeout=1.0)
-                        if msg.metadata.get("_progress"):
-                            is_tool_hint = msg.metadata.get("_tool_hint", False)
-                            ch = agent_loop.channels_config
-                            if ch and is_tool_hint and not ch.send_tool_hints:
-                                pass
-                            elif ch and not is_tool_hint and not ch.send_progress:
-                                pass
-                            else:
-                                console.print(f"  [dim]↳ {msg.content}[/dim]")
-                        elif not turn_done.is_set():
-                            if msg.content:
-                                turn_response.append(msg.content)
-                            turn_done.set()
-                        elif msg.content:
-                            console.print()
-                            _print_agent_response(msg.content, render_markdown=markdown)
-                    except asyncio.TimeoutError:
-                        continue
-                    except asyncio.CancelledError:
-                        break
-
-            outbound_task = asyncio.create_task(_consume_outbound())
-
-            try:
-                while True:
-                    try:
-                        _flush_pending_tty_input()
-                        user_input = await _read_interactive_input_async()
-                        command = user_input.strip()
-                        if not command:
-                            continue
-
-                        if _is_exit_command(command):
-                            _restore_terminal()
-                            console.print("\nGoodbye!")
-                            break
-
-                        turn_done.clear()
-                        turn_response.clear()
-
-                        await bus.publish_inbound(InboundMessage(
-                            channel=cli_channel,
-                            sender_id="user",
-                            chat_id=cli_chat_id,
-                            content=user_input,
-                        ))
-
-                        with _thinking_ctx():
-                            await turn_done.wait()
-
-                        if turn_response:
-                            _print_agent_response(turn_response[0], render_markdown=markdown)
-                    except KeyboardInterrupt:
-                        _restore_terminal()
-                        console.print("\nGoodbye!")
-                        break
-                    except EOFError:
-                        _restore_terminal()
-                        console.print("\nGoodbye!")
-                        break
-            finally:
-                agent_loop.stop()
-                outbound_task.cancel()
-                await asyncio.gather(bus_task, outbound_task, return_exceptions=True)
-                await agent_loop.close_mcp()
-
-        asyncio.run(run_interactive())
+        _run_agent_interactive(bus, agent_loop, session_id, markdown, logs)
 
 
 # ============================================================================
@@ -744,12 +732,15 @@ def _get_bridge_dir() -> Path:
     # Install and build
     try:
         console.print("  Installing dependencies...")
-        subprocess.run(["npm", "install"], cwd=user_bridge, check=True, capture_output=True)
-        
+        subprocess.run(["npm", "install"], cwd=user_bridge, check=True, capture_output=True, timeout=300)
+
         console.print("  Building...")
-        subprocess.run(["npm", "run", "build"], cwd=user_bridge, check=True, capture_output=True)
-        
+        subprocess.run(["npm", "run", "build"], cwd=user_bridge, check=True, capture_output=True, timeout=300)
+
         console.print("[green]✓[/green] Bridge ready\n")
+    except subprocess.TimeoutExpired:
+        console.print("[red]Build timed out (exceeded 300s).[/red]")
+        raise typer.Exit(1)
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Build failed: {e}[/red]")
         if e.stderr:
@@ -776,7 +767,9 @@ def channels_login():
         env["BRIDGE_TOKEN"] = config.channels.whatsapp.bridge_token
     
     try:
-        subprocess.run(["npm", "start"], cwd=bridge_dir, check=True, env=env)
+        subprocess.run(["npm", "start"], cwd=bridge_dir, check=True, env=env, timeout=300)
+    except subprocess.TimeoutExpired:
+        console.print("[red]Bridge timed out (exceeded 300s).[/red]")
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Bridge failed: {e}[/red]")
     except FileNotFoundError:
@@ -796,12 +789,12 @@ def cron_list(
     all: bool = typer.Option(False, "--all", "-a", help="Include disabled jobs"),
 ):
     """List scheduled jobs."""
-    from nanobot.config.loader import get_data_dir
+    from nanobot.utils.helpers import get_data_path
     from nanobot.cron.service import CronService
-    
-    store_path = get_data_dir() / "cron" / "jobs.json"
+
+    store_path = get_data_path() / "cron" / "jobs.json"
     service = CronService(store_path)
-    
+
     jobs = service.list_jobs(include_disabled=all)
     
     if not jobs:
@@ -835,6 +828,9 @@ def cron_list(
                 tz = ZoneInfo(job.schedule.tz) if job.schedule.tz else None
                 next_run = _dt.fromtimestamp(ts, tz).strftime("%Y-%m-%d %H:%M")
             except Exception:
+                # Fallback to local time if the IANA timezone is unrecognised
+                # or the timestamp is out of range.
+                logger.debug("ZoneInfo fallback for job {}: tz={}", job.id, job.schedule.tz)
                 next_run = time.strftime("%Y-%m-%d %H:%M", time.localtime(ts))
         
         status = "[green]enabled[/green]" if job.enabled else "[dim]disabled[/dim]"
@@ -857,10 +853,10 @@ def cron_add(
     channel: str = typer.Option(None, "--channel", help="Channel for delivery (e.g. 'telegram', 'whatsapp')"),
 ):
     """Add a scheduled job."""
-    from nanobot.config.loader import get_data_dir
+    from nanobot.utils.helpers import get_data_path
     from nanobot.cron.service import CronService
     from nanobot.cron.types import CronSchedule
-    
+
     if tz and not cron_expr:
         console.print("[red]Error: --tz can only be used with --cron[/red]")
         raise typer.Exit(1)
@@ -878,9 +874,9 @@ def cron_add(
         console.print("[red]Error: Must specify --every, --cron, or --at[/red]")
         raise typer.Exit(1)
     
-    store_path = get_data_dir() / "cron" / "jobs.json"
+    store_path = get_data_path() / "cron" / "jobs.json"
     service = CronService(store_path)
-    
+
     try:
         job = service.add_job(
             name=name,
@@ -902,12 +898,12 @@ def cron_remove(
     job_id: str = typer.Argument(..., help="Job ID to remove"),
 ):
     """Remove a scheduled job."""
-    from nanobot.config.loader import get_data_dir
+    from nanobot.utils.helpers import get_data_path
     from nanobot.cron.service import CronService
-    
-    store_path = get_data_dir() / "cron" / "jobs.json"
+
+    store_path = get_data_path() / "cron" / "jobs.json"
     service = CronService(store_path)
-    
+
     if service.remove_job(job_id):
         console.print(f"[green]✓[/green] Removed job {job_id}")
     else:
@@ -920,10 +916,10 @@ def cron_enable(
     disable: bool = typer.Option(False, "--disable", help="Disable instead of enable"),
 ):
     """Enable or disable a job."""
-    from nanobot.config.loader import get_data_dir
+    from nanobot.utils.helpers import get_data_path
     from nanobot.cron.service import CronService
-    
-    store_path = get_data_dir() / "cron" / "jobs.json"
+
+    store_path = get_data_path() / "cron" / "jobs.json"
     service = CronService(store_path)
     
     job = service.enable_job(job_id, enabled=not disable)
@@ -941,7 +937,8 @@ def cron_run(
 ):
     """Manually run a job."""
     from loguru import logger
-    from nanobot.config.loader import load_config, get_data_dir
+    from nanobot.config.loader import load_config
+    from nanobot.utils.helpers import get_data_path
     from nanobot.cron.service import CronService
     from nanobot.cron.types import CronJob
     from nanobot.bus.queue import MessageBus
@@ -951,23 +948,13 @@ def cron_run(
     config = load_config()
     provider = _make_provider(config)
     bus = MessageBus()
-    agent_loop = AgentLoop(
+    agent_loop = AgentLoop.from_config(
+        config,
         bus=bus,
         provider=provider,
-        workspace=config.workspace_path,
-        model=config.agents.defaults.model,
-        temperature=config.agents.defaults.temperature,
-        max_tokens=config.agents.defaults.max_tokens,
-        max_iterations=config.agents.defaults.max_tool_iterations,
-        memory_window=config.agents.defaults.memory_window,
-        brave_api_key=config.tools.web.search.api_key or None,
-        exec_config=config.tools.exec,
-        restrict_to_workspace=config.tools.restrict_to_workspace,
-        mcp_servers=config.tools.mcp_servers,
-        channels_config=config.channels,
     )
 
-    store_path = get_data_dir() / "cron" / "jobs.json"
+    store_path = get_data_path() / "cron" / "jobs.json"
     service = CronService(store_path)
 
     result_holder = []
@@ -1086,7 +1073,8 @@ def _login_openai_codex() -> None:
         try:
             token = get_token()
         except Exception:
-            pass
+            # No cached token available; will fall through to interactive login.
+            logger.debug("No cached auth found, proceeding to interactive login")
         if not (token and token.access):
             console.print("[cyan]Starting interactive OAuth login...[/cyan]\n")
             token = login_oauth_interactive(
