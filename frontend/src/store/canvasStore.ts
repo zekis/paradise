@@ -24,6 +24,8 @@ interface CanvasStore {
   setAddEdge: (fn: (edge: { id: string; source: string; target: string; sourceHandle?: string; targetHandle?: string }) => void) => void;
   setNodeRebuilding: (nodeId: string, rebuilding: boolean) => void;
   setSetNodeRebuilding: (fn: (nodeId: string, rebuilding: boolean) => void) => void;
+  setNodeArchived: (nodeId: string, archived: boolean, containerStatus?: string) => void;
+  setSetNodeArchived: (fn: (nodeId: string, archived: boolean, containerStatus?: string) => void) => void;
 }
 
 export const useCanvasStore = create<CanvasStore>((set) => ({
@@ -49,4 +51,6 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
   setAddEdge: (fn) => set({ addEdge: fn }),
   setNodeRebuilding: () => {},
   setSetNodeRebuilding: (fn) => set({ setNodeRebuilding: fn }),
+  setNodeArchived: () => {},
+  setSetNodeArchived: (fn) => set({ setNodeArchived: fn }),
 }));

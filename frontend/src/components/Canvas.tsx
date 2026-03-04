@@ -356,6 +356,11 @@ function CanvasInner() {
               ? !!(nodes.find((n) => n.id === contextMenu.nodeId)?.data as NanobotNodeData | undefined)?.rebuilding
               : false
           }
+          archived={
+            contextMenu.nodeId
+              ? !!(nodes.find((n) => n.id === contextMenu.nodeId)?.data as NanobotNodeData | undefined)?.archived
+              : false
+          }
           onClose={handleContextMenuClose}
           onDelete={handleContextMenuDelete}
           onAddBot={handleContextMenuAddBot}

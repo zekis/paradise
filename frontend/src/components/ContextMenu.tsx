@@ -8,6 +8,8 @@ import {
   mdiWrench,
   mdiDeleteOutline,
   mdiPlus,
+  mdiArchiveArrowDown,
+  mdiPlay,
 } from "@mdi/js";
 import { useCanvasStore } from "@/store/canvasStore";
 import { mapApiNodeToNodeData } from "@/lib/mappers";
@@ -16,6 +18,7 @@ interface ContextMenuProps {
   position: { x: number; y: number };
   nodeId?: string;
   rebuilding?: boolean;
+  archived?: boolean;
   onClose: () => void;
   onDelete?: () => void;
   onAddBot?: () => void;
@@ -30,7 +33,7 @@ interface MenuItem {
   disabled?: boolean;
 }
 
-export function ContextMenu({ position, nodeId, rebuilding, onClose, onDelete, onAddBot }: ContextMenuProps) {
+export function ContextMenu({ position, nodeId, rebuilding, archived, onClose, onDelete, onAddBot }: ContextMenuProps) {
   const api = useCanvasStore((s) => s.api);
   const addNode = useCanvasStore((s) => s.addNode);
   const setNodeRebuilding = useCanvasStore((s) => s.setNodeRebuilding);
@@ -90,11 +93,38 @@ export function ContextMenu({ position, nodeId, rebuilding, onClose, onDelete, o
     }
   };
 
+  const handleArchive = async () => {
+    if (!nodeId) return;
+    onClose();
+    setNodeRebuilding(nodeId, true);
+    setSelectedNodeId(null);
+    try {
+      await fetch(`${api}/api/nodes/${nodeId}/archive`, { method: "POST" });
+    } finally {
+      setNodeRebuilding(nodeId, false);
+    }
+  };
+
+  const handleResume = async () => {
+    if (!nodeId) return;
+    onClose();
+    setNodeRebuilding(nodeId, true);
+    try {
+      await fetch(`${api}/api/nodes/${nodeId}/resume`, { method: "POST" });
+    } finally {
+      setNodeRebuilding(nodeId, false);
+    }
+  };
+
   const items: MenuItem[] = nodeId
     ? [
-        { icon: mdiContentCopy, label: "Clone", action: handleClone },
-        { icon: mdiRestart, label: "Restart", action: handleRestart, disabled: rebuilding },
-        { icon: mdiWrench, label: "Rebuild", action: handleRebuild, disabled: rebuilding },
+        { icon: mdiContentCopy, label: "Clone", action: handleClone, disabled: archived },
+        { icon: mdiRestart, label: "Restart", action: handleRestart, disabled: rebuilding || archived },
+        { icon: mdiWrench, label: "Rebuild", action: handleRebuild, disabled: rebuilding || archived },
+        ...(archived
+          ? [{ icon: mdiPlay, label: "Resume", action: handleResume, disabled: rebuilding }]
+          : [{ icon: mdiArchiveArrowDown, label: "Archive", action: handleArchive, disabled: rebuilding }]
+        ),
         {
           icon: mdiDeleteOutline,
           label: "Delete",

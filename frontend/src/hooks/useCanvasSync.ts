@@ -95,6 +95,24 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
       )
     );
   });
+
+  store.setSetNodeArchived((nodeId: string, archived: boolean, containerStatus?: string) => {
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                archived,
+                containerStatus: containerStatus || (archived ? "archived" : n.data.containerStatus),
+                rebuilding: false,
+              },
+            }
+          : n
+      )
+    );
+  });
 }
 
 async function fetchCanvas(
@@ -191,6 +209,12 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
               )
             );
             break;
+          case "node_archived":
+            store.setNodeArchived(msg.node_id, true, msg.container_status);
+            break;
+          case "node_resumed":
+            store.setNodeArchived(msg.node_id, false, msg.container_status);
+            break;
         }
       } catch (error) {
         console.warn('Failed to parse SSE canvas event:', error);
@@ -214,6 +238,7 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
               data: {
                 ...node.data,
                 containerStatus: freshData.containerStatus,
+                archived: freshData.archived,
                 identity: freshData.identity,
                 agentStatus: freshData.agentStatus,
                 agentStatusMessage: freshData.agentStatusMessage,

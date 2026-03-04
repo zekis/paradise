@@ -45,7 +45,9 @@ async def reconcile_containers():
     their cached config and default templates.
     """
     async with async_session() as db:
-        result = await db.execute(select(Node).where(Node.container_id.isnot(None)))
+        result = await db.execute(
+            select(Node).where(Node.container_id.isnot(None), Node.archived == False)
+        )
         all_nodes = result.scalars().all()
 
         # Pass 1: sync status from Docker (parallel)
@@ -245,7 +247,7 @@ async def _maintenance_loop():
 
             async with async_session() as db:
                 result = await db.execute(
-                    select(Node).where(Node.container_id.isnot(None))
+                    select(Node).where(Node.container_id.isnot(None), Node.archived == False)
                 )
                 all_nodes = result.scalars().all()
 

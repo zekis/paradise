@@ -61,6 +61,8 @@ async def restart_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
     node = await db.get(Node, node_id)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
+    if node.archived:
+        raise HTTPException(status_code=400, detail="Cannot restart an archived node. Resume it first.")
 
     # If container is gone, recreate it; otherwise just restart
     status = (
@@ -90,6 +92,8 @@ async def rebuild_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
     node = await db.get(Node, node_id)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
+    if node.archived:
+        raise HTTPException(status_code=400, detail="Cannot rebuild an archived node. Resume it first.")
 
     # Stop and remove old container
     if node.container_id:
@@ -203,3 +207,64 @@ async def get_node_identity(node_id: UUID, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     return {"identity": identity}
+
+
+# ---------------------------------------------------------------------------
+# Archive / Resume
+# ---------------------------------------------------------------------------
+
+@router.post("/nodes/{node_id}/archive")
+async def archive_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Stop the container and mark the node as archived."""
+    node = await db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if node.archived:
+        raise HTTPException(status_code=400, detail="Node is already archived")
+
+    # Stop and remove the container (volumes persist by node_id)
+    if node.container_id:
+        await asyncio.to_thread(stop_nanobot_container, node.container_id)
+
+    node.archived = True
+    node.container_status = "archived"
+    node.container_id = None
+    await db.commit()
+
+    await emit_event("node_archived", node_id=node.id, node_name=node.name,
+                     summary=f'Node "{node.name}" archived')
+    await broadcast.publish("node_archived", {
+        "node_id": str(node.id),
+        "archived": True,
+        "container_status": "archived",
+    })
+    return {"ok": True}
+
+
+@router.post("/nodes/{node_id}/resume")
+async def resume_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Recreate the container for an archived node."""
+    node = await db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if not node.archived:
+        raise HTTPException(status_code=400, detail="Node is not archived")
+
+    try:
+        await recreate_container(node, db)
+    except Exception as exc:
+        node.container_status = "error"
+        await db.commit()
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    node.archived = False
+    await db.commit()
+
+    await emit_event("node_resumed", node_id=node.id, node_name=node.name,
+                     summary=f'Node "{node.name}" resumed')
+    await broadcast.publish("node_resumed", {
+        "node_id": str(node.id),
+        "archived": False,
+        "container_status": node.container_status,
+    })
+    return {"ok": True}

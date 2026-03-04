@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, relationship
@@ -42,6 +42,7 @@ class Node(Base):
     gauge_value = Column(Float, nullable=True)
     gauge_label = Column(Text, nullable=True)
     gauge_unit = Column(Text, nullable=True)
+    archived = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -137,6 +138,9 @@ async def create_tables():
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_value DOUBLE PRECISION"))
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_label TEXT"))
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_unit TEXT"))
+        await conn.execute(text(
+            "ALTER TABLE nodes ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
         # Migrate timestamp columns from String to TIMESTAMPTZ
         for table, cols in [
             ("nodes", ["created_at", "updated_at"]),
