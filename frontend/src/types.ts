@@ -5,12 +5,19 @@ export interface NodeIdentityTab {
   file: string;
 }
 
+export interface NodeIdentityShortcut {
+  label: string;
+  url: string;
+  icon?: string;
+}
+
 export interface NodeIdentity {
   emoji?: string;
   icon?: string;
   color?: string;
   description?: string;
   tabs?: NodeIdentityTab[];
+  shortcuts?: NodeIdentityShortcut[];
 }
 
 export interface NanobotNodeData extends Record<string, unknown> {

@@ -67,6 +67,7 @@ import {
   mdiBug,
   mdiTestTube,
   mdiMicroscope,
+  mdiOpenInNew,
 } from "@mdi/js";
 
 const MDI_ICON_MAP: Record<string, string> = {
@@ -138,6 +139,7 @@ const MDI_ICON_MAP: Record<string, string> = {
   mdiBug,
   mdiTestTube,
   mdiMicroscope,
+  mdiOpenInNew,
 };
 
 export function resolveMdiIcon(name: string): string | null {

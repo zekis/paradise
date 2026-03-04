@@ -74,4 +74,61 @@ describe("ContextMenu", () => {
     expect(restartButton?.style.cursor).toBe("pointer");
     expect(rebuildButton?.style.cursor).toBe("pointer");
   });
+
+  it("renders shortcut items in the context menu", () => {
+    render(
+      <ContextMenu
+        nodeId={TEST_NODE_ID}
+        position={{ x: 100, y: 200 }}
+        shortcuts={[
+          { label: "Web Admin", url: "http://10.0.0.1:8080/admin", icon: "mdiCog" },
+          { label: "Grafana", url: "https://grafana.local:3000" },
+        ]}
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Web Admin")).toBeDefined();
+    expect(screen.getByText("Grafana")).toBeDefined();
+  });
+
+  it("filters out shortcuts with invalid URLs", () => {
+    render(
+      <ContextMenu
+        nodeId={TEST_NODE_ID}
+        position={{ x: 100, y: 200 }}
+        shortcuts={[
+          { label: "Valid", url: "https://example.com" },
+          { label: "Bad Protocol", url: "javascript:alert(1)" },
+          { label: "No URL", url: "" },
+          { label: "FTP", url: "ftp://files.example.com" },
+        ]}
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Valid")).toBeDefined();
+    expect(screen.queryByText("Bad Protocol")).toBeNull();
+    expect(screen.queryByText("No URL")).toBeNull();
+    expect(screen.queryByText("FTP")).toBeNull();
+  });
+
+  it("limits shortcuts to 5 items", () => {
+    const shortcuts = Array.from({ length: 8 }, (_, i) => ({
+      label: `Link ${i + 1}`,
+      url: `https://example.com/${i + 1}`,
+    }));
+    render(
+      <ContextMenu
+        nodeId={TEST_NODE_ID}
+        position={{ x: 100, y: 200 }}
+        shortcuts={shortcuts}
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Link 1")).toBeDefined();
+    expect(screen.getByText("Link 5")).toBeDefined();
+    expect(screen.queryByText("Link 6")).toBeNull();
+  });
 });

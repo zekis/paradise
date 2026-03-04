@@ -21,6 +21,10 @@ Written to your workspace during genesis. Defines your node's appearance on the 
   "tabs": [
     {"name": "Dashboard", "file": "dashboard.html"},
     {"name": "Config", "file": "config.html"}
+  ],
+  "shortcuts": [
+    {"label": "Web Admin", "url": "http://10.0.0.1:8080/admin", "icon": "mdiCog"},
+    {"label": "Grafana", "url": "https://grafana.local:3000", "icon": "mdiChartLine"}
   ]
 }
 ```
@@ -34,10 +38,35 @@ Written to your workspace during genesis. Defines your node's appearance on the 
 | `color` | string | Hex color for accents (gauge ring, icon badge border). |
 | `description` | string | One-line description shown as tooltip. |
 | `tabs` | array | Custom tabs in the agent panel. Each has `name` and `file`. |
+| `shortcuts` | array | URL shortcuts shown in the node's right-click context menu. See below. |
+
+### Shortcuts
+
+URL shortcuts appear in the node's right-click context menu on the canvas. Clicking a shortcut opens the URL in a new browser tab.
+
+```json
+{
+  "shortcuts": [
+    { "label": "Web Admin", "url": "http://10.0.0.1:8080/admin", "icon": "mdiCog" },
+    { "label": "Grafana", "url": "https://grafana.local:3000", "icon": "mdiChartLine" },
+    { "label": "API Docs", "url": "https://docs.example.com" }
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `label` | string | Yes | Menu item text (max 40 chars displayed) |
+| `url` | string | Yes | URL to open. Must start with `http://` or `https://`. |
+| `icon` | string | No | MDI icon name (see icon list below). Defaults to `mdiOpenInNew`. |
+
+- Maximum **5 shortcuts** displayed (additional ones are ignored)
+- Only `http://` and `https://` URLs are allowed (others are silently skipped)
+- Use shortcuts for web UIs, dashboards, documentation, or admin panels related to this node
 
 ### Available MDI Icon Names
 
-`mdiServer`, `mdiServerNetwork`, `mdiDatabase`, `mdiMonitor`, `mdiCloud`, `mdiCloudSync`, `mdiHome`, `mdiHomeAutomation`, `mdiWeatherSunny`, `mdiWeatherCloudy`, `mdiWeatherPartlyCloudy`, `mdiShieldCheck`, `mdiShieldLock`, `mdiLock`, `mdiChartLine`, `mdiChartBar`, `mdiChartPie`, `mdiNetwork`, `mdiLan`, `mdiEarth`, `mdiCpu64Bit`, `mdiMemory`, `mdiHarddisk`, `mdiThermometer`, `mdiLightbulb`, `mdiLightbulbOn`, `mdiCamera`, `mdiCameraIris`, `mdiEmail`, `mdiCalendar`, `mdiClock`, `mdiAlarm`, `mdiBell`, `mdiChat`, `mdiFinance`, `mdiCurrencyBtc`, `mdiCurrencyUsd`, `mdiCart`, `mdiStore`, `mdiPackage`, `mdiDocker`, `mdiGithub`, `mdiCog`, `mdiWrench`, `mdiPower`, `mdiFlash`, `mdiLeaf`, `mdiWater`, `mdiWifi`, `mdiDownload`, `mdiUpload`, `mdiSync`, `mdiFileDocument`, `mdiFolder`, `mdiMapMarker`, `mdiNavigation`, `mdiBattery`, `mdiMusic`, `mdiSpeaker`, `mdiPrinter`, `mdiApi`, `mdiCodeBraces`, `mdiBookOpenVariant`, `mdiRss`, `mdiBug`, `mdiTestTube`, `mdiMicroscope`, `mdiRobot`
+`mdiServer`, `mdiServerNetwork`, `mdiDatabase`, `mdiMonitor`, `mdiCloud`, `mdiCloudSync`, `mdiHome`, `mdiHomeAutomation`, `mdiWeatherSunny`, `mdiWeatherCloudy`, `mdiWeatherPartlyCloudy`, `mdiShieldCheck`, `mdiShieldLock`, `mdiLock`, `mdiChartLine`, `mdiChartBar`, `mdiChartPie`, `mdiNetwork`, `mdiLan`, `mdiEarth`, `mdiCpu64Bit`, `mdiMemory`, `mdiHarddisk`, `mdiThermometer`, `mdiLightbulb`, `mdiLightbulbOn`, `mdiCamera`, `mdiCameraIris`, `mdiEmail`, `mdiCalendar`, `mdiClock`, `mdiAlarm`, `mdiBell`, `mdiChat`, `mdiFinance`, `mdiCurrencyBtc`, `mdiCurrencyUsd`, `mdiCart`, `mdiStore`, `mdiPackage`, `mdiDocker`, `mdiGithub`, `mdiCog`, `mdiWrench`, `mdiPower`, `mdiFlash`, `mdiLeaf`, `mdiWater`, `mdiWifi`, `mdiDownload`, `mdiUpload`, `mdiSync`, `mdiFileDocument`, `mdiFolder`, `mdiMapMarker`, `mdiNavigation`, `mdiBattery`, `mdiMusic`, `mdiSpeaker`, `mdiPrinter`, `mdiApi`, `mdiCodeBraces`, `mdiBookOpenVariant`, `mdiRss`, `mdiBug`, `mdiTestTube`, `mdiMicroscope`, `mdiRobot`, `mdiOpenInNew`
 
 ## recommendations.json
 

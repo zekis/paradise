@@ -10,15 +10,19 @@ import {
   mdiPlus,
   mdiArchiveArrowDown,
   mdiPlay,
+  mdiOpenInNew,
 } from "@mdi/js";
 import { useCanvasStore } from "@/store/canvasStore";
 import { mapApiNodeToNodeData } from "@/lib/mappers";
+import { resolveMdiIcon } from "@/lib/mdiIcons";
+import type { NodeIdentityShortcut } from "@/types";
 
 interface ContextMenuProps {
   position: { x: number; y: number };
   nodeId?: string;
   rebuilding?: boolean;
   archived?: boolean;
+  shortcuts?: NodeIdentityShortcut[];
   onClose: () => void;
   onDelete?: () => void;
   onAddBot?: () => void;
@@ -33,7 +37,7 @@ interface MenuItem {
   disabled?: boolean;
 }
 
-export function ContextMenu({ position, nodeId, rebuilding, archived, onClose, onDelete, onAddBot }: ContextMenuProps) {
+export function ContextMenu({ position, nodeId, rebuilding, archived, shortcuts, onClose, onDelete, onAddBot }: ContextMenuProps) {
   const api = useCanvasStore((s) => s.api);
   const addNode = useCanvasStore((s) => s.addNode);
   const setNodeRebuilding = useCanvasStore((s) => s.setNodeRebuilding);
@@ -116,6 +120,20 @@ export function ContextMenu({ position, nodeId, rebuilding, archived, onClose, o
     }
   };
 
+  const validShortcuts = (shortcuts || [])
+    .filter((s) => s.label && s.url && /^https?:\/\//i.test(s.url))
+    .slice(0, 5);
+
+  const shortcutItems: MenuItem[] = validShortcuts.map((s, i) => ({
+    icon: (s.icon ? resolveMdiIcon(s.icon) : null) || mdiOpenInNew,
+    label: s.label.length > 40 ? s.label.slice(0, 37) + "..." : s.label,
+    action: () => {
+      window.open(s.url, "_blank", "noopener,noreferrer");
+      onClose();
+    },
+    separator: i === 0,
+  }));
+
   const items: MenuItem[] = nodeId
     ? [
         { icon: mdiContentCopy, label: "Clone", action: handleClone, disabled: archived },
@@ -125,6 +143,7 @@ export function ContextMenu({ position, nodeId, rebuilding, archived, onClose, o
           ? [{ icon: mdiPlay, label: "Resume", action: handleResume, disabled: rebuilding }]
           : [{ icon: mdiArchiveArrowDown, label: "Archive", action: handleArchive, disabled: rebuilding }]
         ),
+        ...shortcutItems,
         {
           icon: mdiDeleteOutline,
           label: "Delete",
