@@ -97,14 +97,15 @@ const KEYFRAMES = `
 
 export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
   const d = data as NanobotNodeData;
-  const { nodeId, containerStatus, identity, agentStatus, agentStatusMessage, genesisActive, rebuilding, gaugeValue, gaugeLabel, gaugeUnit } = d;
+  const { nodeId, containerStatus, identity, agentStatus, agentStatusMessage, genesisActive, rebuilding, archived, gaugeValue, gaugeLabel, gaugeUnit } = d;
 
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
   const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
 
+  const isDisabled = rebuilding || archived;
   const statusColor = getStatusColor(agentStatus, containerStatus);
   const identityColor = identity?.color || null;
-  const circleColor = getCircleColor(agentStatus, containerStatus);
+  const circleColor = archived ? null : getCircleColor(agentStatus, containerStatus);
   const isSelected = selectedNodeId === nodeId;
   const hasGauge = gaugeValue != null;
   const resolvedIcon = identity?.icon ? resolveMdiIcon(identity.icon) : null;
@@ -118,13 +119,13 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
         flexDirection: "column",
         alignItems: "center",
         gap: 4,
-        cursor: rebuilding ? "not-allowed" : "pointer",
+        cursor: isDisabled ? "not-allowed" : "pointer",
         width: 80,
         overflow: "visible",
-        opacity: rebuilding ? 0.6 : 1,
+        opacity: archived ? 0.35 : rebuilding ? 0.6 : 1,
         transition: "opacity 0.3s ease",
       }}
-      onClick={() => { if (!rebuilding) setSelectedNodeId(nodeId); }}
+      onClick={() => { if (!isDisabled) setSelectedNodeId(nodeId); }}
     >
       <Handle type="target" position={Position.Top} id="top-t" style={{ top: -8 }} />
       <Handle type="source" position={Position.Top} id="top-s" style={{ top: -8 }} />
@@ -204,12 +205,13 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
             width: 10,
             height: 10,
             borderRadius: "50%",
-            background: statusColor,
+            background: archived ? "var(--text-muted)" : statusColor,
             border: "2px solid var(--bg-card)",
+            opacity: archived ? 0.4 : 1,
           }}
-          title={agentStatusMessage || undefined}
+          title={archived ? "Archived" : agentStatusMessage || undefined}
         />
-        {genesisActive && [0, 1, 2].map((i) => (
+        {genesisActive && !archived && [0, 1, 2].map((i) => (
           <div
             key={`gp-${i}`}
             style={{

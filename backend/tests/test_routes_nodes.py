@@ -73,6 +73,7 @@ class TestNodeReadModel:
             gauge_value = None
             gauge_label = None
             gauge_unit = None
+            archived = False
             created_at = datetime.now(timezone.utc)
             updated_at = datetime.now(timezone.utc)
 
@@ -152,6 +153,7 @@ class FakeNode:
         self.gauge_value = kwargs.get("gauge_value", None)
         self.gauge_label = kwargs.get("gauge_label", None)
         self.gauge_unit = kwargs.get("gauge_unit", None)
+        self.archived = kwargs.get("archived", False)
         self.created_at = kwargs.get("created_at", datetime.now(timezone.utc))
         self.updated_at = kwargs.get("updated_at", datetime.now(timezone.utc))
 
