@@ -24,9 +24,11 @@ import { TreeViewDrawer } from "./TreeViewDrawer";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useCanvasSync } from "@/hooks/useCanvasSync";
 import { useEventLogStore } from "@/store/eventLogStore";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { generateBotName } from "@/lib/names";
 import type { NanobotNodeData, Recommendation } from "@/types";
 import { mapApiNodeToFlowNode } from "@/lib/mappers";
+import { MobileLayout } from "./MobileLayout";
 
 const nodeTypes = { nanobot: NanobotNode };
 const edgeTypes = { smoothstep: DeletableEdge };
@@ -57,6 +59,7 @@ function CanvasInner() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ nodeId: string; label: string } | null>(null);
   const [dragCreateContext, setDragCreateContext] = useState<DragCreateContext | null>(null);
   const createAtRef = useRef<{ x: number; y: number } | null>(null);
+  const isMobile = useIsMobile();
   const api = useCanvasStore((s) => s.api);
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
   const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
@@ -112,13 +115,13 @@ function CanvasInner() {
     [api, nodes, screenToFlowPosition]
   );
 
-  // Start event log polling once the API URL is known
+  // Start event log polling once the API URL is known (skip on mobile)
   useEffect(() => {
-    if (api) {
+    if (api && !isMobile) {
       useEventLogStore.getState().startPolling(api);
     }
     return () => { useEventLogStore.getState().stopPolling(); };
-  }, [api]);
+  }, [api, isMobile]);
 
   const handleFocusNode = useCallback((nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId);
@@ -252,6 +255,37 @@ function CanvasInner() {
     }
   }, [api, dragCreateContext, setNodes, setSelectedNodeId]);
 
+  // ─── Mobile layout ───
+  if (isMobile) {
+    return (
+      <MobileLayout
+        nodes={nodes}
+        edges={edges}
+        selectedNodeData={selectedNodeData}
+        onSelectNode={(nodeId) => { setSelectedNodeId(nodeId); setShowSettings(false); }}
+        onDeselectNode={() => setSelectedNodeId(null)}
+        showSettings={showSettings}
+        onToggleSettings={handleToggleSettings}
+        onAddBot={() => setShowGenesis(true)}
+        api={api}
+        showGenesis={showGenesis}
+        onCloseGenesis={() => { setShowGenesis(false); setDragCreateContext(null); }}
+        onGenesis={handleGenesis}
+        parentContext={
+          dragCreateContext
+            ? {
+                nodeId: dragCreateContext.parentNodeId,
+                nodeName: dragCreateContext.parentNodeName,
+                recommendations: dragCreateContext.recommendations,
+              }
+            : undefined
+        }
+        loaded={loaded}
+      />
+    );
+  }
+
+  // ─── Desktop layout ───
   return (
     <div style={{ width: "100%", height: "100vh", position: "relative" }}>
       {!loaded && (

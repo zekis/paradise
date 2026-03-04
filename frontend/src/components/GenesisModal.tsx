@@ -56,6 +56,7 @@ export function GenesisModal({ onClose, onCreate, parentContext }: GenesisModalP
           borderRadius: 12,
           padding: "24px 28px",
           width: 400,
+          maxWidth: "calc(100vw - 32px)",
           display: "flex",
           flexDirection: "column",
           gap: 16,
