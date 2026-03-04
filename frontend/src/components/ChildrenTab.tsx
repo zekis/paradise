@@ -76,6 +76,38 @@ export function ChildrenTab({ nodeId, api }: { nodeId: string; api: string }) {
 
   const handleCreateChild = async (rec: Recommendation) => {
     setCreating(rec.name);
+
+    // Immediately add placeholder node + edge
+    const tempId = `placeholder-${crypto.randomUUID()}`;
+    const tempEdgeId = `placeholder-edge-${crypto.randomUUID()}`;
+    addNode({
+      id: tempId,
+      position: { x: 0, y: 0 },
+      data: {
+        label: rec.name,
+        nodeId: tempId,
+        containerStatus: null,
+        identity: null,
+        agentStatus: null,
+        agentStatusMessage: null,
+        placeholder: true,
+      } satisfies NanobotNodeData,
+    });
+    addEdge({
+      id: tempEdgeId,
+      source: nodeId,
+      target: tempId,
+      sourceHandle: "bottom-s",
+      targetHandle: "top-t",
+    });
+
+    // Optimistically update lists
+    setRecommendations((prev) => prev.filter((r) => r.name !== rec.name));
+    setChildren((prev) => [
+      ...prev,
+      { id: tempId, name: rec.name, identity: null, agent_status: null, agent_status_message: null },
+    ]);
+
     try {
       const res = await fetch(`${api}/api/nodes/${nodeId}/children`, {
         method: "POST",
@@ -92,35 +124,33 @@ export function ChildrenTab({ nodeId, api }: { nodeId: string; api: string }) {
         const data = await res.json();
         const n = data.node;
 
-        addNode({
+        // Replace placeholder with real node
+        useCanvasStore.getState().replaceNode(tempId, {
           id: n.id,
           position: { x: n.position_x, y: n.position_y },
           data: mapApiNodeToNodeData(n, {
             genesisPrompt: data.genesis_prompt,
             genesisActive: true,
-          }) satisfies NanobotNodeData,
+          }),
         });
 
-        addEdge({
-          id: String(data.edge_id),
-          source: nodeId,
-          target: n.id,
-          sourceHandle: "bottom-s",
-          targetHandle: "top-t",
-        });
+        // Update children list with real ID
+        setChildren((prev) =>
+          prev.map((c) => c.id === tempId ? { ...c, id: n.id } : c)
+        );
 
-        // Remove from recommendations, add to children
-        setRecommendations((prev) => prev.filter((r) => r.name !== rec.name));
-        setChildren((prev) => [
-          ...prev,
-          { id: n.id, name: n.name, identity: null, agent_status: null, agent_status_message: null },
-        ]);
-
-        // Select the new node to open its drawer and trigger genesis
         setSelectedNodeId(n.id);
+      } else {
+        // On failure: remove placeholder and restore recommendation
+        useCanvasStore.getState().removeNode(tempId);
+        setRecommendations((prev) => [...prev, rec]);
+        setChildren((prev) => prev.filter((c) => c.id !== tempId));
       }
     } catch (error) {
       console.error(`Failed to create child node "${rec.name}" for node ${nodeId}:`, error);
+      useCanvasStore.getState().removeNode(tempId);
+      setRecommendations((prev) => [...prev, rec]);
+      setChildren((prev) => prev.filter((c) => c.id !== tempId));
     }
     setCreating(null);
   };

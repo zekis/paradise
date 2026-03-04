@@ -27,7 +27,7 @@ import { useEventLogStore } from "@/store/eventLogStore";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { generateBotName } from "@/lib/names";
 import type { NanobotNodeData, Recommendation } from "@/types";
-import { mapApiNodeToFlowNode } from "@/lib/mappers";
+import { mapApiNodeToFlowNode, mapApiNodeToNodeData, createPlaceholderFlowNode } from "@/lib/mappers";
 import { MobileLayout } from "./MobileLayout";
 
 const nodeTypes = { nanobot: NanobotNode };
@@ -68,7 +68,7 @@ function CanvasInner() {
   // Ref-stabilized callback for useCanvasSync to avoid circular dependency
   const handleDragToEmptyRef = useRef<((sourceNodeId: string, sourceHandleId: string, screenPosition: { x: number; y: number }) => void) | undefined>(undefined);
 
-  const { nodes, edges, loaded, onNodesChange, onEdgesChange, onConnect, onConnectStart, onConnectEnd, onNodeDragStop, saveViewport, setNodes } =
+  const { nodes, edges, loaded, onNodesChange, onEdgesChange, onConnect, onConnectStart, onConnectEnd, onNodeDragStop, saveViewport, setNodes, setEdges } =
     useCanvasSync({ onDragToEmpty: (...args) => handleDragToEmptyRef.current?.(...args) });
 
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null;
@@ -190,6 +190,18 @@ function CanvasInner() {
 
       setDragCreateContext(null);
 
+      // Immediately add placeholder node + edge
+      const tempId = `placeholder-${crypto.randomUUID()}`;
+      const tempEdgeId = `placeholder-edge-${crypto.randomUUID()}`;
+      setNodes((nds) => [...nds, createPlaceholderFlowNode(tempId, name, dropPosition)]);
+      useCanvasStore.getState().addEdge({
+        id: tempEdgeId,
+        source: parentNodeId,
+        target: tempId,
+        sourceHandle: sourceHandle,
+        targetHandle: targetHandle,
+      });
+
       const res = await fetch(`${api}/api/nodes/${parentNodeId}/children`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -205,55 +217,73 @@ function CanvasInner() {
           target_handle: targetHandle,
         }),
       });
-      if (!res.ok) return;
+
+      if (!res.ok) {
+        useCanvasStore.getState().removeNode(tempId);
+        return;
+      }
+
       const data = await res.json();
       const n = data.node;
 
-      setNodes((nds) => [
-        ...nds,
-        mapApiNodeToFlowNode(n, {
+      // Replace placeholder with real node (also updates edge source/target refs)
+      useCanvasStore.getState().replaceNode(tempId, {
+        id: n.id,
+        position: { x: n.position_x, y: n.position_y },
+        data: mapApiNodeToNodeData(n, {
           genesisPrompt: data.genesis_prompt,
           genesisActive: true,
         }),
-      ]);
-
-      useCanvasStore.getState().addEdge({
-        id: String(data.edge_id),
-        source: parentNodeId,
-        target: n.id,
-        sourceHandle: sourceHandle,
-        targetHandle: targetHandle,
       });
+
+      // Update edge ID from placeholder to real
+      setEdges((eds) =>
+        eds.map((e) => e.id === tempEdgeId ? { ...e, id: String(data.edge_id) } : e)
+      );
 
       setSelectedNodeId(n.id);
       setShowSettings(false);
     } else {
-      // --- ROOT CREATION PATH (existing logic) ---
+      // --- ROOT CREATION PATH ---
       const name = generateBotName();
       const genesisPrompt = result.genesisPrompt;
       const pos = createAtRef.current || { x: Math.random() * 400 + 100, y: Math.random() * 400 + 100 };
       createAtRef.current = null;
+
+      // Immediately add placeholder node
+      const tempId = `placeholder-${crypto.randomUUID()}`;
+      setNodes((nds) => [...nds, createPlaceholderFlowNode(tempId, name, pos)]);
+
       const res = await fetch(`${api}/api/nodes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, position_x: pos.x, position_y: pos.y }),
       });
-      if (!res.ok) return;
+
+      if (!res.ok) {
+        useCanvasStore.getState().removeNode(tempId);
+        return;
+      }
+
       const node = await res.json();
       const hasGenesis = !!genesisPrompt;
-      setNodes((nds) => [
-        ...nds,
-        mapApiNodeToFlowNode(node, {
+
+      // Replace placeholder with real node
+      useCanvasStore.getState().replaceNode(tempId, {
+        id: node.id,
+        position: { x: node.position_x, y: node.position_y },
+        data: mapApiNodeToNodeData(node, {
           genesisPrompt: genesisPrompt || undefined,
           genesisActive: hasGenesis,
         }),
-      ]);
+      });
+
       if (hasGenesis) {
         setSelectedNodeId(node.id);
         setShowSettings(false);
       }
     }
-  }, [api, dragCreateContext, setNodes, setSelectedNodeId]);
+  }, [api, dragCreateContext, setNodes, setEdges, setSelectedNodeId]);
 
   // ─── Mobile layout ───
   if (isMobile) {
