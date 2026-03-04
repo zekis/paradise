@@ -64,3 +64,29 @@ export function mapApiNodeToFlowNode(
     style: { width: 80, height: 92 },
   };
 }
+
+/**
+ * Create a placeholder flow node that appears instantly on the canvas
+ * before the backend API responds.
+ */
+export function createPlaceholderFlowNode(
+  tempId: string,
+  name: string,
+  position: { x: number; y: number },
+): NanobotFlowNode {
+  return {
+    id: tempId,
+    type: "nanobot" as const,
+    position,
+    data: {
+      label: name,
+      nodeId: tempId,
+      containerStatus: null,
+      identity: null,
+      agentStatus: null,
+      agentStatusMessage: null,
+      placeholder: true,
+    },
+    style: { width: 80, height: 92 },
+  };
+}

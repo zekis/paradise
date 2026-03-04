@@ -93,6 +93,10 @@ const KEYFRAMES = `
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
   }
+  @keyframes placeholder-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.3; }
+  }
 `;
 
 export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
@@ -102,7 +106,7 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
   const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
 
-  const isDisabled = rebuilding || archived;
+  const isDisabled = rebuilding || archived || d.placeholder;
   const statusColor = getStatusColor(agentStatus, containerStatus);
   const identityColor = identity?.color || null;
   const circleColor = archived ? null : getCircleColor(agentStatus, containerStatus);
@@ -122,7 +126,8 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
         cursor: isDisabled ? "not-allowed" : "pointer",
         width: 80,
         overflow: "visible",
-        opacity: archived ? 0.35 : rebuilding ? 0.6 : 1,
+        opacity: d.placeholder ? 0.5 : archived ? 0.35 : rebuilding ? 0.6 : 1,
+        animation: d.placeholder ? "placeholder-pulse 1.5s ease-in-out infinite" : undefined,
         transition: "opacity 0.3s ease",
       }}
       onClick={() => { if (!isDisabled) setSelectedNodeId(nodeId); }}
@@ -197,20 +202,22 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
         ) : (
           <Icon path={resolvedIcon || mdiRobot} size={1.1} color="var(--text-muted)" />
         )}
-        <span
-          style={{
-            position: "absolute",
-            bottom: 2,
-            right: 2,
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            background: archived ? "var(--text-muted)" : statusColor,
-            border: "2px solid var(--bg-card)",
-            opacity: archived ? 0.4 : 1,
-          }}
-          title={archived ? "Archived" : agentStatusMessage || undefined}
-        />
+        {!d.placeholder && (
+          <span
+            style={{
+              position: "absolute",
+              bottom: 2,
+              right: 2,
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: archived ? "var(--text-muted)" : statusColor,
+              border: "2px solid var(--bg-card)",
+              opacity: archived ? 0.4 : 1,
+            }}
+            title={archived ? "Archived" : agentStatusMessage || undefined}
+          />
+        )}
         {genesisActive && !archived && [0, 1, 2].map((i) => (
           <div
             key={`gp-${i}`}

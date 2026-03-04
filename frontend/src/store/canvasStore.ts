@@ -26,6 +26,8 @@ interface CanvasStore {
   setSetNodeRebuilding: (fn: (nodeId: string, rebuilding: boolean) => void) => void;
   setNodeArchived: (nodeId: string, archived: boolean, containerStatus?: string) => void;
   setSetNodeArchived: (fn: (nodeId: string, archived: boolean, containerStatus?: string) => void) => void;
+  replaceNode: (tempId: string, realNode: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => void;
+  setReplaceNode: (fn: (tempId: string, realNode: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => void) => void;
 }
 
 export const useCanvasStore = create<CanvasStore>((set) => ({
@@ -53,4 +55,6 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
   setSetNodeRebuilding: (fn) => set({ setNodeRebuilding: fn }),
   setNodeArchived: () => {},
   setSetNodeArchived: (fn) => set({ setNodeArchived: fn }),
+  replaceNode: () => {},
+  setReplaceNode: (fn) => set({ replaceNode: fn }),
 }));

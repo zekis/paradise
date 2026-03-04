@@ -113,6 +113,26 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
       )
     );
   });
+
+  store.setReplaceNode((tempId: string, realNode: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => {
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === tempId
+          ? { id: realNode.id, type: "nanobot" as const, position: realNode.position, data: realNode.data, style: { width: 80, height: 92 } }
+          : n
+      )
+    );
+    setEdges((eds) =>
+      eds.map((e) => {
+        if (e.source === tempId) return { ...e, source: realNode.id };
+        if (e.target === tempId) return { ...e, target: realNode.id };
+        return e;
+      })
+    );
+    if (store.selectedNodeId === tempId) {
+      store.setSelectedNodeId(realNode.id);
+    }
+  });
 }
 
 async function fetchCanvas(
@@ -327,5 +347,5 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
     []
   );
 
-  return { nodes, edges, loaded, onNodesChange, onEdgesChange, onConnect, onConnectStart, onConnectEnd, onNodeDragStop, saveViewport, setNodes };
+  return { nodes, edges, loaded, onNodesChange, onEdgesChange, onConnect, onConnectStart, onConnectEnd, onNodeDragStop, saveViewport, setNodes, setEdges };
 }
