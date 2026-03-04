@@ -9,6 +9,7 @@ import {
   mdiPencil,
   mdiDeleteOutline,
   mdiClose,
+  mdiArrowLeft,
   mdiViewDashboard,
   mdiFileDocument,
 } from "@mdi/js";
@@ -57,9 +58,10 @@ const TAB_CONTENT_STYLE: React.CSSProperties = {
 interface NodeDrawerProps {
   data: NanobotNodeData;
   onClose: () => void;
+  isMobile?: boolean;
 }
 
-export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
+export function NodeDrawer({ data, onClose, isMobile }: NodeDrawerProps) {
   const {
     nodeId,
     containerStatus,
@@ -168,17 +170,19 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
   return (
     <div
       style={{
-        position: "fixed",
-        top: 0,
-        right: 0,
-        width: 420,
-        height: "100vh",
+        position: isMobile ? "relative" : "fixed",
+        top: isMobile ? undefined : 0,
+        right: isMobile ? undefined : 0,
+        width: isMobile ? "100%" : 420,
+        height: isMobile ? "100%" : "100vh",
         background: "var(--bg-card)",
-        borderLeft: `1px solid ${identityColor || "var(--border)"}`,
-        zIndex: 2000,
+        borderLeft: isMobile ? "none" : `1px solid ${identityColor || "var(--border)"}`,
+        zIndex: isMobile ? undefined : 2000,
         display: "flex",
         flexDirection: "column",
         fontSize: 13,
+        flex: isMobile ? 1 : undefined,
+        overflow: "hidden",
       }}
     >
       {/* Header */}
@@ -291,7 +295,7 @@ export function NodeDrawer({ data, onClose }: NodeDrawerProps) {
               cursor: "pointer",
               padding: "0 4px",
               lineHeight: 0,
-              display: "flex",
+              display: isMobile ? "none" : "flex",
               alignItems: "center",
             }}
             title="Close"

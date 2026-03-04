@@ -18,9 +18,11 @@ const TEMPLATE_FILES: { key: TemplateKey; label: string }[] = [
 export function DefaultConfigPanel({
   api,
   onClose,
+  isMobile,
 }: {
   api: string;
   onClose: () => void;
+  isMobile?: boolean;
 }) {
   const [tab, setTab] = useState<SettingsTab>("config");
 
@@ -114,10 +116,10 @@ export function DefaultConfigPanel({
         position: "fixed",
         top: 0,
         right: 0,
-        width: 420,
+        width: isMobile ? "100%" : 420,
         height: "100vh",
         background: "var(--bg-card)",
-        borderLeft: "1px solid var(--border)",
+        borderLeft: isMobile ? "none" : "1px solid var(--border)",
         zIndex: 2000,
         display: "flex",
         flexDirection: "column",
