@@ -30,6 +30,11 @@ import type { NanobotNodeData, Recommendation } from "@/types";
 import { mapApiNodeToFlowNode, mapApiNodeToNodeData, createPlaceholderFlowNode } from "@/lib/mappers";
 import { MobileLayout } from "./MobileLayout";
 
+let placeholderSeq = 0;
+function makeTempId(prefix = "placeholder") {
+  return `${prefix}-${++placeholderSeq}-${Date.now()}`;
+}
+
 const nodeTypes = { nanobot: NanobotNode };
 const edgeTypes = { smoothstep: DeletableEdge };
 
@@ -191,8 +196,8 @@ function CanvasInner() {
       setDragCreateContext(null);
 
       // Immediately add placeholder node + edge
-      const tempId = `placeholder-${crypto.randomUUID()}`;
-      const tempEdgeId = `placeholder-edge-${crypto.randomUUID()}`;
+      const tempId = makeTempId("placeholder");
+      const tempEdgeId = makeTempId("placeholder-edge");
       setNodes((nds) => [...nds, createPlaceholderFlowNode(tempId, name, dropPosition)]);
       useCanvasStore.getState().addEdge({
         id: tempEdgeId,
@@ -251,7 +256,7 @@ function CanvasInner() {
       createAtRef.current = null;
 
       // Immediately add placeholder node
-      const tempId = `placeholder-${crypto.randomUUID()}`;
+      const tempId = makeTempId("placeholder");
       setNodes((nds) => [...nds, createPlaceholderFlowNode(tempId, name, pos)]);
 
       const res = await fetch(`${api}/api/nodes`, {

@@ -78,8 +78,8 @@ export function ChildrenTab({ nodeId, api }: { nodeId: string; api: string }) {
     setCreating(rec.name);
 
     // Immediately add placeholder node + edge
-    const tempId = `placeholder-${crypto.randomUUID()}`;
-    const tempEdgeId = `placeholder-edge-${crypto.randomUUID()}`;
+    const tempId = `placeholder-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const tempEdgeId = `placeholder-edge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     addNode({
       id: tempId,
       position: { x: 0, y: 0 },
