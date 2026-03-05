@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import type { Node, Edge } from "@xyflow/react";
 import type { NanobotNodeData } from "@/types";
 import { MobileTreeView } from "./MobileTreeView";
@@ -27,6 +28,7 @@ interface MobileLayoutProps {
     recommendations: import("@/types").Recommendation[];
   };
   loaded: boolean;
+  onNodeContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
 }
 
 export function MobileLayout({
@@ -44,6 +46,7 @@ export function MobileLayout({
   onGenesis,
   parentContext,
   loaded,
+  onNodeContextMenu,
 }: MobileLayoutProps) {
   const showCard = !!selectedNodeData;
 
@@ -66,7 +69,7 @@ export function MobileLayout({
       {showCard ? (
         <NodeDrawer data={selectedNodeData} onClose={onDeselectNode} isMobile />
       ) : (
-        <MobileTreeView nodes={nodes} edges={edges} onSelectNode={onSelectNode} />
+        <MobileTreeView nodes={nodes} edges={edges} onSelectNode={onSelectNode} onNodeContextMenu={onNodeContextMenu} />
       )}
 
       {showSettings && <DefaultConfigPanel api={api} onClose={onToggleSettings} isMobile />}

@@ -17,6 +17,7 @@ function MobileTreeItem({
   collapsedNodes,
   onToggleCollapse,
   onItemClick,
+  onContextMenu,
 }: {
   node: TreeNode;
   depth: number;
@@ -24,16 +25,19 @@ function MobileTreeItem({
   collapsedNodes: Set<string>;
   onToggleCollapse: (id: string) => void;
   onItemClick: (id: string) => void;
+  onContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
 }) {
   const isSelected = node.id === selectedNodeId;
   const isCollapsed = collapsedNodes.has(node.id);
   const hasChildren = node.children.length > 0;
+  const isArchived = node.archived ?? false;
   const statusColor = getStatusColor(node.agentStatus, node.containerStatus);
 
   return (
     <>
       <div
         onClick={() => onItemClick(node.id)}
+        onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e, node.id); }}
         style={{
           display: "flex",
           alignItems: "center",
@@ -45,6 +49,7 @@ function MobileTreeItem({
           background: isSelected ? "rgba(99, 102, 241, 0.12)" : "transparent",
           borderLeft: isSelected ? "3px solid var(--accent)" : "3px solid transparent",
           fontSize: 14,
+          opacity: isArchived ? 0.45 : 1,
         }}
       >
         {/* Chevron */}
@@ -89,8 +94,9 @@ function MobileTreeItem({
             width: 9,
             height: 9,
             borderRadius: "50%",
-            background: statusColor,
+            background: isArchived ? "var(--text-muted)" : statusColor,
             flexShrink: 0,
+            opacity: isArchived ? 0.4 : 1,
           }}
         />
       </div>
@@ -105,6 +111,7 @@ function MobileTreeItem({
             collapsedNodes={collapsedNodes}
             onToggleCollapse={onToggleCollapse}
             onItemClick={onItemClick}
+            onContextMenu={onContextMenu}
           />
         ))
       }
@@ -118,9 +125,10 @@ interface MobileTreeViewProps {
   nodes: Node[];
   edges: Edge[];
   onSelectNode: (nodeId: string) => void;
+  onNodeContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
 }
 
-export function MobileTreeView({ nodes, edges, onSelectNode }: MobileTreeViewProps) {
+export function MobileTreeView({ nodes, edges, onSelectNode, onNodeContextMenu }: MobileTreeViewProps) {
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
 
@@ -184,6 +192,7 @@ export function MobileTreeView({ nodes, edges, onSelectNode }: MobileTreeViewPro
               collapsedNodes={collapsedNodes}
               onToggleCollapse={toggleNodeCollapse}
               onItemClick={onSelectNode}
+              onContextMenu={onNodeContextMenu}
             />
           ))
         )}

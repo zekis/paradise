@@ -157,6 +157,11 @@ function CanvasInner() {
     setContextMenu({ x: e.clientX, y: e.clientY });
   }, []);
 
+  const handleTreeNodeContextMenu = useCallback((e: React.MouseEvent, nodeId: string) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, nodeId });
+  }, []);
+
   const handleContextMenuClose = useCallback(() => setContextMenu(null), []);
 
   const handleContextMenuDelete = useCallback(() => {
@@ -293,30 +298,64 @@ function CanvasInner() {
   // ─── Mobile layout ───
   if (isMobile) {
     return (
-      <MobileLayout
-        nodes={nodes}
-        edges={edges}
-        selectedNodeData={selectedNodeData}
-        onSelectNode={(nodeId) => { setSelectedNodeId(nodeId); setShowSettings(false); }}
-        onDeselectNode={() => setSelectedNodeId(null)}
-        showSettings={showSettings}
-        onToggleSettings={handleToggleSettings}
-        onAddBot={() => setShowGenesis(true)}
-        api={api}
-        showGenesis={showGenesis}
-        onCloseGenesis={() => { setShowGenesis(false); setDragCreateContext(null); }}
-        onGenesis={handleGenesis}
-        parentContext={
-          dragCreateContext
-            ? {
-                nodeId: dragCreateContext.parentNodeId,
-                nodeName: dragCreateContext.parentNodeName,
-                recommendations: dragCreateContext.recommendations,
-              }
-            : undefined
-        }
-        loaded={loaded}
-      />
+      <>
+        <MobileLayout
+          nodes={nodes}
+          edges={edges}
+          selectedNodeData={selectedNodeData}
+          onSelectNode={(nodeId) => { setSelectedNodeId(nodeId); setShowSettings(false); }}
+          onDeselectNode={() => setSelectedNodeId(null)}
+          showSettings={showSettings}
+          onToggleSettings={handleToggleSettings}
+          onAddBot={() => setShowGenesis(true)}
+          api={api}
+          showGenesis={showGenesis}
+          onCloseGenesis={() => { setShowGenesis(false); setDragCreateContext(null); }}
+          onGenesis={handleGenesis}
+          parentContext={
+            dragCreateContext
+              ? {
+                  nodeId: dragCreateContext.parentNodeId,
+                  nodeName: dragCreateContext.parentNodeName,
+                  recommendations: dragCreateContext.recommendations,
+                }
+              : undefined
+          }
+          loaded={loaded}
+          onNodeContextMenu={handleTreeNodeContextMenu}
+        />
+        {contextMenu && (
+          <ContextMenu
+            position={contextMenu}
+            nodeId={contextMenu.nodeId}
+            rebuilding={
+              contextMenu.nodeId
+                ? !!(nodes.find((n) => n.id === contextMenu.nodeId)?.data as NanobotNodeData | undefined)?.rebuilding
+                : false
+            }
+            archived={
+              contextMenu.nodeId
+                ? !!(nodes.find((n) => n.id === contextMenu.nodeId)?.data as NanobotNodeData | undefined)?.archived
+                : false
+            }
+            shortcuts={
+              contextMenu.nodeId
+                ? (nodes.find((n) => n.id === contextMenu.nodeId)?.data as NanobotNodeData | undefined)?.identity?.shortcuts
+                : undefined
+            }
+            onClose={handleContextMenuClose}
+            onDelete={handleContextMenuDelete}
+            onAddBot={handleContextMenuAddBot}
+          />
+        )}
+        {deleteConfirm && (
+          <DeleteConfirmModal
+            nodeId={deleteConfirm.nodeId}
+            label={deleteConfirm.label}
+            onClose={() => setDeleteConfirm(null)}
+          />
+        )}
+      </>
     );
   }
 
@@ -414,7 +453,7 @@ function CanvasInner() {
         />
       )}
 
-      <TreeViewDrawer nodes={nodes} edges={edges} onFocusNode={handleFocusNode} onOpenChange={setTreeDrawerOpen} />
+      <TreeViewDrawer nodes={nodes} edges={edges} onFocusNode={handleFocusNode} onOpenChange={setTreeDrawerOpen} onNodeContextMenu={handleTreeNodeContextMenu} />
       <EventLogDrawer drawerOpen={!!selectedNodeData || showSettings} treeDrawerOpen={treeDrawerOpen} onFocusNode={handleFocusNode} />
 
     </div>
