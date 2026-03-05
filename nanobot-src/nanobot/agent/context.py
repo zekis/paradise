@@ -109,9 +109,12 @@ Reply directly with text for conversations. Only use the 'message' tool to send 
                         emoji = identity.get("emoji", "")
                         desc = identity.get("description", "")
                         status = p.get("agent_status", "unknown")
-                        line = f"  - {emoji} {p.get('name', '?')} (id: {str(p.get('id', '?'))[:8]}, status: {status})"
+                        chat_tag = " [CHAT]" if p.get("chat_enabled") else ""
+                        line = f"  - {emoji} {p.get('name', '?')} (id: {str(p.get('id', '?'))[:8]}, status: {status}){chat_tag}"
                         if desc:
                             line += f" - {desc}"
+                        if chat_tag:
+                            line += " — use send_to_peer tool to message this node"
                         lines.append(line)
 
             if not any(network.get(r) for r in ("parents", "children", "siblings")):

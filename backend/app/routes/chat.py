@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.broadcast import broadcast
 from app.db import ChatMessage, Node, async_session, emit_event, get_db
 from app.docker_ops import read_workspace_file, run_container_command
-from app.routes.helpers import get_network_topology, sync_identity_name
+from app.routes.helpers import get_chat_peers, get_network_topology, sync_identity_name
 
 logger = logging.getLogger(__name__)
 
@@ -355,6 +355,111 @@ async def exec_command(node_id: UUID, request: ExecRequest):
         raise HTTPException(status_code=504, detail="Agent response timed out")
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Cannot connect to nanobot: {exc}")
+
+
+class PeerMessageRequest(BaseModel):
+    target_node_id: UUID
+    content: str
+
+
+@router.post("/nodes/{node_id}/peer-message")
+async def send_peer_message(node_id: UUID, request: PeerMessageRequest):
+    """Send a message from one nanobot to another via a chat-enabled edge path."""
+    async with async_session() as db:
+        sender = await db.get(Node, node_id)
+        if not sender or not sender.container_id:
+            raise HTTPException(status_code=404, detail="Sender node or container not found")
+
+        target = await db.get(Node, request.target_node_id)
+        if not target or not target.container_id:
+            raise HTTPException(status_code=404, detail="Target node or container not found")
+
+        # Verify chat-enabled path exists
+        peers = await get_chat_peers(node_id, db)
+        peer_ids = {p["id"] for p in peers}
+        if str(request.target_node_id) not in peer_ids:
+            raise HTTPException(status_code=403, detail="No chat-enabled path to target node")
+
+    content = request.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty message")
+
+    sender_label = f"{sender.name} (id: {str(sender.id)[:8]})"
+    target_label = f"{target.name} (id: {str(target.id)[:8]})"
+
+    # Store outbound on sender's chat log
+    async with async_session() as db:
+        db.add(ChatMessage(
+            node_id=node_id,
+            role="user",
+            content=content,
+            message_type="peer_out",
+            display_content=f"To {target_label}: {_truncate(content)}",
+        ))
+        await db.commit()
+
+    # Deliver to target nanobot
+    ws_url = _nanobot_ws_url(target)
+    prefixed = f"[Message from peer node '{sender.name}' (id: {str(sender.id)[:8]})]:\n{content}"
+
+    try:
+        async with websockets.connect(ws_url) as ws:
+            # Wait for initial status
+            raw = await asyncio.wait_for(ws.recv(), timeout=10)
+            status = json.loads(raw)
+            if not status.get("ready"):
+                raise HTTPException(status_code=503, detail=status.get("message", "Target agent not ready"))
+
+            # Build message with sender's network context
+            msg = {
+                "type": "chat",
+                "content": prefixed,
+                "session_key": f"paradise:peer:{sender.id}",
+            }
+            try:
+                async with async_session() as db:
+                    msg["network"] = await get_network_topology(request.target_node_id, db)
+            except Exception:
+                logger.debug("Network context unavailable for peer message to node %s", request.target_node_id)
+            await ws.send(json.dumps(msg))
+
+            # Store inbound on target's chat log
+            async with async_session() as db:
+                db.add(ChatMessage(
+                    node_id=request.target_node_id,
+                    role="user",
+                    content=prefixed,
+                    message_type="peer_in",
+                    display_content=f"From {sender_label}: {_truncate(content)}",
+                ))
+                await db.commit()
+
+            # Wait for response (skip progress messages)
+            while True:
+                raw = await asyncio.wait_for(ws.recv(), timeout=120)
+                reply = json.loads(raw)
+                if reply["type"] == "response":
+                    response_content = reply["content"]
+                    # Store response on target's chat log
+                    async with async_session() as db:
+                        db.add(ChatMessage(
+                            node_id=request.target_node_id,
+                            role="assistant",
+                            content=response_content,
+                            message_type="peer_response",
+                        ))
+                        await db.commit()
+                    await emit_event("peer_message", node_id=node_id, node_name=sender.name,
+                                     summary=f"{sender.name} -> {target.name}: {_truncate(content)}")
+                    return {"response": response_content, "from_node": target.name}
+                elif reply["type"] == "error":
+                    raise HTTPException(status_code=500, detail=reply.get("message", "Target agent error"))
+    except HTTPException:
+        raise
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Target agent response timed out")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Cannot connect to target nanobot: {exc}")
 
 
 @router.post("/nodes/{node_id}/run")

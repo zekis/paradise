@@ -28,6 +28,8 @@ interface CanvasStore {
   setSetNodeArchived: (fn: (nodeId: string, archived: boolean, containerStatus?: string) => void) => void;
   replaceNode: (tempId: string, realNode: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => void;
   setReplaceNode: (fn: (tempId: string, realNode: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => void) => void;
+  updateEdgeChatEnabled: (edgeId: string, chatEnabled: boolean) => void;
+  setUpdateEdgeChatEnabled: (fn: (edgeId: string, chatEnabled: boolean) => void) => void;
 }
 
 export const useCanvasStore = create<CanvasStore>((set) => ({
@@ -57,4 +59,6 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
   setSetNodeArchived: (fn) => set({ setNodeArchived: fn }),
   replaceNode: () => {},
   setReplaceNode: (fn) => set({ replaceNode: fn }),
+  updateEdgeChatEnabled: () => {},
+  setUpdateEdgeChatEnabled: (fn) => set({ updateEdgeChatEnabled: fn }),
 }));

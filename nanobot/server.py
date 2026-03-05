@@ -154,8 +154,10 @@ async def init_agent():
         if node_id:
             from nanobot.agent.tools.network import NetworkTool
             from nanobot.agent.tools.paradise import ParadiseTool
+            from nanobot.agent.tools.peer_chat import PeerChatTool
             _state.agent_loop.tools.register(NetworkTool(node_id=node_id))
             _state.agent_loop.tools.register(ParadiseTool(node_id=node_id))
+            _state.agent_loop.tools.register(PeerChatTool(node_id=node_id))
 
         # Register cron tool
         _init_cron_service()

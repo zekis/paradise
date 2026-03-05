@@ -133,6 +133,16 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
       store.setSelectedNodeId(realNode.id);
     }
   });
+
+  store.setUpdateEdgeChatEnabled((edgeId: string, chatEnabled: boolean) => {
+    setEdges((eds) =>
+      eds.map((e) =>
+        e.id === edgeId
+          ? { ...e, data: { ...e.data, chatEnabled } }
+          : e
+      )
+    );
+  });
 }
 
 async function fetchCanvas(
@@ -169,6 +179,7 @@ async function fetchCanvas(
         type: "smoothstep",
         sourceHandle: e.source_handle || undefined,
         targetHandle: e.target_handle || undefined,
+        data: { chatEnabled: (e.chat_enabled as boolean) ?? false },
       }))
     );
 
@@ -234,6 +245,9 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
             break;
           case "node_resumed":
             store.setNodeArchived(msg.node_id, false, msg.container_status);
+            break;
+          case "edge_chat_toggled":
+            store.updateEdgeChatEnabled(msg.edge_id, msg.chat_enabled);
             break;
         }
       } catch (error) {
