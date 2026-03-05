@@ -420,7 +420,7 @@ class TestRunContainerCommand:
     @patch("app.docker_ops.DOCKER_CLIENT")
     def test_runs_bash_command(self, mock_client):
         mock_container = MagicMock()
-        mock_container.exec_run.return_value = (0, b"hello world\n")
+        mock_container.exec_run.return_value = (0, (b"hello world\n", None))
         mock_client.containers.get.return_value = mock_container
 
         from app.docker_ops import run_container_command
@@ -430,6 +430,46 @@ class TestRunContainerCommand:
         assert "hello world" in stdout
         call_args = mock_container.exec_run.call_args
         assert call_args[0][0] == ["bash", "-c", "echo hello world"]
+
+    @patch("app.docker_ops.DOCKER_CLIENT")
+    def test_stderr_discarded_on_success(self, mock_client):
+        """Stderr warnings must not contaminate stdout on success."""
+        mock_container = MagicMock()
+        mock_container.exec_run.return_value = (0, (b'{"ok": true}\n', b"Warning: something\n"))
+        mock_client.containers.get.return_value = mock_container
+
+        from app.docker_ops import run_container_command
+        exit_code, stdout = run_container_command("cid", "python3 api.py status")
+
+        assert exit_code == 0
+        assert stdout == '{"ok": true}\n'
+        assert "Warning" not in stdout
+
+    @patch("app.docker_ops.DOCKER_CLIENT")
+    def test_stderr_included_on_failure(self, mock_client):
+        """On failure, stderr is appended so caller sees diagnostics."""
+        mock_container = MagicMock()
+        mock_container.exec_run.return_value = (1, (b"", b"FileNotFoundError: api.py\n"))
+        mock_client.containers.get.return_value = mock_container
+
+        from app.docker_ops import run_container_command
+        exit_code, stdout = run_container_command("cid", "python3 api.py status")
+
+        assert exit_code == 1
+        assert "FileNotFoundError" in stdout
+
+    @patch("app.docker_ops.DOCKER_CLIENT")
+    def test_none_streams_handled(self, mock_client):
+        """demux=True can return None for either stream."""
+        mock_container = MagicMock()
+        mock_container.exec_run.return_value = (0, (None, None))
+        mock_client.containers.get.return_value = mock_container
+
+        from app.docker_ops import run_container_command
+        exit_code, stdout = run_container_command("cid", "true")
+
+        assert exit_code == 0
+        assert stdout == ""
 
     @patch("app.docker_ops.DOCKER_CLIENT")
     def test_not_found_raises(self, mock_client):

@@ -283,6 +283,10 @@ def run_container_command(
 ) -> tuple[int, str]:
     """Run a shell command inside a container and return (exit_code, stdout).
 
+    stdout and stderr are captured separately (``demux=True``) so that
+    warnings or error messages on stderr never corrupt the stdout payload.
+    On failure the stderr content is appended so callers still see diagnostics.
+
     Raises ``docker.errors.NotFound`` when the container does not exist.
     Other Docker/API errors propagate to the caller unchanged.
     """
@@ -291,8 +295,12 @@ def run_container_command(
         ["bash", "-c", command],
         workdir=workdir,
         environment={"PYTHONDONTWRITEBYTECODE": "1"},
+        demux=True,
     )
-    stdout = output.decode("utf-8", errors="replace")
+    stdout_bytes, stderr_bytes = output
+    stdout = (stdout_bytes or b"").decode("utf-8", errors="replace")
+    if exit_code != 0 and stderr_bytes:
+        stdout += (stderr_bytes).decode("utf-8", errors="replace")
     return exit_code, stdout
 
 

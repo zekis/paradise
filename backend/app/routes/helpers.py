@@ -172,6 +172,20 @@ print(json.dumps({
     "status_message": "Idle",
 }))
 """,
+    "api.py": """#!/usr/bin/env python3
+\"\"\"Default API backend — replaced during genesis with a real implementation.\"\"\"
+import sys, json
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if cmd == "status":
+        print(json.dumps({"status": "ok", "message": "Awaiting configuration"}))
+    else:
+        print(json.dumps({"error": f"Unknown command: {cmd}"}))
+
+if __name__ == "__main__":
+    main()
+""",
 }
 
 
