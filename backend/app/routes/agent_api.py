@@ -247,6 +247,7 @@ async def create_node(payload: AgentNodeCreate, db: AsyncSession = Depends(get_d
                             display_content=f"Genesis: {payload.genesis_prompt[:80]}",
                         ))
                         await store_db.commit()
+                    await broadcast.publish("chat_message_added", {"node_id": str(node_id)})
 
                     # Wait for response
                     while True:
@@ -396,6 +397,7 @@ async def chat_with_node(node_id: UUID, request: AgentChatRequest):
                     message_type="agent_api",
                 ))
                 await db.commit()
+            await broadcast.publish("chat_message_added", {"node_id": str(node_id)})
 
             # Wait for response (skip progress/tool_call messages)
             while True:
