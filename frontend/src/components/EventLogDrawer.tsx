@@ -228,7 +228,8 @@ export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: Even
               key={entry.id}
               onClick={() => handleEventClick(entry)}
               style={{
-                display: "flex",
+                display: "grid",
+                gridTemplateColumns: "58px 100px 70px 1fr",
                 alignItems: "center",
                 gap: 8,
                 padding: "3px 12px",
@@ -243,7 +244,7 @@ export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: Even
               }}
             >
               {/* Timestamp */}
-              <span style={{ fontFamily: "monospace", fontSize: 10, color: "var(--text-muted)", flexShrink: 0, width: 58 }}>
+              <span style={{ fontFamily: "monospace", fontSize: 10, color: "var(--text-muted)" }}>
                 {formatTime(entry.created_at)}
               </span>
 
@@ -252,11 +253,9 @@ export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: Even
                 style={{
                   color: "var(--text)",
                   fontWeight: 500,
-                  maxWidth: 100,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
-                  flexShrink: 0,
                 }}
                 title={entry.node_name || undefined}
               >
@@ -272,7 +271,6 @@ export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: Even
                   borderRadius: 3,
                   padding: "1px 6px",
                   fontWeight: 600,
-                  flexShrink: 0,
                   whiteSpace: "nowrap",
                 }}
               >
@@ -286,7 +284,6 @@ export function EventLogDrawer({ drawerOpen, treeDrawerOpen, onFocusNode }: Even
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
-                  flex: 1,
                   minWidth: 0,
                 }}
                 title={entry.summary || undefined}
