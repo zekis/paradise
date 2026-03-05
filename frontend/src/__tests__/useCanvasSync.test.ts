@@ -36,6 +36,8 @@ vi.mock("@/store/canvasStore", () => {
     setAddNode: vi.fn(),
     setAddEdge: vi.fn(),
     setSetNodeRebuilding: vi.fn(),
+    setSetNodeArchived: vi.fn(),
+    setReplaceNode: vi.fn(),
     getState: () => state,
   };
   const useCanvasStore = Object.assign(
@@ -67,5 +69,19 @@ describe("useCanvasSync", () => {
     expect(typeof result.current.onConnectStart).toBe("function");
     expect(typeof result.current.onConnectEnd).toBe("function");
     expect(typeof result.current.saveViewport).toBe("function");
+  });
+
+  it("onNodeDragStop does not throw when node is undefined", async () => {
+    const { useCanvasSync } = await import("@/hooks/useCanvasSync");
+    const { result } = renderHook(() => useCanvasSync());
+    const fakeEvent = {} as React.MouseEvent;
+    // React Flow can pass undefined when the node is removed during drag
+    expect(() => {
+      result.current.onNodeDragStop(fakeEvent, undefined as never);
+    }).not.toThrow();
+    expect(fetch).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/nodes/"),
+      expect.objectContaining({ method: "PATCH" }),
+    );
   });
 });

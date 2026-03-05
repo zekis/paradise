@@ -336,6 +336,7 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
 
   const onNodeDragStop = useCallback(
     async (_event: React.MouseEvent, node: Node) => {
+      if (!node) return;
       fetch(`${API}/api/nodes/${node.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
