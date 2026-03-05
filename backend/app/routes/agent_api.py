@@ -5,7 +5,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import websockets
 from fastapi import APIRouter, Depends, HTTPException, Query, Security
@@ -14,9 +14,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import ChatMessage, Edge, Node, get_db
+from app.db import ChatMessage, Edge, Node, emit_event, get_db
+from app.docker_ops import read_workspace_file
 from app.routes.chat import MessageRead, _get_network_context, _nanobot_ws_url
-from app.routes.helpers import get_chat_peers, get_network_topology
+from app.routes.helpers import get_chat_peers, get_network_topology, setup_container
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,18 @@ class AgentNetworkResponse(BaseModel):
     edge_count: int
 
 
+class AgentNodeCreate(BaseModel):
+    name: str = "new-nanobot"
+    genesis_prompt: str | None = None
+    parent_id: UUID | None = None
+
+
+class AgentNodeCreateResponse(BaseModel):
+    node: AgentNodeRead
+    edge_id: UUID | None = None
+    genesis_response: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # Endpoints — Network overview
 # ---------------------------------------------------------------------------
@@ -128,6 +141,143 @@ async def list_nodes(db: AsyncSession = Depends(get_db)):
         select(Node).where(Node.archived == False).order_by(Node.created_at)
     )
     return result.scalars().all()
+
+
+@router.post("/nodes", response_model=AgentNodeCreateResponse)
+async def create_node(payload: AgentNodeCreate, db: AsyncSession = Depends(get_db)):
+    """Create a new nanobot node.
+
+    Optionally attach it to a parent (creates an edge) and/or run genesis
+    by providing a genesis_prompt (blocks until the nanobot responds).
+    """
+    from app.db import async_session
+
+    # Validate parent if specified
+    parent = None
+    if payload.parent_id:
+        parent = await db.get(Node, payload.parent_id)
+        if not parent:
+            raise HTTPException(status_code=404, detail="Parent node not found")
+
+    # Create the node
+    node_id = uuid4()
+    node = Node(id=node_id, name=payload.name)
+
+    try:
+        await setup_container(node, db)
+    except Exception as exc:
+        node.container_status = "error"
+        node.config = {"error": str(exc)}
+
+    db.add(node)
+
+    # Create parent -> child edge if parent specified
+    edge_id = None
+    if parent:
+        edge = Edge(
+            id=uuid4(),
+            source_id=parent.id,
+            target_id=node_id,
+            edge_type="connection",
+            source_handle="bottom-s",
+            target_handle="top-t",
+        )
+        db.add(edge)
+        edge_id = edge.id
+
+    await db.commit()
+    await db.refresh(node)
+
+    await emit_event(
+        "node_created",
+        node_id=node.id,
+        node_name=node.name,
+        summary=f'Node "{node.name}" created via agent API'
+        + (f' as child of "{parent.name}"' if parent else ""),
+    )
+
+    # Run genesis if prompt provided and container is healthy
+    genesis_response = None
+    if payload.genesis_prompt and node.container_id:
+        # Enrich with parent context
+        prompt = payload.genesis_prompt
+        if parent:
+            parts = [prompt, "\n\n## Parent Context", f"Parent node: {parent.name}"]
+            if parent.identity:
+                parts.append(f"Parent identity: {json.dumps(parent.identity)}")
+            if parent.container_id:
+                try:
+                    settings = await asyncio.to_thread(
+                        read_workspace_file, parent.container_id, "settings.json"
+                    )
+                    if settings:
+                        parts.append(f"Parent settings: {settings}")
+                except Exception:
+                    pass
+            prompt = "\n".join(parts)
+
+        # Send to nanobot via WebSocket exec flow
+        ws_url = _nanobot_ws_url(node)
+        try:
+            async with websockets.connect(ws_url) as ws:
+                raw = await asyncio.wait_for(ws.recv(), timeout=10)
+                status = json.loads(raw)
+                if not status.get("ready"):
+                    logger.warning("Nanobot not ready for genesis on node %s", node_id)
+                else:
+                    msg = {
+                        "type": "chat",
+                        "content": prompt,
+                        "session_key": f"agent:genesis:{node_id}",
+                    }
+                    try:
+                        msg["network"] = await _get_network_context(node_id)
+                    except Exception:
+                        pass
+                    await ws.send(json.dumps(msg))
+
+                    # Store the genesis message
+                    async with async_session() as store_db:
+                        store_db.add(ChatMessage(
+                            node_id=node_id,
+                            role="user",
+                            content=prompt,
+                            message_type="agent_api",
+                            display_content=f"Genesis: {payload.genesis_prompt[:80]}",
+                        ))
+                        await store_db.commit()
+
+                    # Wait for response
+                    while True:
+                        raw = await asyncio.wait_for(ws.recv(), timeout=120)
+                        reply = json.loads(raw)
+                        if reply["type"] == "response":
+                            genesis_response = reply["content"]
+                            async with async_session() as store_db:
+                                store_db.add(ChatMessage(
+                                    node_id=node_id,
+                                    role="assistant",
+                                    content=genesis_response,
+                                    message_type="agent_api",
+                                ))
+                                await store_db.commit()
+                            break
+                        elif reply["type"] == "error":
+                            logger.warning(
+                                "Genesis error for node %s: %s",
+                                node_id, reply.get("message"),
+                            )
+                            break
+        except asyncio.TimeoutError:
+            logger.warning("Genesis timed out for node %s", node_id)
+        except Exception as exc:
+            logger.warning("Genesis failed for node %s: %s", node_id, exc)
+
+    return AgentNodeCreateResponse(
+        node=AgentNodeRead.model_validate(node),
+        edge_id=edge_id,
+        genesis_response=genesis_response,
+    )
 
 
 @router.get("/nodes/{node_id}", response_model=AgentNodeRead)
