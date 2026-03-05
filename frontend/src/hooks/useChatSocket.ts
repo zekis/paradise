@@ -18,6 +18,7 @@ interface ChatSocketOptions {
   onIdentityUpdate?: (identity: Record<string, unknown>) => void;
   onThinkingChange?: (thinking: boolean) => void;
   genesisTemplate: (prompt: string) => string;
+  refreshSignal?: number;
 }
 
 // Module-level set — survives component remounts caused by React Flow re-renders
@@ -32,6 +33,7 @@ export function useChatSocket({
   onIdentityUpdate,
   onThinkingChange,
   genesisTemplate,
+  refreshSignal,
 }: ChatSocketOptions) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [connected, setConnected] = useState(false);
@@ -79,6 +81,29 @@ export function useChatSocket({
     })();
     return () => { cancelled = true; };
   }, [api, nodeId]);
+
+  // Re-fetch chat history when an external source (e.g. agent API) adds messages
+  useEffect(() => {
+    if (!refreshSignal) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${api}/api/nodes/${nodeId}/messages`);
+        if (!res.ok || cancelled) return;
+        const data: { role: "user" | "assistant"; content: string; message_type?: string; display_content?: string }[] = await res.json();
+        if (!cancelled) {
+          setMessages(data.map((m) => ({
+            role: m.role,
+            content: m.display_content || m.content,
+            message_type: m.message_type,
+          })));
+        }
+      } catch (error) {
+        console.error(`Failed to refresh chat history for node ${nodeId}:`, error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [refreshSignal, api, nodeId]);
 
   // One-shot identity check on reconnect — catches identity set while disconnected
   useEffect(() => {

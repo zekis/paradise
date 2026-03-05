@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useChatSocket } from "@/hooks/useChatSocket";
+import { useCanvasStore } from "@/store/canvasStore";
 
 const GENESIS_TEMPLATE = (prompt: string) =>
   `You are being initialized as: "${prompt}"
@@ -164,6 +165,7 @@ export function ChatTab({
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsUrl = api.replace(/^http/, "ws") + `/api/nodes/${nodeId}/chat`;
+  const refreshSignal = useCanvasStore((s) => s.chatRefreshSignals[nodeId] || 0);
 
   const {
     messages,
@@ -183,6 +185,7 @@ export function ChatTab({
     onIdentityUpdate,
     onThinkingChange,
     genesisTemplate: GENESIS_TEMPLATE,
+    refreshSignal,
   });
 
   useEffect(() => {

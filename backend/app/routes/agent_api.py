@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.broadcast import broadcast
 from app.db import ChatMessage, Edge, Node, emit_event, get_db
 from app.docker_ops import read_workspace_file
 from app.routes.chat import MessageRead, _get_network_context, _nanobot_ws_url
@@ -261,6 +262,7 @@ async def create_node(payload: AgentNodeCreate, db: AsyncSession = Depends(get_d
                                     message_type="agent_api",
                                 ))
                                 await store_db.commit()
+                            await broadcast.publish("chat_message_added", {"node_id": str(node_id)})
                             break
                         elif reply["type"] == "error":
                             logger.warning(
@@ -410,6 +412,7 @@ async def chat_with_node(node_id: UUID, request: AgentChatRequest):
                             message_type="agent_api",
                         ))
                         await db.commit()
+                    await broadcast.publish("chat_message_added", {"node_id": str(node_id)})
                     return AgentChatResponse(
                         node_id=node_id,
                         node_name=node.name,
