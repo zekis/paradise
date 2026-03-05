@@ -15,7 +15,7 @@ from app.docker_ops import (
     read_nanobot_config,
     read_workspace_file,
 )
-from app.routes.helpers import get_network_topology, node_summary, setup_container
+from app.routes.helpers import get_chat_peers, get_network_topology, node_summary, setup_container
 from app.routes.nodes import NodeRead
 
 logger = logging.getLogger(__name__)
@@ -61,6 +61,16 @@ async def get_node_network(node_id: UUID, db: AsyncSession = Depends(get_db)):
     if not result:
         raise HTTPException(status_code=404, detail="Node not found")
     return result
+
+
+@router.get("/nodes/{node_id}/chat-peers")
+async def get_node_chat_peers(node_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Get all nodes reachable via chat-enabled edges (transitive BFS)."""
+    node = await db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    peers = await get_chat_peers(node_id, db)
+    return {"peers": peers}
 
 
 @router.get("/nodes/{node_id}/network/config/{peer_id}")

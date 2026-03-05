@@ -179,12 +179,16 @@ print(json.dumps({
 # Node summary builder (used by nodes.py and chat.py)
 # ---------------------------------------------------------------------------
 
-def node_summary(node: Node, edge_type: str | None = None) -> dict:
+def node_summary(
+    node: Node,
+    edge_type: str | None = None,
+    chat_enabled: bool | None = None,
+) -> dict:
     """Build a summary dict for a node.
 
     Contains the fields that network-topology and peer-config endpoints
     expose: id, name, identity, agent_status, agent_status_message, and
-    optionally the edge_type linking this node in context.
+    optionally the edge_type and chat_enabled linking this node in context.
     """
     summary: dict = {
         "id": str(node.id),
@@ -195,6 +199,8 @@ def node_summary(node: Node, edge_type: str | None = None) -> dict:
     }
     if edge_type is not None:
         summary["edge_type"] = edge_type
+    if chat_enabled is not None:
+        summary["chat_enabled"] = chat_enabled
     return summary
 
 
@@ -246,9 +252,10 @@ async def get_network_topology(
 ) -> dict:
     """Fetch parents / children / siblings for *node_id*.
 
-    When *include_edge_types* is ``True`` the ``edge_type`` label is
-    attached to each parent and child summary (used by the REST endpoint).
-    The chat relay omits edge types for a lighter payload.
+    When *include_edge_types* is ``True`` the ``edge_type`` and
+    ``chat_enabled`` labels are attached to each parent and child summary
+    (used by the REST endpoint).  The chat relay omits these for a lighter
+    payload but still includes ``chat_enabled``.
 
     Returns an empty dict when the node is not found.
     """
@@ -268,6 +275,10 @@ async def get_network_topology(
 
     child_edge_types = {e.target_id: e.edge_type for e in edges_out} if include_edge_types else {}
     parent_edge_types = {e.source_id: e.edge_type for e in edges_in} if include_edge_types else {}
+
+    # Chat-enabled lookup (always included so nanobots know who they can message)
+    child_chat = {e.target_id: e.chat_enabled for e in edges_out}
+    parent_chat = {e.source_id: e.chat_enabled for e in edges_in}
 
     # Siblings = other children of our parents
     sibling_ids: set[UUID] = set()
@@ -291,11 +302,13 @@ async def get_network_topology(
         return {
             "self": node_summary(node),
             "parents": [
-                node_summary(related[pid], parent_edge_types.get(pid, "connection"))
+                node_summary(related[pid], parent_edge_types.get(pid, "connection"),
+                             chat_enabled=parent_chat.get(pid, False))
                 for pid in parent_ids if pid in related
             ],
             "children": [
-                node_summary(related[cid], child_edge_types.get(cid, "connection"))
+                node_summary(related[cid], child_edge_types.get(cid, "connection"),
+                             chat_enabled=child_chat.get(cid, False))
                 for cid in child_ids if cid in related
             ],
             "siblings": [
@@ -306,10 +319,57 @@ async def get_network_topology(
 
     return {
         "self": node_summary(node),
-        "parents": [node_summary(related[p]) for p in parent_ids if p in related],
-        "children": [node_summary(related[c]) for c in child_ids if c in related],
+        "parents": [
+            node_summary(related[p], chat_enabled=parent_chat.get(p, False))
+            for p in parent_ids if p in related
+        ],
+        "children": [
+            node_summary(related[c], chat_enabled=child_chat.get(c, False))
+            for c in child_ids if c in related
+        ],
         "siblings": [node_summary(related[s]) for s in sibling_ids if s in related],
     }
+
+
+async def get_chat_peers(node_id: UUID, db: AsyncSession) -> list[dict]:
+    """BFS over chat-enabled edges to find all transitively reachable peers.
+
+    Edges are treated as undirected — if A->B has chat_enabled, then both
+    A and B can communicate.  Returns a list of ``node_summary()`` dicts
+    for every reachable peer (excluding the starting node).
+    """
+    # Load all chat-enabled edges in one query
+    chat_edges = (await db.execute(
+        select(Edge).where(Edge.chat_enabled.is_(True))
+    )).scalars().all()
+
+    # Build undirected adjacency list
+    adj: dict[UUID, set[UUID]] = {}
+    for e in chat_edges:
+        adj.setdefault(e.source_id, set()).add(e.target_id)
+        adj.setdefault(e.target_id, set()).add(e.source_id)
+
+    # BFS from node_id
+    visited: set[UUID] = {node_id}
+    queue = list(adj.get(node_id, []))
+    reachable: set[UUID] = set()
+    while queue:
+        current = queue.pop(0)
+        if current in visited:
+            continue
+        visited.add(current)
+        reachable.add(current)
+        for neighbor in adj.get(current, []):
+            if neighbor not in visited:
+                queue.append(neighbor)
+
+    if not reachable:
+        return []
+
+    # Fetch all reachable nodes
+    result = await db.execute(select(Node).where(Node.id.in_(reachable)))
+    nodes = {n.id: n for n in result.scalars().all()}
+    return [node_summary(nodes[nid]) for nid in reachable if nid in nodes]
 
 
 # ---------------------------------------------------------------------------

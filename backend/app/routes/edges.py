@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.broadcast import broadcast
 from app.db import Edge, emit_event, get_db
 
 router = APIRouter(tags=["edges"])
@@ -21,6 +22,10 @@ class EdgeCreate(BaseModel):
     target_handle: str | None = None
 
 
+class EdgePatch(BaseModel):
+    chat_enabled: bool | None = None
+
+
 class EdgeRead(BaseModel):
     id: UUID
     source_id: UUID
@@ -28,6 +33,7 @@ class EdgeRead(BaseModel):
     edge_type: str
     source_handle: str | None
     target_handle: str | None
+    chat_enabled: bool
     created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
@@ -48,6 +54,25 @@ async def create_edge(payload: EdgeCreate, db: AsyncSession = Depends(get_db)):
 async def list_edges(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Edge))
     return result.scalars().all()
+
+
+@router.patch("/edges/{edge_id}", response_model=EdgeRead)
+async def patch_edge(edge_id: UUID, payload: EdgePatch, db: AsyncSession = Depends(get_db)):
+    edge = await db.get(Edge, edge_id)
+    if not edge:
+        raise HTTPException(status_code=404, detail="Edge not found")
+    if payload.chat_enabled is not None:
+        edge.chat_enabled = payload.chat_enabled
+    await db.commit()
+    await db.refresh(edge)
+    await broadcast.publish("edge_chat_toggled", {
+        "edge_id": str(edge_id),
+        "chat_enabled": edge.chat_enabled,
+    })
+    await emit_event("edge_chat_toggled", summary=f"Chat {'enabled' if edge.chat_enabled else 'disabled'}",
+                     details={"edge_id": str(edge_id), "source_id": str(edge.source_id),
+                              "target_id": str(edge.target_id)})
+    return edge
 
 
 @router.delete("/edges/{edge_id}")
