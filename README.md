@@ -17,8 +17,10 @@ Browser (Next.js 15 / React Flow)
   ├── Canvas API    /api/canvas
   ├── Nodes API     /api/nodes
   ├── Edges API     /api/edges
+  ├── Agent API     /api/agent            ← external programmatic access
   ├── SSE Stream    /api/events/stream    ← real-time state push
-  └── Chat Relay    /api/nodes/{id}/chat  ← WebSocket bridge
+  ├── Chat Relay    /api/nodes/{id}/chat  ← WebSocket bridge
+  └── Peer Msgs     /api/nodes/{id}/peer-message
        │                │
        │ SQLAlchemy     │ Docker SDK (unix socket)
        ▼                ▼
@@ -43,6 +45,9 @@ Chat uses a three-layer WebSocket relay: browser → FastAPI → nanobot contain
 - **Agent status signaling** — agents call `setStatus(ok|warning|error)` to update the status dot on the canvas
 - **Global settings** — default nanobot config and agent file templates applied to every new container
 - **Dark theme** — CSS custom properties, system-ui font stack
+- **External Agent API** — programmatic REST access for external agents: query the network, chat with nanobots, create nodes; optional API-key auth
+- **Archive / Resume** — archive idle nodes (stops container, fades on canvas) and resume them later with workspace data preserved
+- **Interbot communication** — peer-to-peer messaging between nanobots through chat-enabled edges; BFS peer discovery
 
 ## Quick Start
 
@@ -75,6 +80,7 @@ On first boot the backend creates all database tables and reconciles any existin
 | `NANOBOT_IMAGE` | `paradise-nanobot` | Image tag for spawning nanobot containers |
 | `NEXT_PUBLIC_API_URL` | *(auto-detected from browser)* | Override backend API base URL |
 | `PARADISE_WS_PORT` | `18790` | WebSocket port inside nanobot containers |
+| `PARADISE_AGENT_API_KEY` | *(empty — no enforcement)* | API key for the external Agent API. Set to a secret to require `X-API-Key` header |
 
 ## Project Structure
 
@@ -93,7 +99,7 @@ paradise/
 │       ├── main.py             # App entrypoint + startup reconciliation
 │       ├── db.py               # Models: Node, Edge, CanvasState, ChatMessage
 │       ├── docker_ops.py       # Container lifecycle (create, stop, clone, file I/O)
-│       └── routes/             # canvas, nodes, edges, chat
+│       └── routes/             # canvas, nodes, edges, chat, agent_api, ...
 └── nanobot/                    # Nanobot container image
     ├── Dockerfile
     └── server.py               # WebSocket server on :18790
@@ -143,3 +149,62 @@ Each nanobot container has a workspace at `/root/.nanobot/workspace/`:
 | `commands.html` | Object commands sub-tab |
 | `children.html` | Object children sub-tab |
 | `api.py` | Python API script called by dashboards via `PARADISE.run()` |
+
+## External Agent API
+
+Programmatic REST interface at `/api/agent/` for scripts, bots, and orchestration layers that need to interact with the nanobot network without the browser UI.
+
+### Authentication
+
+Set `PARADISE_AGENT_API_KEY` to a secret. When set, every request must include:
+
+```
+X-API-Key: <your-key>
+```
+
+When the variable is empty (default), the API is open.
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/agent/network` | Full graph snapshot (nodes + edges) |
+| GET | `/api/agent/nodes` | List active nodes |
+| POST | `/api/agent/nodes` | Create node (optional `genesis_prompt`, `parent_id`) |
+| GET | `/api/agent/nodes/{id}` | Single node detail |
+| GET | `/api/agent/nodes/{id}/network` | Node's parents, children, siblings |
+| GET | `/api/agent/nodes/{id}/peers` | Chat-reachable peers (BFS) |
+| GET | `/api/agent/nodes/{id}/messages` | Chat history (oldest first, `?limit=50`) |
+| GET | `/api/agent/edges` | List all edges |
+| POST | `/api/agent/nodes/{id}/chat` | Send message, get synchronous response |
+
+### Quick example
+
+```bash
+# List all nodes
+curl -H "X-API-Key: $KEY" http://localhost:8000/api/agent/nodes
+
+# Chat with a node
+curl -X POST -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+  http://localhost:8000/api/agent/nodes/<node-id>/chat \
+  -d '{"message": "What is your status?"}'
+```
+
+## Archive / Resume
+
+Idle nodes can be archived to free resources. Right-click a node on the canvas:
+
+- **Archive** — stops and removes the container; node fades to a muted state on the canvas
+- **Resume** — recreates the container from the saved image; node returns to active state
+
+Workspace data (volumes) is preserved across archive/resume cycles. Archived nodes are excluded from the Agent API's node listings. Other lifecycle actions (restart, rebuild, clone) are blocked until the node is resumed.
+
+## Interbot Communication
+
+Nanobots can send messages to each other through **chat-enabled edges**.
+
+1. **Enable chat on an edge** — right-click an edge on the canvas and toggle "Chat enabled", or `PATCH /api/edges/{id}` with `{"chat_enabled": true}`
+2. **Send a peer message** — `POST /api/nodes/{id}/peer-message` with `{"target_node_id": "<uuid>", "content": "..."}`
+3. **Peer discovery** — reachable peers are found via BFS over all chat-enabled edges (treated as undirected). Query with `GET /api/agent/nodes/{id}/peers`
+
+Messages are logged in both sender and receiver chat histories with types `peer_out`, `peer_in`, and `peer_response`.
