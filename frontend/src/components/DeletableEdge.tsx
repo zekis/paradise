@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -24,8 +24,20 @@ export function DeletableEdge({
   data,
 }: EdgeProps) {
   const [hovered, setHovered] = useState(false);
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const removeEdge = useCanvasStore((s) => s.removeEdge);
   const updateEdgeChatEnabled = useCanvasStore((s) => s.updateEdgeChatEnabled);
+
+  // Debounced hover to prevent flicker when crossing the gap between
+  // the SVG hit-area path and the HTML EdgeLabelRenderer buttons.
+  const handleEnter = useCallback(() => {
+    if (leaveTimer.current) { clearTimeout(leaveTimer.current); leaveTimer.current = null; }
+    setHovered(true);
+  }, []);
+  const handleLeave = useCallback(() => {
+    leaveTimer.current = setTimeout(() => setHovered(false), 100);
+  }, []);
+  useEffect(() => () => { if (leaveTimer.current) clearTimeout(leaveTimer.current); }, []);
 
   const chatEnabled = (data as Record<string, unknown> | undefined)?.chatEnabled === true;
 
@@ -68,16 +80,16 @@ export function DeletableEdge({
         strokeOpacity={0}
         strokeWidth={20}
         style={{ pointerEvents: "all" }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
+        onMouseEnter={handleEnter}
+        onMouseLeave={handleLeave}
       />
       {showButtons && (
         <EdgeLabelRenderer>
           {/* Chat toggle button */}
           <button
             onClick={toggleChat}
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
+            onMouseEnter={handleEnter}
+            onMouseLeave={handleLeave}
             style={{
               position: "absolute",
               transform: `translate(-50%, -50%) translate(${labelX - 14}px, ${labelY}px)`,
@@ -109,8 +121,8 @@ export function DeletableEdge({
                 e.stopPropagation();
                 removeEdge(id);
               }}
-              onMouseEnter={() => setHovered(true)}
-              onMouseLeave={() => setHovered(false)}
+              onMouseEnter={handleEnter}
+              onMouseLeave={handleLeave}
               style={{
                 position: "absolute",
                 transform: `translate(-50%, -50%) translate(${labelX + 14}px, ${labelY}px)`,
