@@ -13,7 +13,7 @@ from sqlalchemy import select
 from app.broadcast import broadcast
 from app.db import Node, async_session, engine, create_tables, emit_event
 from app.docker_ops import get_container_status, read_workspace_file
-from app.routes import canvas, nodes, edges, chat, events, workspace, node_status, node_network
+from app.routes import canvas, nodes, edges, chat, events, workspace, node_status, node_network, agent_api
 from app.routes.helpers import recreate_container, sync_identity_name
 
 
@@ -300,6 +300,7 @@ app.include_router(node_network.router, prefix="/api")
 app.include_router(edges.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(events.router, prefix="/api")
+app.include_router(agent_api.router, prefix="/api")
 
 
 @app.get("/healthz")

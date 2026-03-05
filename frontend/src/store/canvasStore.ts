@@ -30,6 +30,8 @@ interface CanvasStore {
   setReplaceNode: (fn: (tempId: string, realNode: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => void) => void;
   updateEdgeChatEnabled: (edgeId: string, chatEnabled: boolean) => void;
   setUpdateEdgeChatEnabled: (fn: (edgeId: string, chatEnabled: boolean) => void) => void;
+  chatRefreshSignals: Record<string, number>;
+  bumpChatRefresh: (nodeId: string) => void;
 }
 
 export const useCanvasStore = create<CanvasStore>((set) => ({
@@ -61,4 +63,8 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
   setReplaceNode: (fn) => set({ replaceNode: fn }),
   updateEdgeChatEnabled: () => {},
   setUpdateEdgeChatEnabled: (fn) => set({ updateEdgeChatEnabled: fn }),
+  chatRefreshSignals: {},
+  bumpChatRefresh: (nodeId) => set((s) => ({
+    chatRefreshSignals: { ...s.chatRefreshSignals, [nodeId]: (s.chatRefreshSignals[nodeId] || 0) + 1 },
+  })),
 }));

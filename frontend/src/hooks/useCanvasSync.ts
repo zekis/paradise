@@ -249,6 +249,9 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
           case "edge_chat_toggled":
             store.updateEdgeChatEnabled(msg.edge_id, msg.chat_enabled);
             break;
+          case "chat_message_added":
+            store.bumpChatRefresh(msg.node_id);
+            break;
         }
       } catch (error) {
         console.warn('Failed to parse SSE canvas event:', error);
