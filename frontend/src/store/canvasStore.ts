@@ -30,6 +30,10 @@ interface CanvasStore {
   setReplaceNode: (fn: (tempId: string, realNode: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => void) => void;
   updateEdgeChatEnabled: (edgeId: string, chatEnabled: boolean) => void;
   setUpdateEdgeChatEnabled: (fn: (edgeId: string, chatEnabled: boolean) => void) => void;
+  checkedNodeIds: Set<string>;
+  toggleCheckedNode: (nodeId: string) => void;
+  setCheckedNodeIds: (ids: Set<string>) => void;
+  clearCheckedNodes: () => void;
   chatRefreshSignals: Record<string, number>;
   bumpChatRefresh: (nodeId: string) => void;
 }
@@ -63,6 +67,16 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
   setReplaceNode: (fn) => set({ replaceNode: fn }),
   updateEdgeChatEnabled: () => {},
   setUpdateEdgeChatEnabled: (fn) => set({ updateEdgeChatEnabled: fn }),
+  checkedNodeIds: new Set(),
+  toggleCheckedNode: (nodeId) =>
+    set((s) => {
+      const next = new Set(s.checkedNodeIds);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return { checkedNodeIds: next };
+    }),
+  setCheckedNodeIds: (ids) => set({ checkedNodeIds: ids }),
+  clearCheckedNodes: () => set({ checkedNodeIds: new Set() }),
   chatRefreshSignals: {},
   bumpChatRefresh: (nodeId) => set((s) => ({
     chatRefreshSignals: { ...s.chatRefreshSignals, [nodeId]: (s.chatRefreshSignals[nodeId] || 0) + 1 },

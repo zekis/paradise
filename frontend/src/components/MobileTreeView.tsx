@@ -7,6 +7,9 @@ import type { Node, Edge } from "@xyflow/react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { resolveMdiIcon } from "@/lib/mdiIcons";
 import { buildTree, getStatusColor, type TreeNode } from "@/lib/treeUtils";
+import type { NanobotNodeData } from "@/types";
+import { NetworkCommandBar } from "./NetworkCommandBar";
+import { MessageAllModal } from "./MessageAllModal";
 
 // ─── MobileTreeItem (recursive) ───
 
@@ -15,7 +18,9 @@ function MobileTreeItem({
   depth,
   selectedNodeId,
   collapsedNodes,
+  checkedNodeIds,
   onToggleCollapse,
+  onToggleCheck,
   onItemClick,
   onContextMenu,
 }: {
@@ -23,7 +28,9 @@ function MobileTreeItem({
   depth: number;
   selectedNodeId: string | null;
   collapsedNodes: Set<string>;
+  checkedNodeIds: Set<string>;
   onToggleCollapse: (id: string) => void;
+  onToggleCheck: (id: string) => void;
   onItemClick: (id: string) => void;
   onContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
 }) {
@@ -63,6 +70,22 @@ function MobileTreeItem({
         ) : (
           <span style={{ width: 22, flexShrink: 0 }} />
         )}
+
+        {/* Checkbox for multi-select */}
+        <input
+          type="checkbox"
+          checked={checkedNodeIds.has(node.id)}
+          onChange={() => onToggleCheck(node.id)}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: 16,
+            height: 16,
+            flexShrink: 0,
+            cursor: "pointer",
+            accentColor: "var(--accent)",
+            margin: 0,
+          }}
+        />
 
         {/* Icon */}
         {node.icon && resolveMdiIcon(node.icon) ? (
@@ -109,7 +132,9 @@ function MobileTreeItem({
             depth={depth + 1}
             selectedNodeId={selectedNodeId}
             collapsedNodes={collapsedNodes}
+            checkedNodeIds={checkedNodeIds}
             onToggleCollapse={onToggleCollapse}
+            onToggleCheck={onToggleCheck}
             onItemClick={onItemClick}
             onContextMenu={onContextMenu}
           />
@@ -130,9 +155,28 @@ interface MobileTreeViewProps {
 
 export function MobileTreeView({ nodes, edges, onSelectNode, onNodeContextMenu }: MobileTreeViewProps) {
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
+  const [showMessageModal, setShowMessageModal] = useState(false);
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
+  const checkedNodeIds = useCanvasStore((s) => s.checkedNodeIds);
+  const toggleCheckedNode = useCanvasStore((s) => s.toggleCheckedNode);
+  const setCheckedNodeIds = useCanvasStore((s) => s.setCheckedNodeIds);
 
   const tree = useMemo(() => buildTree(nodes, edges), [nodes, edges]);
+
+  const allNodeIds = useMemo(
+    () => nodes.filter((n) => !(n.data as NanobotNodeData)?.archived).map((n) => n.id),
+    [nodes]
+  );
+  const allChecked = allNodeIds.length > 0 && allNodeIds.every((id) => checkedNodeIds.has(id));
+  const someChecked = allNodeIds.some((id) => checkedNodeIds.has(id));
+
+  const handleToggleAll = useCallback(() => {
+    if (allChecked) {
+      useCanvasStore.getState().clearCheckedNodes();
+    } else {
+      setCheckedNodeIds(new Set(allNodeIds));
+    }
+  }, [allChecked, allNodeIds, setCheckedNodeIds]);
 
   const toggleNodeCollapse = useCallback((nodeId: string) => {
     setCollapsedNodes((prev) => {
@@ -144,6 +188,7 @@ export function MobileTreeView({ nodes, edges, onSelectNode, onNodeContextMenu }
   }, []);
 
   return (
+    <>
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* Header */}
       <div
@@ -157,6 +202,21 @@ export function MobileTreeView({ nodes, edges, onSelectNode, onNodeContextMenu }
           flexShrink: 0,
         }}
       >
+        <input
+          type="checkbox"
+          checked={allChecked}
+          ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }}
+          onChange={handleToggleAll}
+          style={{
+            width: 16,
+            height: 16,
+            flexShrink: 0,
+            cursor: "pointer",
+            accentColor: "var(--accent)",
+            margin: 0,
+          }}
+          title={allChecked ? "Deselect all" : "Select all"}
+        />
         <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
           Nanobots
         </span>
@@ -190,13 +250,31 @@ export function MobileTreeView({ nodes, edges, onSelectNode, onNodeContextMenu }
               depth={0}
               selectedNodeId={selectedNodeId}
               collapsedNodes={collapsedNodes}
+              checkedNodeIds={checkedNodeIds}
               onToggleCollapse={toggleNodeCollapse}
+              onToggleCheck={toggleCheckedNode}
               onItemClick={onSelectNode}
               onContextMenu={onNodeContextMenu}
             />
           ))
         )}
       </div>
+
+      {/* Network command bar (visible when nodes are checked) */}
+      {checkedNodeIds.size > 0 && (
+        <NetworkCommandBar
+          nodes={nodes}
+          onMessageAll={() => setShowMessageModal(true)}
+        />
+      )}
     </div>
+
+    {showMessageModal && (
+      <MessageAllModal
+        nodes={nodes}
+        onClose={() => setShowMessageModal(false)}
+      />
+    )}
+    </>
   );
 }
