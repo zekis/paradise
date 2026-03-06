@@ -27,6 +27,7 @@ function TreeItem({
   collapsedNodes,
   onToggleCollapse,
   onItemClick,
+  onContextMenu,
 }: {
   node: TreeNode;
   depth: number;
@@ -34,16 +35,19 @@ function TreeItem({
   collapsedNodes: Set<string>;
   onToggleCollapse: (id: string) => void;
   onItemClick: (id: string) => void;
+  onContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
 }) {
   const isSelected = node.id === selectedNodeId;
   const isCollapsed = collapsedNodes.has(node.id);
   const hasChildren = node.children.length > 0;
+  const isArchived = node.archived ?? false;
   const statusColor = getStatusColor(node.agentStatus, node.containerStatus);
 
   return (
     <>
       <div
         onClick={() => onItemClick(node.id)}
+        onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e, node.id); }}
         onMouseOver={(e) => {
           if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--overlay-subtle)";
         }}
@@ -62,6 +66,7 @@ function TreeItem({
           background: isSelected ? "rgba(99, 102, 241, 0.12)" : "transparent",
           borderLeft: isSelected ? "2px solid var(--accent)" : "2px solid transparent",
           fontSize: 12,
+          opacity: isArchived ? 0.45 : 1,
         }}
       >
         {/* Chevron for expand/collapse */}
@@ -106,8 +111,9 @@ function TreeItem({
             width: 7,
             height: 7,
             borderRadius: "50%",
-            background: statusColor,
+            background: isArchived ? "var(--text-muted)" : statusColor,
             flexShrink: 0,
+            opacity: isArchived ? 0.4 : 1,
           }}
         />
       </div>
@@ -122,6 +128,7 @@ function TreeItem({
             collapsedNodes={collapsedNodes}
             onToggleCollapse={onToggleCollapse}
             onItemClick={onItemClick}
+            onContextMenu={onContextMenu}
           />
         ))
       }
@@ -136,9 +143,10 @@ interface TreeViewDrawerProps {
   edges: Edge[];
   onFocusNode: (nodeId: string) => void;
   onOpenChange?: (open: boolean) => void;
+  onNodeContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
 }
 
-export function TreeViewDrawer({ nodes, edges, onFocusNode, onOpenChange }: TreeViewDrawerProps) {
+export function TreeViewDrawer({ nodes, edges, onFocusNode, onOpenChange, onNodeContextMenu }: TreeViewDrawerProps) {
   const [expanded, setExpanded] = useState(true);
   const [pinned, setPinned] = useState(true);
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
@@ -267,6 +275,7 @@ export function TreeViewDrawer({ nodes, edges, onFocusNode, onOpenChange }: Tree
                 collapsedNodes={collapsedNodes}
                 onToggleCollapse={toggleNodeCollapse}
                 onItemClick={handleItemClick}
+                onContextMenu={onNodeContextMenu}
               />
             ))
           )}

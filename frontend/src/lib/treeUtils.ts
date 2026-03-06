@@ -9,6 +9,7 @@ export interface TreeNode {
   color?: string;
   agentStatus: string | null;
   containerStatus: string | null;
+  archived?: boolean;
   children: TreeNode[];
 }
 
@@ -73,6 +74,7 @@ export function buildTree(nodes: Node[], edges: Edge[]): TreeNode[] {
       color: data.identity?.color,
       agentStatus: data.agentStatus ?? null,
       containerStatus: data.containerStatus ?? null,
+      archived: data.archived ?? false,
       children,
     };
   }
