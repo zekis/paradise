@@ -27,7 +27,7 @@ from app.routes.areas import (
 class TestAreaCreateModel:
     def test_defaults(self):
         ac = AreaCreate()
-        assert ac.name == "New Area"
+        assert ac.name is None
 
     def test_custom(self):
         ac = AreaCreate(name="My Area")
@@ -80,7 +80,7 @@ class FakeNode:
 
 class TestCreateArea:
     @pytest.mark.asyncio
-    async def test_creates_area_successfully(self):
+    async def test_creates_area_with_explicit_name(self):
         db = AsyncMock()
         db.add = MagicMock()
         db.commit = AsyncMock()
@@ -101,6 +101,27 @@ class TestCreateArea:
         db.commit.assert_awaited_once()
         assert result.name == "Test"
         assert result.sort_order == 2.0  # max_order(1.0) + 1.0
+
+    @pytest.mark.asyncio
+    async def test_auto_generates_name_when_none(self):
+        db = AsyncMock()
+        db.add = MagicMock()
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
+
+        # First call: max sort_order, second call: count areas
+        fake_sort = MagicMock()
+        fake_sort.scalar.return_value = 1.0
+        fake_count = MagicMock()
+        fake_count.scalar.return_value = 3
+        db.execute = AsyncMock(side_effect=[fake_sort, fake_count])
+
+        payload = AreaCreate()  # name is None
+
+        with patch("app.routes.areas.emit_event", new_callable=AsyncMock):
+            result = await create_area(payload=payload, db=db)
+
+        assert result.name == "Area 4"  # 3 existing + 1
 
 
 class TestUpdateArea:

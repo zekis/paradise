@@ -28,7 +28,7 @@ class Area(Base):
     __tablename__ = "areas"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(Text, nullable=False, default="Main")
+    name = Column(Text, nullable=False, default="Area 1")
     sort_order = Column(Float, nullable=False, default=0.0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -182,7 +182,7 @@ async def create_tables():
         result = await db.execute(select(Area))
         existing_area = result.scalars().first()
         if not existing_area:
-            default_area = Area(name="Main", sort_order=0.0)
+            default_area = Area(name="Area 1", sort_order=0.0)
             db.add(default_area)
             await db.flush()
 

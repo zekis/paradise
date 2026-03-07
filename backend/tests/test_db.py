@@ -134,7 +134,7 @@ class TestAreaModel:
     def test_name_default(self):
         col = Area.__table__.c["name"]
         assert col.default is not None
-        assert col.default.arg == "Main"
+        assert col.default.arg == "Area 1"
 
     def test_sort_order_default(self):
         col = Area.__table__.c["sort_order"]

@@ -15,7 +15,6 @@ import { NanobotNode } from "./NanobotNode";
 import { DeletableEdge } from "./DeletableEdge";
 import { DefaultConfigPanel } from "./DefaultConfigPanel";
 import { GenesisModal, type GenesisResult } from "./GenesisModal";
-import { CanvasToolbar } from "./CanvasToolbar";
 import { NodeDrawer } from "./NodeDrawer";
 import { ContextMenu } from "./ContextMenu";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
@@ -410,8 +409,6 @@ function CanvasInner() {
         <Controls style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }} />
         <MiniMap style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }} nodeColor="var(--accent)" maskColor="var(--shadow-md)" />
       </ReactFlow>
-
-      <CanvasToolbar />
 
       {showSettings && <DefaultConfigPanel api={api} onClose={() => setShowSettings(false)} onFocusNode={handleFocusNode} />}
       {selectedNodeData && (

@@ -18,7 +18,7 @@ router = APIRouter(tags=["areas"])
 # ---------------------------------------------------------------------------
 
 class AreaCreate(BaseModel):
-    name: str = "New Area"
+    name: str | None = None
 
 
 class AreaUpdate(BaseModel):
@@ -75,7 +75,15 @@ async def create_area(payload: AreaCreate, db: AsyncSession = Depends(get_db)):
         select(func.coalesce(func.max(Area.sort_order), -1.0))
     )
     max_order = result.scalar() or 0.0
-    area = Area(id=uuid4(), name=payload.name, sort_order=max_order + 1.0)
+
+    # Auto-generate name if not provided
+    name = payload.name
+    if not name:
+        count_result = await db.execute(select(func.count(Area.id)))
+        count = count_result.scalar() or 0
+        name = f"Area {count + 1}"
+
+    area = Area(id=uuid4(), name=name, sort_order=max_order + 1.0)
     db.add(area)
 
     # Create a CanvasState row for the new area

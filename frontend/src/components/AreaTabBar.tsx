@@ -2,11 +2,24 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "@mdi/react";
-import { mdiPlus, mdiPencilOutline, mdiDeleteOutline, mdiCog } from "@mdi/js";
+import { mdiPlus, mdiPencilOutline, mdiDeleteOutline, mdiCog, mdiRobot, mdiWeatherSunny, mdiWeatherNight, mdiThemeLightDark } from "@mdi/js";
 import { useAreaStore, type Area } from "@/store/areaStore";
 import { useCanvasStore } from "@/store/canvasStore";
+import { useThemeStore } from "@/store/themeStore";
 import { API_URL as API } from "@/lib/api";
 import { AreaDeleteModal } from "./AreaDeleteModal";
+
+const themeIcon: Record<string, string> = {
+  dark: mdiWeatherNight,
+  light: mdiWeatherSunny,
+  system: mdiThemeLightDark,
+};
+
+const themeLabel: Record<string, string> = {
+  dark: "Theme: Dark",
+  light: "Theme: Light",
+  system: "Theme: System",
+};
 
 interface AreaTabBarProps {
   isMobile?: boolean;
@@ -18,6 +31,9 @@ interface AreaTabBarProps {
 export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot }: AreaTabBarProps) {
   const areas = useAreaStore((s) => s.areas);
   const activeAreaId = useAreaStore((s) => s.activeAreaId);
+  const mode = useThemeStore((s) => s.mode);
+  const cycleTheme = useThemeStore((s) => s.cycleTheme);
+  const initTheme = useThemeStore((s) => s.initTheme);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; area: Area } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -35,7 +51,7 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
       const res = await fetch(`${API}/api/areas`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "New Area" }),
+        body: JSON.stringify({}),
       });
       if (!res.ok) return;
       const area = await res.json();
@@ -109,6 +125,11 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
       inputRef.current.select();
     }
   }, [editingId]);
+
+  // Initialize theme on mount
+  useEffect(() => {
+    initTheme();
+  }, [initTheme]);
 
   const height = isMobile ? 36 : 32;
 
@@ -266,9 +287,33 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
             onMouseEnter={(e) => (e.currentTarget.style.background = "var(--accent-hover)")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "var(--accent)")}
           >
-            <Icon path={mdiPlus} size={0.7} />
+            <Icon path={mdiRobot} size={0.6} />
           </button>
         )}
+
+        {/* Theme toggle */}
+        <button
+          onClick={cycleTheme}
+          title={themeLabel[mode]}
+          style={{
+            height,
+            width: height,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "transparent",
+            border: "none",
+            borderLeft: "1px solid var(--border)",
+            cursor: "pointer",
+            flexShrink: 0,
+            color: "var(--text-muted)",
+            transition: "background 0.15s, color 0.15s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--overlay-light)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+        >
+          <Icon path={themeIcon[mode]} size={0.6} />
+        </button>
       </div>
 
       {/* Tab context menu */}

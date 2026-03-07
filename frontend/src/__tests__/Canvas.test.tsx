@@ -55,9 +55,23 @@ vi.mock("@/store/canvasStore", () => {
   return { useCanvasStore };
 });
 
+vi.mock("@/store/themeStore", () => {
+  const state = {
+    mode: "dark" as string,
+    resolved: "dark" as string,
+    cycleTheme: vi.fn(),
+    initTheme: vi.fn(),
+  };
+  const useThemeStore = Object.assign(
+    (selector?: (s: typeof state) => unknown) => (selector ? selector(state) : state),
+    { getState: () => state },
+  );
+  return { useThemeStore };
+});
+
 vi.mock("@/store/areaStore", () => {
   const state = {
-    areas: [{ id: "area-1", name: "Main", sort_order: 0, node_count: 0 }],
+    areas: [{ id: "area-1", name: "Area 1", sort_order: 0, node_count: 0 }],
     activeAreaId: "area-1",
     loaded: true,
     setAreas: vi.fn(),
