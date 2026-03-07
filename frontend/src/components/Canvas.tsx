@@ -19,7 +19,6 @@ import { CanvasToolbar } from "./CanvasToolbar";
 import { NodeDrawer } from "./NodeDrawer";
 import { ContextMenu } from "./ContextMenu";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
-import { EventLogDrawer } from "./EventLogDrawer";
 import { TreeViewDrawer } from "./TreeViewDrawer";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useCanvasSync } from "@/hooks/useCanvasSync";
@@ -120,13 +119,14 @@ function CanvasInner() {
     [api, nodes, screenToFlowPosition]
   );
 
-  // Start event log polling once the API URL is known (skip on mobile)
+  // Start event log polling once the API URL is known (skip on mobile, respect enabled toggle)
+  const eventLogEnabled = useEventLogStore((s) => s.enabled);
   useEffect(() => {
-    if (api && !isMobile) {
+    if (api && !isMobile && eventLogEnabled) {
       useEventLogStore.getState().startPolling(api);
     }
     return () => { useEventLogStore.getState().stopPolling(); };
-  }, [api, isMobile]);
+  }, [api, isMobile, eventLogEnabled]);
 
   const handleFocusNode = useCallback((nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId);
@@ -397,7 +397,7 @@ function CanvasInner() {
 
       <CanvasToolbar showSettings={showSettings} onToggleSettings={handleToggleSettings} onAddBot={() => setShowGenesis(true)} />
 
-      {showSettings && <DefaultConfigPanel api={api} onClose={() => setShowSettings(false)} />}
+      {showSettings && <DefaultConfigPanel api={api} onClose={() => setShowSettings(false)} onFocusNode={handleFocusNode} />}
       {selectedNodeData && (
         <NodeDrawer data={selectedNodeData} onClose={() => setSelectedNodeId(null)} />
       )}
@@ -454,7 +454,6 @@ function CanvasInner() {
       )}
 
       <TreeViewDrawer nodes={nodes} edges={edges} onFocusNode={handleFocusNode} onOpenChange={setTreeDrawerOpen} onNodeContextMenu={handleTreeNodeContextMenu} />
-      <EventLogDrawer drawerOpen={!!selectedNodeData || showSettings} treeDrawerOpen={treeDrawerOpen} onFocusNode={handleFocusNode} />
 
     </div>
   );

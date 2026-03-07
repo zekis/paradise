@@ -13,6 +13,8 @@ export interface EventLogEntry {
 interface EventLogStore {
   events: EventLogEntry[];
   polling: boolean;
+  enabled: boolean;
+  setEnabled: (enabled: boolean) => void;
   startPolling: (api: string) => void;
   stopPolling: () => void;
   clearEvents: (api: string) => void;
@@ -24,6 +26,24 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 export const useEventLogStore = create<EventLogStore>((set, get) => ({
   events: [],
   polling: false,
+  enabled: (() => {
+    try {
+      return localStorage.getItem("paradise-event-log-enabled") === "true";
+    } catch {
+      return false;
+    }
+  })(),
+
+  setEnabled: (enabled: boolean) => {
+    try {
+      localStorage.setItem("paradise-event-log-enabled", String(enabled));
+    } catch { /* ignore */ }
+    set({ enabled });
+    if (!enabled) {
+      get().stopPolling();
+      set({ events: [] });
+    }
+  },
 
   startPolling: (api: string) => {
     if (get().polling) return;

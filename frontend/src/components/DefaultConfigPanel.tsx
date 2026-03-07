@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "@mdi/react";
-import { mdiClose, mdiCog, mdiRobot } from "@mdi/js";
+import { mdiClose, mdiCog, mdiRobot, mdiFormatListBulleted, mdiDeleteSweepOutline } from "@mdi/js";
 import { useAsyncForm } from "@/hooks/useAsyncForm";
+import { useEventLogStore, type EventLogEntry } from "@/store/eventLogStore";
 
-type SettingsTab = "config" | "templates";
+type SettingsTab = "config" | "templates" | "events";
 type TemplateKey = "SOUL.md" | "AGENTS.md" | "USER.md" | "HEARTBEAT.md";
 
 const TEMPLATE_FILES: { key: TemplateKey; label: string }[] = [
@@ -15,16 +16,182 @@ const TEMPLATE_FILES: { key: TemplateKey; label: string }[] = [
   { key: "HEARTBEAT.md", label: "Heartbeat" },
 ];
 
+const EVENT_TYPE_COLORS: Record<string, string> = {
+  node_created: "var(--green)",
+  node_cloned: "var(--green)",
+  node_deleted: "var(--red)",
+  node_renamed: "var(--accent)",
+  container_restart: "var(--yellow)",
+  container_rebuild: "var(--yellow)",
+  agent_status: "var(--yellow)",
+  identity_update: "var(--accent)",
+  chat_response: "var(--text-muted)",
+  chat_tool_call: "var(--text-muted)",
+  chat_error: "var(--red)",
+  edge_created: "var(--text-muted)",
+  edge_deleted: "var(--text-muted)",
+};
+
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  node_created: "created",
+  node_cloned: "cloned",
+  node_deleted: "deleted",
+  node_renamed: "renamed",
+  container_restart: "restart",
+  container_rebuild: "rebuild",
+  agent_status: "status",
+  identity_update: "identity",
+  chat_response: "response",
+  chat_tool_call: "tool_call",
+  chat_error: "error",
+  edge_created: "edge+",
+  edge_deleted: "edge-",
+};
+
+function formatTime(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+function EventListEmbedded({
+  api,
+  onFocusNode,
+}: {
+  api: string;
+  onFocusNode?: (nodeId: string) => void;
+}) {
+  const events = useEventLogStore((s) => s.events);
+  const clearEvents = useEventLogStore((s) => s.clearEvents);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
+    }
+  }, [events.length]);
+
+  return (
+    <>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "6px 16px",
+        borderBottom: "1px solid var(--border)",
+        flexShrink: 0,
+      }}>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+          {events.length} event{events.length !== 1 ? "s" : ""}
+        </span>
+        <button
+          onClick={() => clearEvents(api)}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "var(--text-muted)",
+            cursor: "pointer",
+            padding: "0 4px",
+            lineHeight: 0,
+            display: "flex",
+            alignItems: "center",
+          }}
+          title="Clear events"
+        >
+          <Icon path={mdiDeleteSweepOutline} size={0.55} />
+        </button>
+      </div>
+      <div ref={listRef} style={{ flex: 1, overflowY: "auto", fontSize: 11 }}>
+        {events.length === 0 ? (
+          <div style={{ padding: 12, color: "var(--text-muted)", textAlign: "center", fontSize: 11 }}>
+            No events yet
+          </div>
+        ) : (
+          events.map((entry) => (
+            <div
+              key={entry.id}
+              onClick={() => entry.node_id && onFocusNode?.(entry.node_id)}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "54px 80px 60px 1fr",
+                alignItems: "center",
+                gap: 6,
+                padding: "3px 12px",
+                cursor: entry.node_id ? "pointer" : "default",
+                borderBottom: "1px solid var(--overlay-subtle)",
+              }}
+              onMouseOver={(e) => {
+                if (entry.node_id) (e.currentTarget as HTMLDivElement).style.background = "var(--overlay-subtle)";
+              }}
+              onMouseOut={(e) => {
+                (e.currentTarget as HTMLDivElement).style.background = "transparent";
+              }}
+            >
+              <span style={{ fontFamily: "monospace", fontSize: 10, color: "var(--text-muted)" }}>
+                {formatTime(entry.created_at)}
+              </span>
+              <span
+                style={{
+                  color: "var(--text)",
+                  fontWeight: 500,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={entry.node_name || undefined}
+              >
+                {entry.node_name || "\u2014"}
+              </span>
+              <span
+                style={{
+                  fontSize: 9,
+                  background: `${EVENT_TYPE_COLORS[entry.event_type] || "var(--text-muted)"}22`,
+                  color: EVENT_TYPE_COLORS[entry.event_type] || "var(--text-muted)",
+                  borderRadius: 3,
+                  padding: "1px 6px",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {EVENT_TYPE_LABELS[entry.event_type] || entry.event_type}
+              </span>
+              <span
+                style={{
+                  color: "var(--text-muted)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  minWidth: 0,
+                }}
+                title={entry.summary || undefined}
+              >
+                {entry.summary || ""}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
 export function DefaultConfigPanel({
   api,
   onClose,
   isMobile,
+  onFocusNode,
 }: {
   api: string;
   onClose: () => void;
   isMobile?: boolean;
+  onFocusNode?: (nodeId: string) => void;
 }) {
   const [tab, setTab] = useState<SettingsTab>("config");
+  const eventLogEnabled = useEventLogStore((s) => s.enabled);
+  const setEventLogEnabled = useEventLogStore((s) => s.setEnabled);
 
   // ─── Config form ───
   const configForm = useAsyncForm({
@@ -183,6 +350,18 @@ export function DefaultConfigPanel({
         >
           <Icon path={mdiRobot} size={0.55} /> Agent Templates
         </button>
+        {!isMobile && (
+          <button
+            onClick={() => setTab("events")}
+            style={{
+              ...btnBase,
+              color: tab === "events" ? "var(--text)" : "var(--text-muted)",
+              borderBottomColor: tab === "events" ? "var(--tab-active)" : "transparent",
+            }}
+          >
+            <Icon path={mdiFormatListBulleted} size={0.55} /> Events
+          </button>
+        )}
       </div>
 
       {/* Config Tab */}
@@ -341,6 +520,80 @@ export function DefaultConfigPanel({
                 Reset
               </button>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Events Tab */}
+      <div style={{
+        flex: 1,
+        flexDirection: "column",
+        overflow: "hidden",
+        display: tab === "events" ? "flex" : "none",
+      }}>
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 16px",
+          borderBottom: "1px solid var(--border)",
+        }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 500, color: "var(--text)" }}>
+              Enable Event Log
+            </div>
+            <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+              Polls server for events every 3s when enabled
+            </div>
+          </div>
+          <label style={{
+            position: "relative",
+            display: "inline-block",
+            width: 36,
+            height: 20,
+            flexShrink: 0,
+          }}>
+            <input
+              type="checkbox"
+              checked={eventLogEnabled}
+              onChange={(e) => setEventLogEnabled(e.target.checked)}
+              style={{ opacity: 0, width: 0, height: 0 }}
+            />
+            <span style={{
+              position: "absolute",
+              cursor: "pointer",
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: eventLogEnabled ? "var(--accent)" : "var(--border)",
+              borderRadius: 10,
+              transition: "background 0.2s",
+            }}>
+              <span style={{
+                position: "absolute",
+                height: 16, width: 16,
+                left: eventLogEnabled ? 18 : 2,
+                bottom: 2,
+                background: "var(--text)",
+                borderRadius: "50%",
+                transition: "left 0.2s",
+              }} />
+            </span>
+          </label>
+        </div>
+
+        {eventLogEnabled ? (
+          <EventListEmbedded api={api} onFocusNode={onFocusNode} />
+        ) : (
+          <div style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "var(--text-muted)",
+            fontSize: 11,
+            padding: 16,
+            textAlign: "center",
+          }}>
+            Event logging is disabled. Enable it to see real-time events.
           </div>
         )}
       </div>
