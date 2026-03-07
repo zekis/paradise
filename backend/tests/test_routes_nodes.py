@@ -73,6 +73,8 @@ class TestNodeReadModel:
             gauge_value = None
             gauge_label = None
             gauge_unit = None
+            gauge_warn_threshold = None
+            gauge_critical_threshold = None
             archived = False
             area_id = None
             created_at = datetime.now(timezone.utc)

@@ -17,8 +17,10 @@ class ParadiseTool(Tool):
         "Set this node's gauge value and/or status indicator in Paradise. "
         "Use gauge_value (0-100) with optional gauge_label and gauge_unit to display "
         "a progress ring on the node icon. "
+        "Use gauge_warn_threshold and gauge_critical_threshold to define when the gauge "
+        "should highlight in yellow or red (by default the gauge stays grey/muted). "
         "Use status (ok/warning/error) with optional status_message to set the "
-        "status indicator dot."
+        "status indicator dot. Status 'ok' appears grey; only warning/error show colour."
     )
     parameters = {
         "type": "object",
@@ -37,10 +39,22 @@ class ParadiseTool(Tool):
                 "type": "string",
                 "description": "Unit for the gauge value (e.g. '%', 'ms').",
             },
+            "gauge_warn_threshold": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Gauge value threshold that triggers a warning (yellow) alert. Values at or above this show yellow.",
+            },
+            "gauge_critical_threshold": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Gauge value threshold that triggers a critical (red) alert. Values at or above this show red.",
+            },
             "status": {
                 "type": "string",
                 "enum": ["ok", "warning", "error"],
-                "description": "Status indicator: ok (green), warning (yellow), or error (red).",
+                "description": "Status indicator: ok (grey), warning (yellow), or error (red).",
             },
             "status_message": {
                 "type": "string",
@@ -63,13 +77,18 @@ class ParadiseTool(Tool):
             # Set gauge if gauge_value provided
             if "gauge_value" in kwargs:
                 try:
-                    r = await client.put(
-                        f"{self._backend_url}/api/nodes/{self._node_id}/gauge",
-                        json={
+                    payload = {
                             "value": kwargs["gauge_value"],
                             "label": kwargs.get("gauge_label", ""),
                             "unit": kwargs.get("gauge_unit", ""),
-                        },
+                        }
+                    if "gauge_warn_threshold" in kwargs:
+                        payload["warn_threshold"] = kwargs["gauge_warn_threshold"]
+                    if "gauge_critical_threshold" in kwargs:
+                        payload["critical_threshold"] = kwargs["gauge_critical_threshold"]
+                    r = await client.put(
+                        f"{self._backend_url}/api/nodes/{self._node_id}/gauge",
+                        json=payload,
                     )
                     r.raise_for_status()
                     results.append(f"Gauge set to {kwargs['gauge_value']}")

@@ -54,6 +54,8 @@ class Node(Base):
     gauge_value = Column(Float, nullable=True)
     gauge_label = Column(Text, nullable=True)
     gauge_unit = Column(Text, nullable=True)
+    gauge_warn_threshold = Column(Float, nullable=True)
+    gauge_critical_threshold = Column(Float, nullable=True)
     archived = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -154,6 +156,8 @@ async def create_tables():
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_value DOUBLE PRECISION"))
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_label TEXT"))
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_unit TEXT"))
+        await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_warn_threshold DOUBLE PRECISION"))
+        await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS gauge_critical_threshold DOUBLE PRECISION"))
         await conn.execute(text(
             "ALTER TABLE nodes ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE"
         ))

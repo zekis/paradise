@@ -41,8 +41,7 @@ function NodeCard({
   const isArchived = data.archived ?? false;
   const statusColor = getStatusColor(data.agentStatus ?? null, data.containerStatus);
   const hasGauge = data.gaugeValue != null;
-  const identityColor = data.identity?.color || null;
-  const gaugeColor = hasGauge ? getGaugeColor(data.gaugeValue!, identityColor) : undefined;
+  const gaugeColor = hasGauge ? getGaugeColor(data.gaugeValue!, data.gaugeWarnThreshold ?? null, data.gaugeCriticalThreshold ?? null) : undefined;
   const resolvedIcon = data.identity?.icon ? resolveMdiIcon(data.identity.icon) : null;
 
   return (
@@ -87,7 +86,7 @@ function NodeCard({
 
         {/* Icon badge */}
         {resolvedIcon ? (
-          <Icon path={resolvedIcon} size={0.55} color={identityColor || "var(--text-muted)"} style={{ flexShrink: 0 }} />
+          <Icon path={resolvedIcon} size={0.55} color="var(--text-muted)" style={{ flexShrink: 0 }} />
         ) : data.identity?.emoji ? (
           <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{data.identity.emoji}</span>
         ) : (

@@ -26,6 +26,11 @@ class FakeNode:
         self.agent_status = kwargs.get("agent_status", None)
         self.agent_status_message = kwargs.get("agent_status_message", None)
         self.area_id = kwargs.get("area_id", None)
+        self.gauge_value = kwargs.get("gauge_value", None)
+        self.gauge_label = kwargs.get("gauge_label", None)
+        self.gauge_unit = kwargs.get("gauge_unit", None)
+        self.gauge_warn_threshold = kwargs.get("gauge_warn_threshold", None)
+        self.gauge_critical_threshold = kwargs.get("gauge_critical_threshold", None)
 
 
 # ---------------------------------------------------------------------------

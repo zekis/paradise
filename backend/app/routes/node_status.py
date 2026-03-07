@@ -39,6 +39,8 @@ class GaugeRequest(BaseModel):
     value: float | None = None
     label: str = ""
     unit: str = ""
+    warn_threshold: float | None = None
+    critical_threshold: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +167,8 @@ async def set_gauge(node_id: UUID, request: GaugeRequest, db: AsyncSession = Dep
         node.gauge_value = None
         node.gauge_label = None
         node.gauge_unit = None
+        node.gauge_warn_threshold = None
+        node.gauge_critical_threshold = None
     else:
         value = request.value
         if value < 0 or value > 100:
@@ -172,12 +176,18 @@ async def set_gauge(node_id: UUID, request: GaugeRequest, db: AsyncSession = Dep
         node.gauge_value = value
         node.gauge_label = request.label[:100] or None
         node.gauge_unit = request.unit[:20] or None
+        if request.warn_threshold is not None:
+            node.gauge_warn_threshold = request.warn_threshold
+        if request.critical_threshold is not None:
+            node.gauge_critical_threshold = request.critical_threshold
     await db.commit()
     await broadcast.publish("gauge", {
         "node_id": str(node_id),
         "gauge_value": node.gauge_value,
         "gauge_label": node.gauge_label,
         "gauge_unit": node.gauge_unit,
+        "gauge_warn_threshold": node.gauge_warn_threshold,
+        "gauge_critical_threshold": node.gauge_critical_threshold,
         "area_id": str(node.area_id) if node.area_id else None,
     })
     return {"ok": True, "gauge_value": node.gauge_value, "gauge_label": node.gauge_label, "gauge_unit": node.gauge_unit}

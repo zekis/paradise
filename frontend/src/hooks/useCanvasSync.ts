@@ -63,11 +63,11 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
     );
   });
 
-  store.setUpdateNodeGauge((nodeId: string, value: number | null, label?: string, unit?: string) => {
+  store.setUpdateNodeGauge((nodeId: string, value: number | null, label?: string, unit?: string, warnThreshold?: number | null, criticalThreshold?: number | null) => {
     setNodes((nds) =>
       nds.map((n) =>
         n.id === nodeId
-          ? { ...n, data: { ...n.data, gaugeValue: value, gaugeLabel: label || null, gaugeUnit: unit || null } }
+          ? { ...n, data: { ...n.data, gaugeValue: value, gaugeLabel: label || null, gaugeUnit: unit || null, gaugeWarnThreshold: warnThreshold ?? null, gaugeCriticalThreshold: criticalThreshold ?? null } }
           : n
       )
     );
@@ -230,7 +230,7 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
         const store = useCanvasStore.getState();
         switch (msg.event) {
           case "gauge":
-            store.updateNodeGauge(msg.node_id, msg.gauge_value ?? null, msg.gauge_label, msg.gauge_unit);
+            store.updateNodeGauge(msg.node_id, msg.gauge_value ?? null, msg.gauge_label, msg.gauge_unit, msg.gauge_warn_threshold, msg.gauge_critical_threshold);
             break;
           case "agent_status":
             store.updateNodeAgentStatus(msg.node_id, msg.agent_status, msg.agent_status_message);
@@ -306,6 +306,8 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
                 gaugeValue: freshData.gaugeValue,
                 gaugeLabel: freshData.gaugeLabel,
                 gaugeUnit: freshData.gaugeUnit,
+                gaugeWarnThreshold: freshData.gaugeWarnThreshold,
+                gaugeCriticalThreshold: freshData.gaugeCriticalThreshold,
               },
             };
           })
