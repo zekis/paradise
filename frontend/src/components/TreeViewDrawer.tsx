@@ -338,7 +338,7 @@ export function TreeViewDrawer({ nodes, onFocusNode, onOpenChange, onNodeContext
       <div
         style={{
           width: TAB_WIDTH,
-          display: "flex",
+          display: expanded ? "none" : "flex",
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
