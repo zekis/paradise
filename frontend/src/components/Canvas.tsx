@@ -4,7 +4,6 @@ import {
   ReactFlow,
   Background,
   Controls,
-  MiniMap,
   BackgroundVariant,
   ReactFlowProvider,
   useReactFlow,
@@ -407,7 +406,6 @@ function CanvasInner() {
       >
         <Background variant={BackgroundVariant.Dots} color="var(--dots)" gap={20} />
         <Controls style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }} />
-        <MiniMap style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }} nodeColor="var(--accent)" maskColor="var(--shadow-md)" />
       </ReactFlow>
 
       {showSettings && <DefaultConfigPanel api={api} onClose={() => setShowSettings(false)} onFocusNode={handleFocusNode} />}

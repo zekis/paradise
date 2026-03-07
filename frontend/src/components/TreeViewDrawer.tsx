@@ -231,10 +231,10 @@ export function TreeViewDrawer({ nodes, onFocusNode, onOpenChange, onNodeContext
       onMouseLeave={handleMouseLeave}
       style={{
         position: "fixed",
-        top: 0,
+        top: 32,
         left: 0,
         width: DRAWER_WIDTH,
-        height: "100vh",
+        height: "calc(100vh - 32px)",
         transform: `translateX(${translateX}px)`,
         transition: "transform 0.25s ease",
         background: "var(--bg-card)",
