@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "@mdi/react";
-import { mdiPlus, mdiPencilOutline, mdiDeleteOutline } from "@mdi/js";
+import { mdiPlus, mdiPencilOutline, mdiDeleteOutline, mdiCog } from "@mdi/js";
 import { useAreaStore, type Area } from "@/store/areaStore";
 import { useCanvasStore } from "@/store/canvasStore";
 import { API_URL as API } from "@/lib/api";
@@ -10,9 +10,12 @@ import { AreaDeleteModal } from "./AreaDeleteModal";
 
 interface AreaTabBarProps {
   isMobile?: boolean;
+  onToggleSettings?: () => void;
+  showSettings?: boolean;
+  onAddBot?: () => void;
 }
 
-export function AreaTabBar({ isMobile }: AreaTabBarProps) {
+export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot }: AreaTabBarProps) {
   const areas = useAreaStore((s) => s.areas);
   const activeAreaId = useAreaStore((s) => s.activeAreaId);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; area: Area } | null>(null);
@@ -216,6 +219,56 @@ export function AreaTabBar({ isMobile }: AreaTabBarProps) {
         >
           <Icon path={mdiPlus} size={0.6} color="var(--text-muted)" />
         </button>
+
+        {/* Config & Add Bot buttons (desktop only) */}
+        {onToggleSettings && (
+          <button
+            onClick={onToggleSettings}
+            title="Default Config"
+            style={{
+              height,
+              width: height,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: showSettings ? "var(--accent)" : "transparent",
+              border: "none",
+              borderLeft: "1px solid var(--border)",
+              cursor: "pointer",
+              flexShrink: 0,
+              color: showSettings ? "var(--text)" : "var(--text-muted)",
+              transition: "background 0.15s, color 0.15s",
+            }}
+            onMouseEnter={(e) => { if (!showSettings) e.currentTarget.style.background = "var(--overlay-light)"; }}
+            onMouseLeave={(e) => { if (!showSettings) e.currentTarget.style.background = "transparent"; }}
+          >
+            <Icon path={mdiCog} size={0.6} />
+          </button>
+        )}
+        {onAddBot && (
+          <button
+            onClick={onAddBot}
+            title="Add Nanobot"
+            style={{
+              height,
+              width: height,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "var(--accent)",
+              border: "none",
+              borderLeft: "1px solid var(--border)",
+              cursor: "pointer",
+              flexShrink: 0,
+              color: "var(--text)",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--accent-hover)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "var(--accent)")}
+          >
+            <Icon path={mdiPlus} size={0.7} />
+          </button>
+        )}
       </div>
 
       {/* Tab context menu */}

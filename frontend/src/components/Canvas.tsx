@@ -376,7 +376,7 @@ function CanvasInner() {
   // ─── Desktop layout ───
   return (
     <div style={{ width: "100%", height: "100vh", display: "flex", flexDirection: "column" }}>
-      <AreaTabBar />
+      <AreaTabBar onToggleSettings={handleToggleSettings} showSettings={showSettings} onAddBot={() => setShowGenesis(true)} />
       <div style={{ flex: 1, position: "relative" }}>
       {!loaded && (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", zIndex: 100, fontSize: 16, color: "var(--text-muted)" }}>
@@ -411,7 +411,7 @@ function CanvasInner() {
         <MiniMap style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }} nodeColor="var(--accent)" maskColor="var(--shadow-md)" />
       </ReactFlow>
 
-      <CanvasToolbar showSettings={showSettings} onToggleSettings={handleToggleSettings} onAddBot={() => setShowGenesis(true)} />
+      <CanvasToolbar />
 
       {showSettings && <DefaultConfigPanel api={api} onClose={() => setShowSettings(false)} onFocusNode={handleFocusNode} />}
       {selectedNodeData && (

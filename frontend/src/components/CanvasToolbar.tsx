@@ -2,14 +2,8 @@
 
 import { useEffect } from "react";
 import Icon from "@mdi/react";
-import { mdiCog, mdiPlus, mdiWeatherSunny, mdiWeatherNight, mdiThemeLightDark } from "@mdi/js";
+import { mdiWeatherSunny, mdiWeatherNight, mdiThemeLightDark } from "@mdi/js";
 import { useThemeStore } from "@/store/themeStore";
-
-interface CanvasToolbarProps {
-  showSettings: boolean;
-  onToggleSettings: () => void;
-  onAddBot: () => void;
-}
 
 const themeIcon: Record<string, string> = {
   dark: mdiWeatherNight,
@@ -23,7 +17,7 @@ const themeLabel: Record<string, string> = {
   system: "Theme: System",
 };
 
-export function CanvasToolbar({ showSettings, onToggleSettings, onAddBot }: CanvasToolbarProps) {
+export function CanvasToolbar() {
   const mode = useThemeStore((s) => s.mode);
   const cycleTheme = useThemeStore((s) => s.cycleTheme);
   const initTheme = useThemeStore((s) => s.initTheme);
@@ -64,49 +58,6 @@ export function CanvasToolbar({ showSettings, onToggleSettings, onAddBot }: Canv
         title={themeLabel[mode]}
       >
         <Icon path={themeIcon[mode]} size={0.9} />
-      </button>
-      <button
-        onClick={onToggleSettings}
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: "50%",
-          background: showSettings ? "var(--accent)" : "var(--bg-card)",
-          color: showSettings ? "var(--text)" : "var(--text-muted)",
-          border: "1px solid var(--border)",
-          fontSize: 18,
-          cursor: "pointer",
-          boxShadow: "0 4px 12px var(--shadow-sm)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          transition: "background 0.2s, color 0.2s",
-        }}
-        title="Default Config"
-      >
-        <Icon path={mdiCog} size={0.9} />
-      </button>
-      <button
-        onClick={onAddBot}
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: "50%",
-          background: "var(--accent)",
-          color: "var(--text)",
-          border: "none",
-          cursor: "pointer",
-          boxShadow: "0 4px 12px var(--shadow-sm)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          transition: "background 0.2s",
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--accent-hover)")}
-        onMouseLeave={(e) => (e.currentTarget.style.background = "var(--accent)")}
-        title="Add Nanobot"
-      >
-        <Icon path={mdiPlus} size={1} />
       </button>
     </div>
   );
