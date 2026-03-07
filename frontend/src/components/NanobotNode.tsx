@@ -8,19 +8,10 @@ import { resolveMdiIcon } from "@/lib/mdiIcons";
 import type { NanobotNodeData, NanobotFlowNode } from "@/types";
 
 function getStatusColor(agentStatus: string | null, containerStatus: string | null): string {
-  if (agentStatus) {
-    switch (agentStatus) {
-      case "ok": return "var(--green)";
-      case "warning": return "var(--yellow)";
-      case "error": return "var(--red)";
-      default: return "var(--green)";
-    }
-  }
-  switch (containerStatus) {
-    case "running": return "var(--green)";
-    case "error": return "var(--red)";
-    default: return "var(--yellow)";
-  }
+  if (agentStatus === "error" || containerStatus === "error") return "var(--red)";
+  if (agentStatus === "warning") return "var(--yellow)";
+  if (containerStatus !== "running" && containerStatus !== null) return "var(--yellow)";
+  return "var(--text-muted)";
 }
 
 function isNodeHealthy(agentStatus: string | null, containerStatus: string | null): boolean {
@@ -74,10 +65,14 @@ function GaugeRing({ value, color }: { value: number; color: string }) {
   );
 }
 
-function getGaugeColor(value: number, identityColor: string | null): string {
-  if (value > 80) return "var(--red)";
-  if (value > 60) return "var(--yellow)";
-  return identityColor || "var(--accent)";
+function getGaugeColor(
+  value: number,
+  warnThreshold: number | null,
+  criticalThreshold: number | null,
+): string {
+  if (criticalThreshold != null && value >= criticalThreshold) return "var(--red)";
+  if (warnThreshold != null && value >= warnThreshold) return "var(--yellow)";
+  return "var(--text-muted)";
 }
 
 const KEYFRAMES = `
@@ -114,7 +109,7 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
   const hasGauge = gaugeValue != null;
   const resolvedIcon = identity?.icon ? resolveMdiIcon(identity.icon) : null;
   const hasIconBadge = !!(resolvedIcon || identity?.emoji);
-  const gaugeColor = hasGauge ? getGaugeColor(gaugeValue!, identityColor) : undefined;
+  const gaugeColor = hasGauge ? getGaugeColor(gaugeValue!, d.gaugeWarnThreshold ?? null, d.gaugeCriticalThreshold ?? null) : undefined;
 
   return (
     <div
@@ -171,7 +166,7 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
               height: 20,
               borderRadius: "50%",
               background: "var(--bg-card)",
-              border: `1.5px solid ${identityColor || "var(--border)"}`,
+              border: `1.5px solid var(--border)`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -179,7 +174,7 @@ export function NanobotNode({ data }: NodeProps<NanobotFlowNode>) {
             }}
           >
             {resolvedIcon ? (
-              <Icon path={resolvedIcon} size={0.45} color={identityColor || "var(--text-muted)"} />
+              <Icon path={resolvedIcon} size={0.45} color="var(--text-muted)" />
             ) : (
               <span style={{ fontSize: 10, lineHeight: 1 }}>{identity?.emoji}</span>
             )}

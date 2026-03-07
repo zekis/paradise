@@ -67,6 +67,8 @@ class NodeRead(BaseModel):
     gauge_value: float | None = None
     gauge_label: str | None = None
     gauge_unit: str | None = None
+    gauge_warn_threshold: float | None = None
+    gauge_critical_threshold: float | None = None
     archived: bool = False
     created_at: datetime | None = None
     updated_at: datetime | None = None
