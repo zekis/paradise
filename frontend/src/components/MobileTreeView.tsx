@@ -42,108 +42,120 @@ function MobileTreeItem({
   const hasGauge = node.gaugeValue != null;
   const gaugeColor = hasGauge ? getGaugeColor(node.gaugeValue!, node.color || null) : undefined;
 
+  const effectiveDepth = Math.min(depth, 3);
+
   return (
     <>
+      {/* Card container */}
       <div
         onClick={() => onItemClick(node.id)}
         onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e, node.id); }}
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          paddingLeft: 14 + depth * 20,
-          paddingRight: 14,
+          background: isSelected ? "rgba(99, 102, 241, 0.10)" : "var(--overlay-subtle)",
+          borderRadius: 8,
+          margin: "2px 8px",
+          marginLeft: 8 + effectiveDepth * 14,
+          padding: "8px 10px",
           minHeight: 44,
           cursor: "pointer",
-          background: isSelected ? "rgba(99, 102, 241, 0.12)" : "transparent",
-          borderLeft: isSelected ? "3px solid var(--accent)" : "3px solid transparent",
+          borderLeft: isSelected
+            ? "3px solid var(--accent)"
+            : depth >= 1
+              ? "3px solid var(--border)"
+              : "3px solid transparent",
           fontSize: 14,
           opacity: isArchived ? 0.45 : 1,
+          transition: "background 0.12s ease",
         }}
       >
-        {/* Chevron */}
-        {hasChildren ? (
-          <span
-            onClick={(e) => { e.stopPropagation(); onToggleCollapse(node.id); }}
-            style={{ display: "flex", alignItems: "center", flexShrink: 0, cursor: "pointer", padding: 4 }}
-          >
-            <Icon path={isCollapsed ? mdiChevronRight : mdiChevronDown} size={0.7} color="var(--text-muted)" />
-          </span>
-        ) : (
-          <span style={{ width: 22, flexShrink: 0 }} />
-        )}
+        {/* Line 1: Controls + Label + Status dot */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 28 }}>
+          {/* Chevron */}
+          {hasChildren ? (
+            <span
+              onClick={(e) => { e.stopPropagation(); onToggleCollapse(node.id); }}
+              style={{ display: "flex", alignItems: "center", flexShrink: 0, cursor: "pointer", padding: 4 }}
+            >
+              <Icon path={isCollapsed ? mdiChevronRight : mdiChevronDown} size={0.7} color="var(--text-muted)" />
+            </span>
+          ) : (
+            <span style={{ width: 22, flexShrink: 0 }} />
+          )}
 
-        {/* Checkbox for multi-select */}
-        <input
-          type="checkbox"
-          checked={checkedNodeIds.has(node.id)}
-          onChange={() => onToggleCheck(node.id)}
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            width: 16,
-            height: 16,
-            flexShrink: 0,
-            cursor: "pointer",
-            accentColor: "var(--accent)",
-            margin: 0,
-          }}
-        />
-
-        {/* Icon */}
-        {node.icon && resolveMdiIcon(node.icon) ? (
-          <Icon path={resolveMdiIcon(node.icon)!} size={0.7} color={node.color || "var(--text-muted)"} style={{ flexShrink: 0 }} />
-        ) : node.emoji ? (
-          <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{node.emoji}</span>
-        ) : (
-          <Icon path={mdiRobot} size={0.7} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-        )}
-
-        {/* Label */}
-        <span
-          style={{
-            flex: 1,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            color: isSelected ? "var(--text)" : "var(--text-muted)",
-            fontWeight: isSelected ? 600 : 400,
-          }}
-          title={node.label}
-        >
-          {node.label}
-        </span>
-
-        {/* Gauge value badge */}
-        {hasGauge && (
-          <span
-            title={node.gaugeLabel ? `${node.gaugeLabel}: ${Math.round(node.gaugeValue!)}${node.gaugeUnit || ""}` : undefined}
+          {/* Checkbox for multi-select */}
+          <input
+            type="checkbox"
+            checked={checkedNodeIds.has(node.id)}
+            onChange={() => onToggleCheck(node.id)}
+            onClick={(e) => e.stopPropagation()}
             style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: gaugeColor,
-              background: "var(--overlay-light)",
-              borderRadius: 8,
-              padding: "2px 6px",
-              lineHeight: 1.2,
+              width: 18,
+              height: 18,
               flexShrink: 0,
-              whiteSpace: "nowrap",
+              cursor: "pointer",
+              accentColor: "var(--accent)",
+              margin: 0,
             }}
-          >
-            {Math.round(node.gaugeValue!)}{node.gaugeUnit || ""}
-          </span>
-        )}
+          />
 
-        {/* Status dot */}
-        <span
-          style={{
-            width: 9,
-            height: 9,
-            borderRadius: "50%",
-            background: isArchived ? "var(--text-muted)" : statusColor,
-            flexShrink: 0,
-            opacity: isArchived ? 0.4 : 1,
-          }}
-        />
+          {/* Icon */}
+          {node.icon && resolveMdiIcon(node.icon) ? (
+            <Icon path={resolveMdiIcon(node.icon)!} size={0.7} color={node.color || "var(--text-muted)"} style={{ flexShrink: 0 }} />
+          ) : node.emoji ? (
+            <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{node.emoji}</span>
+          ) : (
+            <Icon path={mdiRobot} size={0.7} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+          )}
+
+          {/* Label — gets full remaining width */}
+          <span
+            style={{
+              flex: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              color: isSelected ? "var(--text)" : "var(--text-muted)",
+              fontWeight: isSelected ? 600 : 400,
+              fontSize: 15,
+            }}
+            title={node.label}
+          >
+            {node.label}
+          </span>
+
+          {/* Status dot */}
+          <span
+            style={{
+              width: 9,
+              height: 9,
+              borderRadius: "50%",
+              background: isArchived ? "var(--text-muted)" : statusColor,
+              flexShrink: 0,
+              opacity: isArchived ? 0.4 : 1,
+            }}
+          />
+        </div>
+
+        {/* Line 2: Gauge badge (only when gauge exists) */}
+        {hasGauge && (
+          <div style={{ display: "flex", justifyContent: "flex-end", paddingRight: 1, marginTop: 2 }}>
+            <span
+              title={node.gaugeLabel ? `${node.gaugeLabel}: ${Math.round(node.gaugeValue!)}${node.gaugeUnit || ""}` : undefined}
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: gaugeColor,
+                background: "var(--overlay-light)",
+                borderRadius: 6,
+                padding: "2px 7px",
+                lineHeight: 1.2,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {Math.round(node.gaugeValue!)}{node.gaugeUnit || ""}
+            </span>
+          </div>
+        )}
       </div>
 
       {hasChildren && !isCollapsed &&
@@ -259,7 +271,7 @@ export function MobileTreeView({ nodes, edges, onSelectNode, onNodeContextMenu }
       </div>
 
       {/* Scrollable tree */}
-      <div style={{ flex: 1, overflowY: "auto", paddingTop: 4, paddingBottom: 4 }}>
+      <div style={{ flex: 1, overflowY: "auto", paddingTop: 2, paddingBottom: 2 }}>
         {tree.length === 0 ? (
           <div style={{ padding: 24, color: "var(--text-muted)", textAlign: "center", fontSize: 13 }}>
             No nodes

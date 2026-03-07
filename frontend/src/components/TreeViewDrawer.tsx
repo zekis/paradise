@@ -52,115 +52,124 @@ function TreeItem({
   const hasGauge = node.gaugeValue != null;
   const gaugeColor = hasGauge ? getGaugeColor(node.gaugeValue!, node.color || null) : undefined;
 
+  const effectiveDepth = Math.min(depth, 4);
+
   return (
     <>
+      {/* Card container */}
       <div
         onClick={() => onItemClick(node.id)}
         onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e, node.id); }}
         onMouseOver={(e) => {
-          if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--overlay-subtle)";
+          if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--overlay-light)";
         }}
         onMouseOut={(e) => {
-          if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "transparent";
+          if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--overlay-subtle)";
         }}
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          paddingLeft: 8 + depth * 16,
-          paddingRight: 8,
-          paddingTop: 4,
-          paddingBottom: 4,
+          background: isSelected ? "rgba(99, 102, 241, 0.10)" : "var(--overlay-subtle)",
+          borderRadius: 6,
+          margin: "1px 4px",
+          marginLeft: 4 + effectiveDepth * 10,
+          padding: "4px 6px",
           cursor: "pointer",
-          background: isSelected ? "rgba(99, 102, 241, 0.12)" : "transparent",
-          borderLeft: isSelected ? "2px solid var(--accent)" : "2px solid transparent",
+          borderLeft: isSelected
+            ? "2px solid var(--accent)"
+            : depth >= 1
+              ? "2px solid var(--border)"
+              : "2px solid transparent",
           fontSize: 12,
           opacity: isArchived ? 0.45 : 1,
+          transition: "background 0.12s ease",
         }}
       >
-        {/* Chevron for expand/collapse */}
-        {hasChildren ? (
-          <span
-            onClick={(e) => { e.stopPropagation(); onToggleCollapse(node.id); }}
-            style={{ display: "flex", alignItems: "center", flexShrink: 0, cursor: "pointer" }}
-          >
-            <Icon path={isCollapsed ? mdiChevronRight : mdiChevronDown} size={0.55} color="var(--text-muted)" />
-          </span>
-        ) : (
-          <span style={{ width: 14, flexShrink: 0 }} />
-        )}
+        {/* Line 1: Controls + Label + Status dot */}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, minHeight: 20 }}>
+          {/* Chevron for expand/collapse */}
+          {hasChildren ? (
+            <span
+              onClick={(e) => { e.stopPropagation(); onToggleCollapse(node.id); }}
+              style={{ display: "flex", alignItems: "center", flexShrink: 0, cursor: "pointer" }}
+            >
+              <Icon path={isCollapsed ? mdiChevronRight : mdiChevronDown} size={0.55} color="var(--text-muted)" />
+            </span>
+          ) : (
+            <span style={{ width: 14, flexShrink: 0 }} />
+          )}
 
-        {/* Checkbox for multi-select */}
-        <input
-          type="checkbox"
-          checked={checkedNodeIds.has(node.id)}
-          onChange={() => onToggleCheck(node.id)}
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            width: 13,
-            height: 13,
-            flexShrink: 0,
-            cursor: "pointer",
-            accentColor: "var(--accent)",
-            margin: 0,
-          }}
-        />
-
-        {/* Icon badge */}
-        {node.icon && resolveMdiIcon(node.icon) ? (
-          <Icon path={resolveMdiIcon(node.icon)!} size={0.55} color={node.color || "var(--text-muted)"} style={{ flexShrink: 0 }} />
-        ) : node.emoji ? (
-          <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{node.emoji}</span>
-        ) : (
-          <Icon path={mdiRobot} size={0.55} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-        )}
-
-        {/* Label */}
-        <span
-          style={{
-            flex: 1,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            color: isSelected ? "var(--text)" : "var(--text-muted)",
-            fontWeight: isSelected ? 600 : 400,
-          }}
-          title={node.label}
-        >
-          {node.label}
-        </span>
-
-        {/* Gauge value badge */}
-        {hasGauge && (
-          <span
-            title={node.gaugeLabel ? `${node.gaugeLabel}: ${Math.round(node.gaugeValue!)}${node.gaugeUnit || ""}` : undefined}
+          {/* Checkbox for multi-select */}
+          <input
+            type="checkbox"
+            checked={checkedNodeIds.has(node.id)}
+            onChange={() => onToggleCheck(node.id)}
+            onClick={(e) => e.stopPropagation()}
             style={{
-              fontSize: 9,
-              fontWeight: 700,
-              color: gaugeColor,
-              background: "var(--overlay-light)",
-              borderRadius: 6,
-              padding: "1px 4px",
-              lineHeight: 1.2,
+              width: 13,
+              height: 13,
               flexShrink: 0,
-              whiteSpace: "nowrap",
+              cursor: "pointer",
+              accentColor: "var(--accent)",
+              margin: 0,
             }}
-          >
-            {Math.round(node.gaugeValue!)}{node.gaugeUnit || ""}
-          </span>
-        )}
+          />
 
-        {/* Status dot */}
-        <span
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: "50%",
-            background: isArchived ? "var(--text-muted)" : statusColor,
-            flexShrink: 0,
-            opacity: isArchived ? 0.4 : 1,
-          }}
-        />
+          {/* Icon badge */}
+          {node.icon && resolveMdiIcon(node.icon) ? (
+            <Icon path={resolveMdiIcon(node.icon)!} size={0.55} color={node.color || "var(--text-muted)"} style={{ flexShrink: 0 }} />
+          ) : node.emoji ? (
+            <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{node.emoji}</span>
+          ) : (
+            <Icon path={mdiRobot} size={0.55} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+          )}
+
+          {/* Label — gets full remaining width */}
+          <span
+            style={{
+              flex: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              color: isSelected ? "var(--text)" : "var(--text-muted)",
+              fontWeight: isSelected ? 600 : 400,
+            }}
+            title={node.label}
+          >
+            {node.label}
+          </span>
+
+          {/* Status dot */}
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: isArchived ? "var(--text-muted)" : statusColor,
+              flexShrink: 0,
+              opacity: isArchived ? 0.4 : 1,
+            }}
+          />
+        </div>
+
+        {/* Line 2: Gauge badge (only when gauge exists) */}
+        {hasGauge && (
+          <div style={{ display: "flex", justifyContent: "flex-end", paddingRight: 1, marginTop: 1 }}>
+            <span
+              title={node.gaugeLabel ? `${node.gaugeLabel}: ${Math.round(node.gaugeValue!)}${node.gaugeUnit || ""}` : undefined}
+              style={{
+                fontSize: 9,
+                fontWeight: 600,
+                color: gaugeColor,
+                background: "var(--overlay-light)",
+                borderRadius: 4,
+                padding: "1px 5px",
+                lineHeight: 1.2,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {Math.round(node.gaugeValue!)}{node.gaugeUnit || ""}
+            </span>
+          </div>
+        )}
       </div>
 
       {hasChildren && !isCollapsed &&
@@ -343,7 +352,7 @@ export function TreeViewDrawer({ nodes, edges, onFocusNode, onOpenChange, onNode
         </div>
 
         {/* Scrollable tree */}
-        <div style={{ flex: 1, overflowY: "auto", paddingTop: 4, paddingBottom: 4 }}>
+        <div style={{ flex: 1, overflowY: "auto", paddingTop: 2, paddingBottom: 2 }}>
           {tree.length === 0 ? (
             <div style={{ padding: 12, color: "var(--text-muted)", textAlign: "center", fontSize: 11 }}>
               No nodes
