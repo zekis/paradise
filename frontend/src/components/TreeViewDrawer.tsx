@@ -4,16 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Icon from "@mdi/react";
 import {
   mdiFileTreeOutline,
-  mdiChevronRight,
-  mdiChevronDown,
   mdiRobot,
   mdiPin,
   mdiPinOutline,
 } from "@mdi/js";
-import type { Node, Edge } from "@xyflow/react";
+import type { Node } from "@xyflow/react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { resolveMdiIcon } from "@/lib/mdiIcons";
-import { buildTree, getStatusColor, getGaugeColor, type TreeNode } from "@/lib/treeUtils";
+import { getStatusColor, getGaugeColor } from "@/lib/treeUtils";
 import type { NanobotNodeData } from "@/types";
 import { NetworkCommandBar } from "./NetworkCommandBar";
 import { MessageAllModal } from "./MessageAllModal";
@@ -21,174 +19,130 @@ import { MessageAllModal } from "./MessageAllModal";
 const DRAWER_WIDTH = 240;
 const TAB_WIDTH = 24;
 
-// ─── TreeItem (recursive) ───
+// ─── NodeCard (flat) ───
 
-function TreeItem({
+function NodeCard({
   node,
-  depth,
   selectedNodeId,
-  collapsedNodes,
   checkedNodeIds,
-  onToggleCollapse,
   onToggleCheck,
   onItemClick,
   onContextMenu,
 }: {
-  node: TreeNode;
-  depth: number;
+  node: Node;
   selectedNodeId: string | null;
-  collapsedNodes: Set<string>;
   checkedNodeIds: Set<string>;
-  onToggleCollapse: (id: string) => void;
   onToggleCheck: (id: string) => void;
   onItemClick: (id: string) => void;
   onContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
 }) {
+  const data = node.data as NanobotNodeData;
   const isSelected = node.id === selectedNodeId;
-  const isCollapsed = collapsedNodes.has(node.id);
-  const hasChildren = node.children.length > 0;
-  const isArchived = node.archived ?? false;
-  const statusColor = getStatusColor(node.agentStatus, node.containerStatus);
-  const hasGauge = node.gaugeValue != null;
-  const gaugeColor = hasGauge ? getGaugeColor(node.gaugeValue!, node.color || null) : undefined;
-
-  const effectiveDepth = Math.min(depth, 4);
+  const isArchived = data.archived ?? false;
+  const statusColor = getStatusColor(data.agentStatus ?? null, data.containerStatus);
+  const hasGauge = data.gaugeValue != null;
+  const identityColor = data.identity?.color || null;
+  const gaugeColor = hasGauge ? getGaugeColor(data.gaugeValue!, identityColor) : undefined;
+  const resolvedIcon = data.identity?.icon ? resolveMdiIcon(data.identity.icon) : null;
 
   return (
-    <>
-      {/* Card container */}
-      <div
-        onClick={() => onItemClick(node.id)}
-        onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e, node.id); }}
-        onMouseOver={(e) => {
-          if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--overlay-light)";
-        }}
-        onMouseOut={(e) => {
-          if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--overlay-subtle)";
-        }}
-        style={{
-          background: isSelected ? "rgba(99, 102, 241, 0.10)" : "var(--overlay-subtle)",
-          borderRadius: 6,
-          margin: "1px 4px",
-          marginLeft: 4 + effectiveDepth * 10,
-          padding: "4px 6px",
-          cursor: "pointer",
-          borderLeft: isSelected
-            ? "2px solid var(--accent)"
-            : depth >= 1
-              ? "2px solid var(--border)"
-              : "2px solid transparent",
-          fontSize: 12,
-          opacity: isArchived ? 0.45 : 1,
-          transition: "background 0.12s ease",
-        }}
-      >
-        {/* Line 1: Controls + Label + Status dot */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4, minHeight: 20 }}>
-          {/* Chevron for expand/collapse */}
-          {hasChildren ? (
-            <span
-              onClick={(e) => { e.stopPropagation(); onToggleCollapse(node.id); }}
-              style={{ display: "flex", alignItems: "center", flexShrink: 0, cursor: "pointer" }}
-            >
-              <Icon path={isCollapsed ? mdiChevronRight : mdiChevronDown} size={0.55} color="var(--text-muted)" />
-            </span>
-          ) : (
-            <span style={{ width: 14, flexShrink: 0 }} />
-          )}
+    <div
+      onClick={() => onItemClick(node.id)}
+      onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e, node.id); }}
+      onMouseOver={(e) => {
+        if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--overlay-light)";
+      }}
+      onMouseOut={(e) => {
+        if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--overlay-subtle)";
+      }}
+      style={{
+        background: isSelected ? "rgba(99, 102, 241, 0.10)" : "var(--overlay-subtle)",
+        borderRadius: 6,
+        margin: "1px 4px",
+        padding: "4px 6px",
+        cursor: "pointer",
+        borderLeft: isSelected ? "2px solid var(--accent)" : "2px solid transparent",
+        fontSize: 12,
+        opacity: isArchived ? 0.45 : 1,
+        transition: "background 0.12s ease",
+      }}
+    >
+      {/* Line 1: Checkbox + Icon + Label + Status dot */}
+      <div style={{ display: "flex", alignItems: "center", gap: 4, minHeight: 20 }}>
+        {/* Checkbox for multi-select */}
+        <input
+          type="checkbox"
+          checked={checkedNodeIds.has(node.id)}
+          onChange={() => onToggleCheck(node.id)}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: 13,
+            height: 13,
+            flexShrink: 0,
+            cursor: "pointer",
+            accentColor: "var(--accent)",
+            margin: 0,
+          }}
+        />
 
-          {/* Checkbox for multi-select */}
-          <input
-            type="checkbox"
-            checked={checkedNodeIds.has(node.id)}
-            onChange={() => onToggleCheck(node.id)}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 13,
-              height: 13,
-              flexShrink: 0,
-              cursor: "pointer",
-              accentColor: "var(--accent)",
-              margin: 0,
-            }}
-          />
-
-          {/* Icon badge */}
-          {node.icon && resolveMdiIcon(node.icon) ? (
-            <Icon path={resolveMdiIcon(node.icon)!} size={0.55} color={node.color || "var(--text-muted)"} style={{ flexShrink: 0 }} />
-          ) : node.emoji ? (
-            <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{node.emoji}</span>
-          ) : (
-            <Icon path={mdiRobot} size={0.55} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-          )}
-
-          {/* Label — gets full remaining width */}
-          <span
-            style={{
-              flex: 1,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              color: isSelected ? "var(--text)" : "var(--text-muted)",
-              fontWeight: isSelected ? 600 : 400,
-            }}
-            title={node.label}
-          >
-            {node.label}
-          </span>
-
-          {/* Status dot */}
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: isArchived ? "var(--text-muted)" : statusColor,
-              flexShrink: 0,
-              opacity: isArchived ? 0.4 : 1,
-            }}
-          />
-        </div>
-
-        {/* Line 2: Gauge badge (only when gauge exists) */}
-        {hasGauge && (
-          <div style={{ display: "flex", justifyContent: "flex-end", paddingRight: 1, marginTop: 1 }}>
-            <span
-              title={node.gaugeLabel ? `${node.gaugeLabel}: ${Math.round(node.gaugeValue!)}${node.gaugeUnit || ""}` : undefined}
-              style={{
-                fontSize: 9,
-                fontWeight: 600,
-                color: gaugeColor,
-                background: "var(--overlay-light)",
-                borderRadius: 4,
-                padding: "1px 5px",
-                lineHeight: 1.2,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {Math.round(node.gaugeValue!)}{node.gaugeUnit || ""}
-            </span>
-          </div>
+        {/* Icon badge */}
+        {resolvedIcon ? (
+          <Icon path={resolvedIcon} size={0.55} color={identityColor || "var(--text-muted)"} style={{ flexShrink: 0 }} />
+        ) : data.identity?.emoji ? (
+          <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{data.identity.emoji}</span>
+        ) : (
+          <Icon path={mdiRobot} size={0.55} color="var(--text-muted)" style={{ flexShrink: 0 }} />
         )}
+
+        {/* Label — gets full remaining width */}
+        <span
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            color: isSelected ? "var(--text)" : "var(--text-muted)",
+            fontWeight: isSelected ? 600 : 400,
+          }}
+          title={data.label}
+        >
+          {data.label}
+        </span>
+
+        {/* Status dot */}
+        <span
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            background: isArchived ? "var(--text-muted)" : statusColor,
+            flexShrink: 0,
+            opacity: isArchived ? 0.4 : 1,
+          }}
+        />
       </div>
 
-      {hasChildren && !isCollapsed &&
-        node.children.map((child) => (
-          <TreeItem
-            key={child.id}
-            node={child}
-            depth={depth + 1}
-            selectedNodeId={selectedNodeId}
-            collapsedNodes={collapsedNodes}
-            checkedNodeIds={checkedNodeIds}
-            onToggleCollapse={onToggleCollapse}
-            onToggleCheck={onToggleCheck}
-            onItemClick={onItemClick}
-            onContextMenu={onContextMenu}
-          />
-        ))
-      }
-    </>
+      {/* Line 2: Gauge badge (only when gauge exists) */}
+      {hasGauge && (
+        <div style={{ display: "flex", justifyContent: "flex-end", paddingRight: 1, marginTop: 1 }}>
+          <span
+            title={data.gaugeLabel ? `${data.gaugeLabel}: ${Math.round(data.gaugeValue!)}${data.gaugeUnit || ""}` : undefined}
+            style={{
+              fontSize: 9,
+              fontWeight: 600,
+              color: gaugeColor,
+              background: "var(--overlay-light)",
+              borderRadius: 4,
+              padding: "1px 5px",
+              lineHeight: 1.2,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {Math.round(data.gaugeValue!)}{data.gaugeUnit || ""}
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -196,16 +150,15 @@ function TreeItem({
 
 interface TreeViewDrawerProps {
   nodes: Node[];
-  edges: Edge[];
+  edges?: unknown[];
   onFocusNode: (nodeId: string) => void;
   onOpenChange?: (open: boolean) => void;
   onNodeContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
 }
 
-export function TreeViewDrawer({ nodes, edges, onFocusNode, onOpenChange, onNodeContextMenu }: TreeViewDrawerProps) {
+export function TreeViewDrawer({ nodes, onFocusNode, onOpenChange, onNodeContextMenu }: TreeViewDrawerProps) {
   const [expanded, setExpanded] = useState(true);
   const [pinned, setPinned] = useState(true);
-  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
   const [showMessageModal, setShowMessageModal] = useState(false);
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -229,7 +182,17 @@ export function TreeViewDrawer({ nodes, edges, onFocusNode, onOpenChange, onNode
     }
   }, [allChecked, allNodeIds, setCheckedNodeIds]);
 
-  const tree = useMemo(() => buildTree(nodes, edges), [nodes, edges]);
+  // Flat sorted list: alphabetical by label, archived nodes at end
+  const sortedNodes = useMemo(() => {
+    return [...nodes].sort((a, b) => {
+      const da = a.data as NanobotNodeData;
+      const db = b.data as NanobotNodeData;
+      const archivedA = da.archived ?? false;
+      const archivedB = db.archived ?? false;
+      if (archivedA !== archivedB) return archivedA ? 1 : -1;
+      return da.label.localeCompare(db.label);
+    });
+  }, [nodes]);
 
   useEffect(() => {
     onOpenChange?.(expanded);
@@ -254,15 +217,6 @@ export function TreeViewDrawer({ nodes, edges, onFocusNode, onOpenChange, onNode
       return !p;
     });
     setExpanded(true);
-  }, []);
-
-  const toggleNodeCollapse = useCallback((nodeId: string) => {
-    setCollapsedNodes((prev) => {
-      const next = new Set(prev);
-      if (next.has(nodeId)) next.delete(nodeId);
-      else next.add(nodeId);
-      return next;
-    });
   }, []);
 
   const handleItemClick = useCallback((nodeId: string) => {
@@ -351,22 +305,19 @@ export function TreeViewDrawer({ nodes, edges, onFocusNode, onOpenChange, onNode
           />
         </div>
 
-        {/* Scrollable tree */}
+        {/* Scrollable node list */}
         <div style={{ flex: 1, overflowY: "auto", paddingTop: 2, paddingBottom: 2 }}>
-          {tree.length === 0 ? (
+          {sortedNodes.length === 0 ? (
             <div style={{ padding: 12, color: "var(--text-muted)", textAlign: "center", fontSize: 11 }}>
               No nodes
             </div>
           ) : (
-            tree.map((node) => (
-              <TreeItem
+            sortedNodes.map((node) => (
+              <NodeCard
                 key={node.id}
                 node={node}
-                depth={0}
                 selectedNodeId={selectedNodeId}
-                collapsedNodes={collapsedNodes}
                 checkedNodeIds={checkedNodeIds}
-                onToggleCollapse={toggleNodeCollapse}
                 onToggleCheck={toggleCheckedNode}
                 onItemClick={handleItemClick}
                 onContextMenu={onNodeContextMenu}
