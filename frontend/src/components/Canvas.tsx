@@ -3,7 +3,6 @@
 import {
   ReactFlow,
   Background,
-  Controls,
   BackgroundVariant,
   ReactFlowProvider,
   useReactFlow,
@@ -405,7 +404,6 @@ function CanvasInner() {
         defaultEdgeOptions={{ type: "smoothstep", style: { stroke: "var(--border)", strokeWidth: 1.5 }, animated: true }}
       >
         <Background variant={BackgroundVariant.Dots} color="var(--dots)" gap={20} />
-        <Controls style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }} />
       </ReactFlow>
 
       {showSettings && <DefaultConfigPanel api={api} onClose={() => setShowSettings(false)} onFocusNode={handleFocusNode} />}

@@ -171,10 +171,10 @@ export function NodeDrawer({ data, onClose, isMobile }: NodeDrawerProps) {
     <div
       style={{
         position: isMobile ? "relative" : "fixed",
-        top: isMobile ? undefined : 0,
+        top: isMobile ? undefined : 32,
         right: isMobile ? undefined : 0,
         width: isMobile ? "100%" : 420,
-        height: isMobile ? "100%" : "100vh",
+        height: isMobile ? "100%" : "calc(100vh - 32px)",
         background: "var(--bg-card)",
         borderLeft: isMobile ? "none" : `1px solid ${identityColor || "var(--border)"}`,
         zIndex: isMobile ? undefined : 2000,
