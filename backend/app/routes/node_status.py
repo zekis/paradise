@@ -150,6 +150,7 @@ async def set_agent_status(node_id: UUID, request: AgentStatusRequest, db: Async
         "node_id": str(node_id),
         "agent_status": node.agent_status,
         "agent_status_message": node.agent_status_message,
+        "area_id": str(node.area_id) if node.area_id else None,
     })
     return {"ok": True, "agent_status": node.agent_status}
 
@@ -177,6 +178,7 @@ async def set_gauge(node_id: UUID, request: GaugeRequest, db: AsyncSession = Dep
         "gauge_value": node.gauge_value,
         "gauge_label": node.gauge_label,
         "gauge_unit": node.gauge_unit,
+        "area_id": str(node.area_id) if node.area_id else None,
     })
     return {"ok": True, "gauge_value": node.gauge_value, "gauge_label": node.gauge_label, "gauge_unit": node.gauge_unit}
 
@@ -237,6 +239,7 @@ async def archive_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
         "node_id": str(node.id),
         "archived": True,
         "container_status": "archived",
+        "area_id": str(node.area_id) if node.area_id else None,
     })
     return {"ok": True}
 
@@ -266,5 +269,6 @@ async def resume_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
         "node_id": str(node.id),
         "archived": False,
         "container_status": node.container_status,
+        "area_id": str(node.area_id) if node.area_id else None,
     })
     return {"ok": True}

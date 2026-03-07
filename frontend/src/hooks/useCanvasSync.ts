@@ -13,6 +13,7 @@ import {
   type FinalConnectionState,
 } from "@xyflow/react";
 import { useCanvasStore } from "@/store/canvasStore";
+import { useAreaStore } from "@/store/areaStore";
 import { API_URL as API } from "@/lib/api";
 import type { NodeIdentity } from "@/types";
 import { mapApiNodeToFlowNode, mapApiNodeToNodeData, type ApiNode } from "@/lib/mappers";
@@ -146,16 +147,18 @@ function wireStoreActions(setNodes: NodeSetter, setEdges: EdgeSetter) {
 }
 
 async function fetchCanvas(
+  areaId: string | null,
   setNodes: (nodes: Node[]) => void,
   setEdges: (edges: Edge[]) => void,
   setViewport: (vp: Viewport) => void,
   setLoaded: (v: boolean) => void,
 ) {
+  const areaParam = areaId ? `?area_id=${areaId}` : "";
   try {
     const [nodesRes, edgesRes, canvasRes] = await Promise.all([
-      fetch(`${API}/api/nodes`),
-      fetch(`${API}/api/edges`),
-      fetch(`${API}/api/canvas`),
+      fetch(`${API}/api/nodes${areaParam}`),
+      fetch(`${API}/api/edges${areaParam}`),
+      fetch(`${API}/api/canvas${areaParam}`),
     ]);
     if (!nodesRes.ok || !edgesRes.ok || !canvasRes.ok) {
       setLoaded(true);
@@ -207,16 +210,23 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
   const onDragToEmptyRef = useRef(options?.onDragToEmpty);
   onDragToEmptyRef.current = options?.onDragToEmpty;
 
+  const activeAreaId = useAreaStore((s) => s.activeAreaId);
+  const areaIdRef = useRef(activeAreaId);
+  areaIdRef.current = activeAreaId;
+
+  // Initial setup: wire store actions, start SSE
   useEffect(() => {
     useCanvasStore.getState().setApi(API);
     wireStoreActions(setNodes, setEdges);
-    fetchCanvas(setNodes, setEdges, setViewport, setLoaded);
 
-    // SSE stream for real-time node state updates
+    // SSE stream for real-time node state updates (shared across areas)
     const es = new EventSource(`${API}/api/events/stream`);
     es.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data);
+        // Filter SSE events by active area — ignore events for other areas
+        if (msg.area_id && msg.area_id !== areaIdRef.current) return;
+
         const store = useCanvasStore.getState();
         switch (msg.event) {
           case "gauge":
@@ -258,10 +268,24 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
       }
     };
 
+    return () => {
+      es.close();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch canvas data when activeAreaId changes (or on initial load)
+  useEffect(() => {
+    if (activeAreaId === null) return;
+    setLoaded(false);
+    fetchCanvas(activeAreaId, setNodes, setEdges, setViewport, setLoaded);
+
     // Fallback poll for resilience (covers SSE reconnection gaps)
     const interval = setInterval(async () => {
+      const currentAreaId = areaIdRef.current;
+      const areaParam = currentAreaId ? `?area_id=${currentAreaId}` : "";
       try {
-        const res = await fetch(`${API}/api/nodes`);
+        const res = await fetch(`${API}/api/nodes${areaParam}`);
         if (!res.ok) return;
         const nodesData: ApiNode[] = await res.json();
         const dataMap = new Map(nodesData.map((n) => [n.id, n]));
@@ -290,17 +314,18 @@ export function useCanvasSync(options?: UseCanvasSyncOptions) {
         console.warn('Failed to poll node status updates:', error);
       }
     }, 60000);
+
     return () => {
-      es.close();
       clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeAreaId]);
 
   const saveViewport = useCallback((viewport: Viewport) => {
     if (viewportTimer.current) clearTimeout(viewportTimer.current);
     viewportTimer.current = setTimeout(() => {
-      fetch(`${API}/api/canvas`, {
+      const areaParam = areaIdRef.current ? `?area_id=${areaIdRef.current}` : "";
+      fetch(`${API}/api/canvas${areaParam}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ viewport_x: viewport.x, viewport_y: viewport.y, zoom: viewport.zoom }),

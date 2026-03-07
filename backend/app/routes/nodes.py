@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.broadcast import broadcast
-from app.db import Node, emit_event, get_db
+from app.db import Area, Node, emit_event, get_db
 from app.docker_ops import (
     get_container_status,
     read_nanobot_config,
@@ -41,6 +41,7 @@ class NodeCreate(BaseModel):
     name: str = "new-nanobot"
     position_x: float = 0.0
     position_y: float = 0.0
+    area_id: UUID | None = None
 
 
 class NodeUpdate(BaseModel):
@@ -68,6 +69,7 @@ class NodeRead(BaseModel):
     gauge_label: str | None = None
     gauge_unit: str | None = None
     archived: bool = False
+    area_id: UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -110,12 +112,22 @@ async def _sync_identity_name(container_id: str, new_name: str) -> None:
 
 @router.post("/nodes", response_model=NodeRead)
 async def create_node(payload: NodeCreate, db: AsyncSession = Depends(get_db)):
+    # Resolve area_id: use provided value, or fall back to first area
+    area_id = payload.area_id
+    if not area_id:
+        first_area = (await db.execute(
+            select(Area).order_by(Area.sort_order).limit(1)
+        )).scalars().first()
+        if first_area:
+            area_id = first_area.id
+
     node_id = uuid4()
     node = Node(
         id=node_id,
         name=payload.name,
         position_x=payload.position_x,
         position_y=payload.position_y,
+        area_id=area_id,
     )
 
     # Spin up nanobot container with default config and templates
@@ -134,8 +146,14 @@ async def create_node(payload: NodeCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/nodes", response_model=list[NodeRead])
-async def list_nodes(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Node).order_by(Node.created_at))
+async def list_nodes(
+    area_id: UUID | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(Node).order_by(Node.created_at)
+    if area_id:
+        query = query.where(Node.area_id == area_id)
+    result = await db.execute(query)
     return result.scalars().all()
 
 
@@ -179,6 +197,7 @@ async def update_node(node_id: UUID, payload: NodeUpdate, db: AsyncSession = Dep
         await broadcast.publish("rename", {
             "node_id": str(node.id),
             "name": node.name,
+            "area_id": str(node.area_id) if node.area_id else None,
         })
 
     return node
@@ -220,6 +239,7 @@ async def clone_node(node_id: UUID, request: CloneNodeRequest, db: AsyncSession 
         name=f"{source.name}-clone",
         position_x=pos_x,
         position_y=pos_y,
+        area_id=source.area_id,
     )
 
     try:

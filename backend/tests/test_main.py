@@ -30,6 +30,7 @@ class FakeNode:
         self.gauge_label = kwargs.get("gauge_label", None)
         self.gauge_unit = kwargs.get("gauge_unit", None)
         self.archived = kwargs.get("archived", False)
+        self.area_id = kwargs.get("area_id", None)
 
 
 # ---------------------------------------------------------------------------

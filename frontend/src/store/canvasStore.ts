@@ -36,6 +36,7 @@ interface CanvasStore {
   clearCheckedNodes: () => void;
   chatRefreshSignals: Record<string, number>;
   bumpChatRefresh: (nodeId: string) => void;
+  resetForAreaSwitch: () => void;
 }
 
 export const useCanvasStore = create<CanvasStore>((set) => ({
@@ -81,4 +82,5 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
   bumpChatRefresh: (nodeId) => set((s) => ({
     chatRefreshSignals: { ...s.chatRefreshSignals, [nodeId]: (s.chatRefreshSignals[nodeId] || 0) + 1 },
   })),
+  resetForAreaSwitch: () => set({ selectedNodeId: null, checkedNodeIds: new Set() }),
 }));

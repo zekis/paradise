@@ -11,8 +11,10 @@ import {
   mdiArchiveArrowDown,
   mdiPlay,
   mdiOpenInNew,
+  mdiArrowRightBold,
 } from "@mdi/js";
 import { useCanvasStore } from "@/store/canvasStore";
+import { useAreaStore, type Area } from "@/store/areaStore";
 import { mapApiNodeToNodeData } from "@/lib/mappers";
 import { resolveMdiIcon } from "@/lib/mdiIcons";
 import type { NodeIdentityShortcut } from "@/types";
@@ -40,8 +42,11 @@ interface MenuItem {
 export function ContextMenu({ position, nodeId, rebuilding, archived, shortcuts, onClose, onDelete, onAddBot }: ContextMenuProps) {
   const api = useCanvasStore((s) => s.api);
   const addNode = useCanvasStore((s) => s.addNode);
+  const removeNode = useCanvasStore((s) => s.removeNode);
   const setNodeRebuilding = useCanvasStore((s) => s.setNodeRebuilding);
   const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
+  const areas = useAreaStore((s) => s.areas);
+  const activeAreaId = useAreaStore((s) => s.activeAreaId);
 
   useEffect(() => {
     const dismiss = () => onClose();
@@ -120,6 +125,25 @@ export function ContextMenu({ position, nodeId, rebuilding, archived, shortcuts,
     }
   };
 
+  const handleSendToArea = async (targetAreaId: string) => {
+    if (!nodeId) return;
+    onClose();
+    try {
+      const res = await fetch(`${api}/api/areas/${targetAreaId}/move-node`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ node_id: nodeId }),
+      });
+      if (res.ok) {
+        removeNode(nodeId);
+      }
+    } catch (error) {
+      console.warn("Failed to move node to area:", error);
+    }
+  };
+
+  const otherAreas = areas.filter((a) => a.id !== activeAreaId);
+
   const validShortcuts = (shortcuts || [])
     .filter((s) => s.label && s.url && /^https?:\/\//i.test(s.url))
     .slice(0, 5);
@@ -143,13 +167,19 @@ export function ContextMenu({ position, nodeId, rebuilding, archived, shortcuts,
           ? [{ icon: mdiPlay, label: "Resume", action: handleResume, disabled: rebuilding }]
           : [{ icon: mdiArchiveArrowDown, label: "Archive", action: handleArchive, disabled: rebuilding }]
         ),
+        ...otherAreas.map((area, i) => ({
+          icon: mdiArrowRightBold,
+          label: `Send to ${area.name.length > 20 ? area.name.slice(0, 17) + "..." : area.name}`,
+          action: () => handleSendToArea(area.id),
+          separator: i === 0,
+        })),
         ...shortcutItems,
         {
           icon: mdiDeleteOutline,
           label: "Delete",
           action: () => { onClose(); onDelete?.(); },
           color: "var(--red)",
-          separator: true,
+          separator: shortcutItems.length > 0 || otherAreas.length > 0,
         },
       ]
     : [

@@ -16,6 +16,7 @@ export interface ApiNode {
   gauge_label?: string | null;
   gauge_unit?: string | null;
   archived?: boolean;
+  area_id?: string | null;
 }
 
 /**
@@ -45,6 +46,7 @@ export function mapApiNodeToNodeData(
     gaugeLabel: apiNode.gauge_label || null,
     gaugeUnit: apiNode.gauge_unit || null,
     archived: apiNode.archived || false,
+    areaId: apiNode.area_id || null,
     ...overrides,
   };
 }

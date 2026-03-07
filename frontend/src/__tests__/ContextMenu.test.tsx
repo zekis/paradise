@@ -9,7 +9,21 @@ vi.mock("@/store/canvasStore", () => ({
     addNode: vi.fn(),
     setNodeRebuilding: vi.fn(),
     setSelectedNodeId: vi.fn(),
+    removeNode: vi.fn(),
   }),
+}));
+
+vi.mock("@/store/areaStore", () => ({
+  useAreaStore: (selector?: (s: any) => any) => {
+    const state = {
+      areas: [
+        { id: "area-1", name: "Main", sort_order: 0, node_count: 3 },
+        { id: "area-2", name: "Dev", sort_order: 1, node_count: 1 },
+      ],
+      activeAreaId: "area-1",
+    };
+    return selector ? selector(state) : state;
+  },
 }));
 
 describe("ContextMenu", () => {
@@ -111,6 +125,18 @@ describe("ContextMenu", () => {
     expect(screen.queryByText("Bad Protocol")).toBeNull();
     expect(screen.queryByText("No URL")).toBeNull();
     expect(screen.queryByText("FTP")).toBeNull();
+  });
+
+  it("renders Send to area items for other areas", () => {
+    render(
+      <ContextMenu
+        nodeId={TEST_NODE_ID}
+        position={{ x: 100, y: 200 }}
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Send to Dev")).toBeDefined();
   });
 
   it("limits shortcuts to 5 items", () => {

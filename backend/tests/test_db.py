@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.db import Base, CanvasState, ChatMessage, Edge, EventLog, Node
+from app.db import Area, Base, CanvasState, ChatMessage, Edge, EventLog, Node
 
 
 # ---------------------------------------------------------------------------
@@ -31,6 +31,7 @@ class TestNodeModel:
             "config", "identity",
             "agent_status", "agent_status_message",
             "gauge_value", "gauge_label", "gauge_unit",
+            "area_id",
             "created_at", "updated_at",
         }
         assert expected.issubset(col_names), f"Missing columns: {expected - col_names}"
@@ -50,6 +51,15 @@ class TestNodeModel:
 
     def test_container_status_default(self):
         assert Node.__table__.c["container_status"].default.arg == "pending"
+
+    def test_area_id_foreign_key(self):
+        fks = list(Node.__table__.c["area_id"].foreign_keys)
+        assert len(fks) == 1
+        assert "areas.id" in str(fks[0])
+
+    def test_area_relationship(self):
+        rel_names = {r.key for r in Node.__mapper__.relationships}
+        assert "area" in rel_names
 
     def test_relationships_declared(self):
         rel_names = {r.key for r in Node.__mapper__.relationships}
@@ -106,6 +116,36 @@ class TestCanvasStateModel:
         assert CanvasState.__table__.c["zoom"].default.arg == 1.0
 
 
+class TestAreaModel:
+    """Verify the Area ORM model."""
+
+    def test_tablename(self):
+        assert Area.__tablename__ == "areas"
+
+    def test_primary_key_is_uuid(self):
+        col = Area.__table__.c["id"]
+        assert col.primary_key
+
+    def test_required_columns_exist(self):
+        col_names = {c.name for c in Area.__table__.columns}
+        expected = {"id", "name", "sort_order", "created_at"}
+        assert expected.issubset(col_names), f"Missing columns: {expected - col_names}"
+
+    def test_name_default(self):
+        col = Area.__table__.c["name"]
+        assert col.default is not None
+        assert col.default.arg == "Main"
+
+    def test_sort_order_default(self):
+        col = Area.__table__.c["sort_order"]
+        assert col.default is not None
+        assert col.default.arg == 0.0
+
+    def test_relationships_declared(self):
+        rel_names = {r.key for r in Area.__mapper__.relationships}
+        assert "nodes" in rel_names
+
+
 class TestChatMessageModel:
     """Verify the ChatMessage model."""
 
@@ -156,12 +196,12 @@ class TestBaseDeclarative:
     """Meta tests on the declarative Base."""
 
     def test_all_models_share_base(self):
-        for model in (Node, Edge, CanvasState, ChatMessage, EventLog):
+        for model in (Area, Node, Edge, CanvasState, ChatMessage, EventLog):
             assert issubclass(model, Base)
 
     def test_metadata_table_count(self):
         table_names = set(Base.metadata.tables.keys())
-        expected = {"nodes", "edges", "canvas_state", "chat_messages", "event_logs"}
+        expected = {"areas", "nodes", "edges", "canvas_state", "chat_messages", "event_logs"}
         assert expected.issubset(table_names)
 
 

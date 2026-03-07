@@ -59,4 +59,12 @@ describe("canvasStore", () => {
     useCanvasStore.getState().setNodeRebuilding("test-id", true);
     expect(mockFn).toHaveBeenCalledWith("test-id", true);
   });
+
+  it("resetForAreaSwitch clears selection and checked nodes", () => {
+    useCanvasStore.getState().setSelectedNodeId("node-1");
+    useCanvasStore.getState().toggleCheckedNode("node-2");
+    useCanvasStore.getState().resetForAreaSwitch();
+    expect(useCanvasStore.getState().selectedNodeId).toBeNull();
+    expect(useCanvasStore.getState().checkedNodeIds.size).toBe(0);
+  });
 });

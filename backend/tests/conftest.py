@@ -113,6 +113,7 @@ class FakeNode:
         self.gauge_unit = kwargs.get("gauge_unit", None)
         self.created_at = kwargs.get("created_at", datetime.now(timezone.utc))
         self.updated_at = kwargs.get("updated_at", datetime.now(timezone.utc))
+        self.area_id = kwargs.get("area_id", None)
         self.edges_out = kwargs.get("edges_out", [])
         self.edges_in = kwargs.get("edges_in", [])
 
@@ -127,6 +128,7 @@ class FakeEdge:
         self.edge_type = kwargs.get("edge_type", "connection")
         self.source_handle = kwargs.get("source_handle", None)
         self.target_handle = kwargs.get("target_handle", None)
+        self.chat_enabled = kwargs.get("chat_enabled", False)
         self.created_at = kwargs.get("created_at", datetime.now(timezone.utc))
 
 

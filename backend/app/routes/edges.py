@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.broadcast import broadcast
-from app.db import Edge, emit_event, get_db
+from app.db import Edge, Node, emit_event, get_db
 
 router = APIRouter(tags=["edges"])
 
@@ -41,6 +41,14 @@ class EdgeRead(BaseModel):
 
 @router.post("/edges", response_model=EdgeRead)
 async def create_edge(payload: EdgeCreate, db: AsyncSession = Depends(get_db)):
+    # Validate both nodes are in the same area
+    source_node = await db.get(Node, payload.source_id)
+    target_node = await db.get(Node, payload.target_id)
+    if not source_node or not target_node:
+        raise HTTPException(status_code=404, detail="Source or target node not found")
+    if source_node.area_id != target_node.area_id:
+        raise HTTPException(status_code=400, detail="Cannot create edge between nodes in different areas")
+
     edge = Edge(id=uuid4(), **payload.model_dump())
     db.add(edge)
     await db.commit()
@@ -51,8 +59,24 @@ async def create_edge(payload: EdgeCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/edges", response_model=list[EdgeRead])
-async def list_edges(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Edge))
+async def list_edges(
+    area_id: UUID | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    if area_id:
+        # Only return edges where both source and target are in the given area
+        from sqlalchemy.orm import aliased
+        source_node = aliased(Node)
+        target_node = aliased(Node)
+        query = (
+            select(Edge)
+            .join(source_node, Edge.source_id == source_node.id)
+            .join(target_node, Edge.target_id == target_node.id)
+            .where(source_node.area_id == area_id, target_node.area_id == area_id)
+        )
+        result = await db.execute(query)
+    else:
+        result = await db.execute(select(Edge))
     return result.scalars().all()
 
 

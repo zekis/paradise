@@ -25,6 +25,7 @@ class FakeNode:
         self.archived = kwargs.get("archived", False)
         self.agent_status = kwargs.get("agent_status", None)
         self.agent_status_message = kwargs.get("agent_status_message", None)
+        self.area_id = kwargs.get("area_id", None)
 
 
 # ---------------------------------------------------------------------------

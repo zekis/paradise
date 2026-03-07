@@ -5,6 +5,7 @@ import Icon from "@mdi/react";
 import { mdiClose, mdiCog, mdiRobot, mdiFormatListBulleted, mdiDeleteSweepOutline } from "@mdi/js";
 import { useAsyncForm } from "@/hooks/useAsyncForm";
 import { useEventLogStore, type EventLogEntry } from "@/store/eventLogStore";
+import { useAreaStore } from "@/store/areaStore";
 
 type SettingsTab = "config" | "templates" | "events";
 type TemplateKey = "SOUL.md" | "AGENTS.md" | "USER.md" | "HEARTBEAT.md";
@@ -192,14 +193,16 @@ export function DefaultConfigPanel({
   const [tab, setTab] = useState<SettingsTab>("config");
   const eventLogEnabled = useEventLogStore((s) => s.enabled);
   const setEventLogEnabled = useEventLogStore((s) => s.setEnabled);
+  const activeAreaId = useAreaStore((s) => s.activeAreaId);
+  const areaParam = activeAreaId ? `?area_id=${activeAreaId}` : "";
 
   // ─── Config form ───
   const configForm = useAsyncForm({
     loadFn: useCallback(async () => {
-      const res = await fetch(`${api}/api/settings/default-config`);
+      const res = await fetch(`${api}/api/settings/default-config${areaParam}`);
       const data = await res.json();
       return JSON.stringify(data.config || {}, null, 2);
-    }, [api]),
+    }, [api, areaParam]),
     saveFn: useCallback(async (value: string) => {
       let parsed: unknown;
       try {
@@ -208,13 +211,13 @@ export function DefaultConfigPanel({
         console.warn('Invalid JSON in default config editor:', error);
         throw new Error("Invalid JSON");
       }
-      const res = await fetch(`${api}/api/settings/default-config`, {
+      const res = await fetch(`${api}/api/settings/default-config${areaParam}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ config: parsed }),
       });
       if (!res.ok) throw new Error("Save failed");
-    }, [api]),
+    }, [api, areaParam]),
   });
 
   // ─── Templates state ───
@@ -228,7 +231,7 @@ export function DefaultConfigPanel({
   const loadTemplates = useCallback(async () => {
     setTemplatesLoading(true);
     try {
-      const res = await fetch(`${api}/api/settings/default-templates`);
+      const res = await fetch(`${api}/api/settings/default-templates${areaParam}`);
       const data = await res.json();
       setTemplates(data.templates || {});
       setTemplatesError(null);
@@ -238,7 +241,7 @@ export function DefaultConfigPanel({
     } finally {
       setTemplatesLoading(false);
     }
-  }, [api]);
+  }, [api, areaParam]);
 
   useEffect(() => {
     configForm.load();
@@ -250,7 +253,7 @@ export function DefaultConfigPanel({
     setTemplatesError(null);
     setTemplatesSuccess(false);
     try {
-      const res = await fetch(`${api}/api/settings/default-templates`, {
+      const res = await fetch(`${api}/api/settings/default-templates${areaParam}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ templates }),

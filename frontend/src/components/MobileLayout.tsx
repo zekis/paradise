@@ -8,6 +8,7 @@ import { MobileToolbar } from "./MobileToolbar";
 import { NodeDrawer } from "./NodeDrawer";
 import { DefaultConfigPanel } from "./DefaultConfigPanel";
 import { GenesisModal, type GenesisResult } from "./GenesisModal";
+import { AreaTabBar } from "./AreaTabBar";
 
 interface MobileLayoutProps {
   nodes: Node[];
@@ -57,6 +58,8 @@ export function MobileLayout({
           Loading Paradise...
         </div>
       )}
+
+      <AreaTabBar isMobile />
 
       <MobileToolbar
         showBack={showCard}

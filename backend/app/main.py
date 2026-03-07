@@ -13,7 +13,7 @@ from sqlalchemy import select
 from app.broadcast import broadcast
 from app.db import Node, async_session, engine, create_tables, emit_event
 from app.docker_ops import get_container_status, read_workspace_file
-from app.routes import canvas, nodes, edges, chat, events, workspace, node_status, node_network, agent_api
+from app.routes import areas, canvas, nodes, edges, chat, events, workspace, node_status, node_network, agent_api
 from app.routes.helpers import recreate_container, sync_identity_name
 
 
@@ -120,6 +120,7 @@ async def _check_container_statuses(all_nodes, db):
             await broadcast.publish("container_status", {
                 "node_id": str(node.id),
                 "container_status": actual,
+                "area_id": str(node.area_id) if node.area_id else None,
             })
 
     await db.commit()
@@ -159,6 +160,7 @@ async def _sync_node_gauge(node, gauge_src):
                 "gauge_value": node.gauge_value,
                 "gauge_label": node.gauge_label,
                 "gauge_unit": node.gauge_unit,
+                "area_id": str(node.area_id) if node.area_id else None,
             })
 
 
@@ -203,6 +205,7 @@ async def _refresh_identities(running_nodes, db):
             await broadcast.publish("identity_update", {
                 "node_id": str(node.id),
                 "identity": identity,
+                "area_id": str(node.area_id) if node.area_id else None,
             })
 
         # Sync gauge value from identity.json (flat or nested)
@@ -228,6 +231,7 @@ async def _check_recommendations(running_nodes):
             if recs:
                 await broadcast.publish("recommendations_ready", {
                     "node_id": str(node.id),
+                    "area_id": str(node.area_id) if node.area_id else None,
                 })
         except (json.JSONDecodeError, TypeError):
             logger.debug(
@@ -292,6 +296,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(areas.router, prefix="/api")
 app.include_router(canvas.router, prefix="/api")
 app.include_router(nodes.router, prefix="/api")
 app.include_router(workspace.router, prefix="/api")

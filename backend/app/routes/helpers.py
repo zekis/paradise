@@ -451,7 +451,9 @@ async def setup_container(
     node.container_id = container_id
     node.container_status = "running"
 
-    canvas_state = await db.get(CanvasState, "default")
+    # Look up CanvasState by the node's area_id (or fall back to "default")
+    canvas_key = str(node.area_id) if node.area_id else "default"
+    canvas_state = await db.get(CanvasState, canvas_key)
 
     # --- config ---
     if config_override:
