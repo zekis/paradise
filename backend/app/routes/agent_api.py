@@ -60,6 +60,8 @@ class AgentNodeRead(BaseModel):
     gauge_value: float | None = None
     gauge_label: str | None = None
     gauge_unit: str | None = None
+    gauge_warn_threshold: float | None = None
+    gauge_critical_threshold: float | None = None
     identity: dict | None = None
     created_at: datetime | None = None
 

@@ -13,29 +13,26 @@ export interface TreeNode {
   gaugeValue: number | null;
   gaugeLabel: string | null;
   gaugeUnit: string | null;
+  gaugeWarnThreshold: number | null;
+  gaugeCriticalThreshold: number | null;
   children: TreeNode[];
 }
 
 export function getStatusColor(agentStatus: string | null, containerStatus: string | null): string {
-  if (agentStatus) {
-    switch (agentStatus) {
-      case "ok": return "var(--green)";
-      case "warning": return "var(--yellow)";
-      case "error": return "var(--red)";
-      default: return "var(--green)";
-    }
-  }
-  switch (containerStatus) {
-    case "running": return "var(--green)";
-    case "error": return "var(--red)";
-    default: return "var(--yellow)";
-  }
+  if (agentStatus === "error" || containerStatus === "error") return "var(--red)";
+  if (agentStatus === "warning") return "var(--yellow)";
+  if (containerStatus !== "running" && containerStatus !== null) return "var(--yellow)";
+  return "var(--text-muted)";
 }
 
-export function getGaugeColor(value: number, identityColor: string | null): string {
-  if (value > 80) return "var(--red)";
-  if (value > 60) return "var(--yellow)";
-  return identityColor || "var(--accent)";
+export function getGaugeColor(
+  value: number,
+  warnThreshold: number | null,
+  criticalThreshold: number | null,
+): string {
+  if (criticalThreshold != null && value >= criticalThreshold) return "var(--red)";
+  if (warnThreshold != null && value >= warnThreshold) return "var(--yellow)";
+  return "var(--text-muted)";
 }
 
 export function buildTree(nodes: Node[], edges: Edge[]): TreeNode[] {
@@ -87,6 +84,8 @@ export function buildTree(nodes: Node[], edges: Edge[]): TreeNode[] {
       gaugeValue: data.gaugeValue ?? null,
       gaugeLabel: data.gaugeLabel ?? null,
       gaugeUnit: data.gaugeUnit ?? null,
+      gaugeWarnThreshold: data.gaugeWarnThreshold ?? null,
+      gaugeCriticalThreshold: data.gaugeCriticalThreshold ?? null,
       children,
     };
   }

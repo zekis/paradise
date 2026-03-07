@@ -35,6 +35,8 @@ export interface NanobotNodeData extends Record<string, unknown> {
   gaugeValue?: number | null;
   gaugeLabel?: string | null;
   gaugeUnit?: string | null;
+  gaugeWarnThreshold?: number | null;
+  gaugeCriticalThreshold?: number | null;
 }
 
 export type NanobotFlowNode = Node<NanobotNodeData, "nanobot">;

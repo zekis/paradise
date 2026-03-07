@@ -49,7 +49,7 @@ export function InfoTab({ nodeId, api }: { nodeId: string; api: string }) {
 
   const statusColor =
     info.status === "running"
-      ? "var(--green)"
+      ? "var(--text-muted)"
       : info.status === "exited"
         ? "var(--red)"
         : "var(--yellow)";

@@ -15,6 +15,8 @@ export interface ApiNode {
   gauge_value?: number | null;
   gauge_label?: string | null;
   gauge_unit?: string | null;
+  gauge_warn_threshold?: number | null;
+  gauge_critical_threshold?: number | null;
   archived?: boolean;
 }
 
@@ -44,6 +46,8 @@ export function mapApiNodeToNodeData(
     gaugeValue: apiNode.gauge_value ?? null,
     gaugeLabel: apiNode.gauge_label || null,
     gaugeUnit: apiNode.gauge_unit || null,
+    gaugeWarnThreshold: apiNode.gauge_warn_threshold ?? null,
+    gaugeCriticalThreshold: apiNode.gauge_critical_threshold ?? null,
     archived: apiNode.archived || false,
     ...overrides,
   };

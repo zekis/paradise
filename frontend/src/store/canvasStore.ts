@@ -16,8 +16,8 @@ interface CanvasStore {
   setUpdateNodeName: (fn: (nodeId: string, name: string) => void) => void;
   updateNodeAgentStatus: (nodeId: string, status: string | null, message?: string) => void;
   setUpdateNodeAgentStatus: (fn: (nodeId: string, status: string | null, message?: string) => void) => void;
-  updateNodeGauge: (nodeId: string, value: number | null, label?: string, unit?: string) => void;
-  setUpdateNodeGauge: (fn: (nodeId: string, value: number | null, label?: string, unit?: string) => void) => void;
+  updateNodeGauge: (nodeId: string, value: number | null, label?: string, unit?: string, warnThreshold?: number | null, criticalThreshold?: number | null) => void;
+  setUpdateNodeGauge: (fn: (nodeId: string, value: number | null, label?: string, unit?: string, warnThreshold?: number | null, criticalThreshold?: number | null) => void) => void;
   addNode: (node: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => void;
   setAddNode: (fn: (node: { id: string; position: { x: number; y: number }; data: Record<string, unknown> }) => void) => void;
   addEdge: (edge: { id: string; source: string; target: string; sourceHandle?: string; targetHandle?: string }) => void;
