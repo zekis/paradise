@@ -10,6 +10,9 @@ export interface TreeNode {
   agentStatus: string | null;
   containerStatus: string | null;
   archived?: boolean;
+  gaugeValue: number | null;
+  gaugeLabel: string | null;
+  gaugeUnit: string | null;
   children: TreeNode[];
 }
 
@@ -27,6 +30,12 @@ export function getStatusColor(agentStatus: string | null, containerStatus: stri
     case "error": return "var(--red)";
     default: return "var(--yellow)";
   }
+}
+
+export function getGaugeColor(value: number, identityColor: string | null): string {
+  if (value > 80) return "var(--red)";
+  if (value > 60) return "var(--yellow)";
+  return identityColor || "var(--accent)";
 }
 
 export function buildTree(nodes: Node[], edges: Edge[]): TreeNode[] {
@@ -75,6 +84,9 @@ export function buildTree(nodes: Node[], edges: Edge[]): TreeNode[] {
       agentStatus: data.agentStatus ?? null,
       containerStatus: data.containerStatus ?? null,
       archived: data.archived ?? false,
+      gaugeValue: data.gaugeValue ?? null,
+      gaugeLabel: data.gaugeLabel ?? null,
+      gaugeUnit: data.gaugeUnit ?? null,
       children,
     };
   }

@@ -6,7 +6,7 @@ import { mdiChevronRight, mdiChevronDown, mdiRobot } from "@mdi/js";
 import type { Node, Edge } from "@xyflow/react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { resolveMdiIcon } from "@/lib/mdiIcons";
-import { buildTree, getStatusColor, type TreeNode } from "@/lib/treeUtils";
+import { buildTree, getStatusColor, getGaugeColor, type TreeNode } from "@/lib/treeUtils";
 import type { NanobotNodeData } from "@/types";
 import { NetworkCommandBar } from "./NetworkCommandBar";
 import { MessageAllModal } from "./MessageAllModal";
@@ -39,6 +39,8 @@ function MobileTreeItem({
   const hasChildren = node.children.length > 0;
   const isArchived = node.archived ?? false;
   const statusColor = getStatusColor(node.agentStatus, node.containerStatus);
+  const hasGauge = node.gaugeValue != null;
+  const gaugeColor = hasGauge ? getGaugeColor(node.gaugeValue!, node.color || null) : undefined;
 
   return (
     <>
@@ -110,6 +112,26 @@ function MobileTreeItem({
         >
           {node.label}
         </span>
+
+        {/* Gauge value badge */}
+        {hasGauge && (
+          <span
+            title={node.gaugeLabel ? `${node.gaugeLabel}: ${Math.round(node.gaugeValue!)}${node.gaugeUnit || ""}` : undefined}
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: gaugeColor,
+              background: "var(--overlay-light)",
+              borderRadius: 8,
+              padding: "2px 6px",
+              lineHeight: 1.2,
+              flexShrink: 0,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {Math.round(node.gaugeValue!)}{node.gaugeUnit || ""}
+          </span>
+        )}
 
         {/* Status dot */}
         <span
