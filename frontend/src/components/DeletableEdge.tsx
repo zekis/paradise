@@ -9,6 +9,8 @@ import {
 } from "@xyflow/react";
 import { mdiChat } from "@mdi/js";
 import { useCanvasStore } from "@/store/canvasStore";
+import { useAreaStore } from "@/store/areaStore";
+import { useSecurityStore } from "@/store/securityStore";
 import { API_URL as API } from "@/lib/api";
 
 export function DeletableEdge({
@@ -27,6 +29,8 @@ export function DeletableEdge({
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const removeEdge = useCanvasStore((s) => s.removeEdge);
   const updateEdgeChatEnabled = useCanvasStore((s) => s.updateEdgeChatEnabled);
+  const activeAreaId = useAreaStore((s) => s.activeAreaId);
+  const isLocked = useSecurityStore((s) => activeAreaId ? s.lockedAreaIds.has(activeAreaId) : false);
 
   // Debounced hover to prevent flicker when crossing the gap between
   // the SVG hit-area path and the HTML EdgeLabelRenderer buttons.
@@ -68,7 +72,7 @@ export function DeletableEdge({
     });
   };
 
-  const showButtons = hovered || chatEnabled;
+  const showButtons = !isLocked && (hovered || chatEnabled);
 
   return (
     <>

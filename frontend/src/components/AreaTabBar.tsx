@@ -26,9 +26,10 @@ interface AreaTabBarProps {
   onToggleSettings?: () => void;
   showSettings?: boolean;
   onAddBot?: () => void;
+  isReadOnly?: boolean;
 }
 
-export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot }: AreaTabBarProps) {
+export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot, isReadOnly }: AreaTabBarProps) {
   const areas = useAreaStore((s) => s.areas);
   const activeAreaId = useAreaStore((s) => s.activeAreaId);
   const mode = useThemeStore((s) => s.mode);
@@ -47,6 +48,7 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
   }, [activeAreaId]);
 
   const handleAddArea = useCallback(async () => {
+    if (isReadOnly) return;
     try {
       const res = await fetch(`${API}/api/areas`, {
         method: "POST",
@@ -64,7 +66,7 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
     } catch (error) {
       console.warn("Failed to create area:", error);
     }
-  }, []);
+  }, [isReadOnly]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, area: Area) => {
     e.preventDefault();
@@ -72,11 +74,13 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
   }, []);
 
   const handleDoubleClick = useCallback((area: Area) => {
+    if (isReadOnly) return;
     setEditingId(area.id);
     setEditingName(area.name);
-  }, []);
+  }, [isReadOnly]);
 
   const handleRenameSubmit = useCallback(async () => {
+    if (isReadOnly) { setEditingId(null); return; }
     if (!editingId || !editingName.trim()) {
       setEditingId(null);
       return;
@@ -94,9 +98,10 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
       console.warn("Failed to rename area:", error);
     }
     setEditingId(null);
-  }, [editingId, editingName]);
+  }, [editingId, editingName, isReadOnly]);
 
   const handleDelete = useCallback(async (area: Area, moveToAreaId: string) => {
+    if (isReadOnly) return;
     try {
       const res = await fetch(`${API}/api/areas/${area.id}?move_to=${moveToAreaId}`, {
         method: "DELETE",
@@ -108,7 +113,7 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
       console.warn("Failed to delete area:", error);
     }
     setDeleteModal(null);
-  }, []);
+  }, [isReadOnly]);
 
   // Dismiss context menu on click anywhere
   useEffect(() => {
@@ -222,7 +227,8 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
         {/* Add area button */}
         <button
           onClick={handleAddArea}
-          title="New area"
+          title={isReadOnly ? "Locked" : "New area"}
+          disabled={isReadOnly}
           style={{
             height,
             width: height,
@@ -232,10 +238,11 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
             background: "transparent",
             border: "none",
             borderLeft: "1px solid var(--border)",
-            cursor: "pointer",
+            cursor: isReadOnly ? "not-allowed" : "pointer",
             flexShrink: 0,
+            opacity: isReadOnly ? 0.35 : 1,
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--overlay-light)")}
+          onMouseEnter={(e) => { if (!isReadOnly) e.currentTarget.style.background = "var(--overlay-light)"; }}
           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
         >
           <Icon path={mdiPlus} size={0.6} color="var(--text-muted)" />
@@ -334,7 +341,7 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
           }}
         >
           <button
-            onClick={() => {
+            onClick={isReadOnly ? undefined : () => {
               handleDoubleClick(contextMenu.area);
               setContextMenu(null);
             }}
@@ -347,11 +354,12 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
               background: "transparent",
               border: "none",
               color: "var(--text)",
-              cursor: "pointer",
+              cursor: isReadOnly ? "not-allowed" : "pointer",
               fontSize: 11,
               textAlign: "left",
+              opacity: isReadOnly ? 0.4 : 1,
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--overlay-light)")}
+            onMouseEnter={(e) => { if (!isReadOnly) e.currentTarget.style.background = "var(--overlay-light)"; }}
             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
             <Icon path={mdiPencilOutline} size={0.5} color="var(--text-muted)" />
@@ -359,7 +367,7 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
           </button>
           {areas.length > 1 && (
             <button
-              onClick={() => {
+              onClick={isReadOnly ? undefined : () => {
                 setDeleteModal(contextMenu.area);
                 setContextMenu(null);
               }}
@@ -373,11 +381,12 @@ export function AreaTabBar({ isMobile, onToggleSettings, showSettings, onAddBot 
                 border: "none",
                 borderTop: "1px solid var(--border)",
                 color: "var(--red)",
-                cursor: "pointer",
+                cursor: isReadOnly ? "not-allowed" : "pointer",
                 fontSize: 11,
                 textAlign: "left",
+                opacity: isReadOnly ? 0.4 : 1,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--overlay-light)")}
+              onMouseEnter={(e) => { if (!isReadOnly) e.currentTarget.style.background = "var(--overlay-light)"; }}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
               <Icon path={mdiDeleteOutline} size={0.5} color="var(--red)" />

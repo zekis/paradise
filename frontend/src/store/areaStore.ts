@@ -5,6 +5,7 @@ export interface Area {
   name: string;
   sort_order: number;
   node_count: number;
+  has_pin: boolean;
 }
 
 interface AreaStore {

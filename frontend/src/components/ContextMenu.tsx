@@ -25,6 +25,7 @@ interface ContextMenuProps {
   rebuilding?: boolean;
   archived?: boolean;
   shortcuts?: NodeIdentityShortcut[];
+  isReadOnly?: boolean;
   onClose: () => void;
   onDelete?: () => void;
   onAddBot?: () => void;
@@ -39,7 +40,7 @@ interface MenuItem {
   disabled?: boolean;
 }
 
-export function ContextMenu({ position, nodeId, rebuilding, archived, shortcuts, onClose, onDelete, onAddBot }: ContextMenuProps) {
+export function ContextMenu({ position, nodeId, rebuilding, archived, shortcuts, isReadOnly, onClose, onDelete, onAddBot }: ContextMenuProps) {
   const api = useCanvasStore((s) => s.api);
   const addNode = useCanvasStore((s) => s.addNode);
   const removeNode = useCanvasStore((s) => s.removeNode);
@@ -160,18 +161,19 @@ export function ContextMenu({ position, nodeId, rebuilding, archived, shortcuts,
 
   const items: MenuItem[] = nodeId
     ? [
-        { icon: mdiContentCopy, label: "Clone", action: handleClone, disabled: archived },
-        { icon: mdiRestart, label: "Restart", action: handleRestart, disabled: rebuilding || archived },
-        { icon: mdiWrench, label: "Rebuild", action: handleRebuild, disabled: rebuilding || archived },
+        { icon: mdiContentCopy, label: "Clone", action: handleClone, disabled: isReadOnly || archived },
+        { icon: mdiRestart, label: "Restart", action: handleRestart, disabled: isReadOnly || rebuilding || archived },
+        { icon: mdiWrench, label: "Rebuild", action: handleRebuild, disabled: isReadOnly || rebuilding || archived },
         ...(archived
-          ? [{ icon: mdiPlay, label: "Resume", action: handleResume, disabled: rebuilding }]
-          : [{ icon: mdiArchiveArrowDown, label: "Archive", action: handleArchive, disabled: rebuilding }]
+          ? [{ icon: mdiPlay, label: "Resume", action: handleResume, disabled: isReadOnly || rebuilding }]
+          : [{ icon: mdiArchiveArrowDown, label: "Archive", action: handleArchive, disabled: isReadOnly || rebuilding }]
         ),
         ...otherAreas.map((area, i) => ({
           icon: mdiArrowRightBold,
           label: `Send to ${area.name.length > 20 ? area.name.slice(0, 17) + "..." : area.name}`,
           action: () => handleSendToArea(area.id),
           separator: i === 0,
+          disabled: isReadOnly,
         })),
         ...shortcutItems,
         {
@@ -180,10 +182,11 @@ export function ContextMenu({ position, nodeId, rebuilding, archived, shortcuts,
           action: () => { onClose(); onDelete?.(); },
           color: "var(--red)",
           separator: shortcutItems.length > 0 || otherAreas.length > 0,
+          disabled: isReadOnly,
         },
       ]
     : [
-        { icon: mdiPlus, label: "Create", action: () => { onClose(); onAddBot?.(); } },
+        { icon: mdiPlus, label: "Create", action: () => { onClose(); onAddBot?.(); }, disabled: isReadOnly },
       ];
 
   return (

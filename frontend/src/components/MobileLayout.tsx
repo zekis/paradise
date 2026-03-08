@@ -9,6 +9,7 @@ import { NodeDrawer } from "./NodeDrawer";
 import { DefaultConfigPanel } from "./DefaultConfigPanel";
 import { GenesisModal, type GenesisResult } from "./GenesisModal";
 import { AreaTabBar } from "./AreaTabBar";
+import { SecurityBar } from "./SecurityBar";
 
 interface MobileLayoutProps {
   nodes: Node[];
@@ -30,6 +31,8 @@ interface MobileLayoutProps {
   };
   loaded: boolean;
   onNodeContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
+  onOpenPinModal?: (mode: "unlock" | "set-pin") => void;
+  isReadOnly?: boolean;
 }
 
 export function MobileLayout({
@@ -48,6 +51,8 @@ export function MobileLayout({
   parentContext,
   loaded,
   onNodeContextMenu,
+  onOpenPinModal,
+  isReadOnly,
 }: MobileLayoutProps) {
   const showCard = !!selectedNodeData;
 
@@ -59,7 +64,10 @@ export function MobileLayout({
         </div>
       )}
 
-      <AreaTabBar isMobile />
+      <AreaTabBar isMobile isReadOnly={isReadOnly} />
+      {onOpenPinModal && (
+        <SecurityBar isMobile onOpenPinModal={onOpenPinModal} />
+      )}
 
       <MobileToolbar
         showBack={showCard}
@@ -70,9 +78,9 @@ export function MobileLayout({
       />
 
       {showCard ? (
-        <NodeDrawer data={selectedNodeData} onClose={onDeselectNode} isMobile />
+        <NodeDrawer data={selectedNodeData} onClose={onDeselectNode} isMobile isReadOnly={isReadOnly} />
       ) : (
-        <MobileTreeView nodes={nodes} edges={edges} onSelectNode={onSelectNode} onNodeContextMenu={onNodeContextMenu} />
+        <MobileTreeView nodes={nodes} edges={edges} onSelectNode={onSelectNode} onNodeContextMenu={onNodeContextMenu} isReadOnly={isReadOnly} />
       )}
 
       {showSettings && <DefaultConfigPanel api={api} onClose={onToggleSettings} isMobile />}

@@ -59,9 +59,10 @@ interface NodeDrawerProps {
   data: NanobotNodeData;
   onClose: () => void;
   isMobile?: boolean;
+  isReadOnly?: boolean;
 }
 
-export function NodeDrawer({ data, onClose, isMobile }: NodeDrawerProps) {
+export function NodeDrawer({ data, onClose, isMobile, isReadOnly }: NodeDrawerProps) {
   const {
     nodeId,
     containerStatus,
@@ -117,7 +118,7 @@ export function NodeDrawer({ data, onClose, isMobile }: NodeDrawerProps) {
       const msg = event.data;
       if (!msg || typeof msg !== "object" || msg.nodeId !== nodeId) return;
       if (msg.type === "paradise:rename") {
-        updateNodeName(nodeId, msg.name);
+        if (!isReadOnly) updateNodeName(nodeId, msg.name);
       } else if (msg.type === "paradise:status") {
         updateNodeAgentStatus(nodeId, msg.status, msg.message);
       } else if (msg.type === "paradise:gauge") {
@@ -246,6 +247,7 @@ export function NodeDrawer({ data, onClose, isMobile }: NodeDrawerProps) {
               <span style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {label}
               </span>
+              {!isReadOnly && (
               <button
                 onClick={() => { setEditingName(data.label); setEditing(true); }}
                 style={{
@@ -263,6 +265,7 @@ export function NodeDrawer({ data, onClose, isMobile }: NodeDrawerProps) {
               >
                 <Icon path={mdiPencil} size={0.55} />
               </button>
+              )}
             </>
           )}
         </div>
@@ -270,6 +273,7 @@ export function NodeDrawer({ data, onClose, isMobile }: NodeDrawerProps) {
           {genesisActive && (
             <span style={{ fontSize: 10, color: "var(--yellow)", marginRight: 4 }}>genesis...</span>
           )}
+          {!isReadOnly && (
           <button
             onClick={() => setShowDeleteConfirm(true)}
             style={{
@@ -286,6 +290,7 @@ export function NodeDrawer({ data, onClose, isMobile }: NodeDrawerProps) {
           >
             <Icon path={mdiDeleteOutline} size={0.6} />
           </button>
+          )}
           <button
             onClick={onClose}
             style={{
@@ -352,6 +357,7 @@ export function NodeDrawer({ data, onClose, isMobile }: NodeDrawerProps) {
           onGenesisComplete={handleGenesisComplete}
           onIdentityUpdate={handleIdentityUpdate}
           onThinkingChange={setThinking}
+          isReadOnly={isReadOnly}
         />
       </div>
       <div style={{ flex: 1, overflow: "hidden", display: activeTab === "object" ? "block" : "none" }}>

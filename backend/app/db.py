@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, Text, func, select, text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, func, select, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, relationship
@@ -31,6 +31,9 @@ class Area(Base):
     name = Column(Text, nullable=False, default="Area 1")
     sort_order = Column(Float, nullable=False, default=0.0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    pin_hash = Column(Text, nullable=True)
+    lockout_until = Column(DateTime(timezone=True), nullable=True)
+    failed_attempts = Column(Integer, nullable=False, default=0, server_default="0")
 
     nodes = relationship("Node", back_populates="area")
 
@@ -163,6 +166,12 @@ async def create_tables():
         ))
         await conn.execute(text(
             "ALTER TABLE nodes ADD COLUMN IF NOT EXISTS area_id UUID REFERENCES areas(id) ON DELETE SET NULL"
+        ))
+        # Area security columns
+        await conn.execute(text("ALTER TABLE areas ADD COLUMN IF NOT EXISTS pin_hash TEXT"))
+        await conn.execute(text("ALTER TABLE areas ADD COLUMN IF NOT EXISTS lockout_until TIMESTAMPTZ"))
+        await conn.execute(text(
+            "ALTER TABLE areas ADD COLUMN IF NOT EXISTS failed_attempts INTEGER NOT NULL DEFAULT 0"
         ))
         # Migrate timestamp columns from String to TIMESTAMPTZ
         for table, cols in [
