@@ -27,6 +27,10 @@ import type { NanobotNodeData, Recommendation } from "@/types";
 import { mapApiNodeToFlowNode, mapApiNodeToNodeData, createPlaceholderFlowNode } from "@/lib/mappers";
 import { MobileLayout } from "./MobileLayout";
 import { AreaTabBar } from "./AreaTabBar";
+import { SecurityBar } from "./SecurityBar";
+import { PinModal } from "./PinModal";
+import { useSecurityStore } from "@/store/securityStore";
+import { useIdleTimer } from "@/hooks/useIdleTimer";
 import { API_URL } from "@/lib/api";
 
 let placeholderSeq = 0;
@@ -62,6 +66,7 @@ function CanvasInner() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId?: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ nodeId: string; label: string } | null>(null);
   const [dragCreateContext, setDragCreateContext] = useState<DragCreateContext | null>(null);
+  const [pinModalMode, setPinModalMode] = useState<"unlock" | "set-pin" | null>(null);
   const createAtRef = useRef<{ x: number; y: number } | null>(null);
   const isMobile = useIsMobile();
   const api = useCanvasStore((s) => s.api);
@@ -70,6 +75,12 @@ function CanvasInner() {
   const { screenToFlowPosition, setCenter } = useReactFlow();
 
   const activeAreaId = useAreaStore((s) => s.activeAreaId);
+  const isLocked = useSecurityStore((s) =>
+    activeAreaId ? s.lockedAreaIds.has(activeAreaId) : false
+  );
+
+  // Idle timer — resets on user activity, auto-locks when PIN is set
+  useIdleTimer(activeAreaId);
 
   // Fetch areas on mount
   useEffect(() => {
@@ -78,6 +89,17 @@ function CanvasInner() {
       .then((data) => useAreaStore.getState().setAreas(data))
       .catch((err) => console.warn("Failed to fetch areas:", err));
   }, []);
+
+  // Fetch security status and auto-lock areas with PINs on area switch
+  useEffect(() => {
+    if (!activeAreaId) return;
+    const { fetchStatus, unlockedThisSession, lockArea } = useSecurityStore.getState();
+    fetchStatus(activeAreaId).then((status) => {
+      if (status.hasPIN && !unlockedThisSession.has(activeAreaId)) {
+        lockArea(activeAreaId);
+      }
+    });
+  }, [activeAreaId]);
 
   // Ref-stabilized callback for useCanvasSync to avoid circular dependency
   const handleDragToEmptyRef = useRef<((sourceNodeId: string, sourceHandleId: string, screenPosition: { x: number; y: number }) => void) | undefined>(undefined);
@@ -175,20 +197,22 @@ function CanvasInner() {
   const handleContextMenuClose = useCallback(() => setContextMenu(null), []);
 
   const handleContextMenuDelete = useCallback(() => {
+    if (isLocked) return;
     if (!contextMenu?.nodeId) return;
     const node = nodes.find((n) => n.id === contextMenu.nodeId);
     const label = (node?.data as NanobotNodeData | undefined)?.label || "";
     setDeleteConfirm({ nodeId: contextMenu.nodeId, label });
     setContextMenu(null);
-  }, [contextMenu, nodes]);
+  }, [contextMenu, nodes, isLocked]);
 
   const handleContextMenuAddBot = useCallback(() => {
+    if (isLocked) return;
     if (contextMenu) {
       createAtRef.current = screenToFlowPosition({ x: contextMenu.x, y: contextMenu.y });
     }
     setContextMenu(null);
     setShowGenesis(true);
-  }, [contextMenu, screenToFlowPosition]);
+  }, [contextMenu, screenToFlowPosition, isLocked]);
 
   const handleToggleSettings = useCallback(() => {
     setShowSettings((v) => {
@@ -199,6 +223,7 @@ function CanvasInner() {
 
   const handleGenesis = useCallback(async (result: GenesisResult) => {
     setShowGenesis(false);
+    if (isLocked) return;
 
     if (dragCreateContext) {
       // --- CHILD CREATION PATH ---
@@ -304,7 +329,7 @@ function CanvasInner() {
         setShowSettings(false);
       }
     }
-  }, [api, dragCreateContext, setNodes, setEdges, setSelectedNodeId]);
+  }, [api, dragCreateContext, setNodes, setEdges, setSelectedNodeId, isLocked]);
 
   // ─── Mobile layout ───
   if (isMobile) {
@@ -318,7 +343,7 @@ function CanvasInner() {
           onDeselectNode={() => setSelectedNodeId(null)}
           showSettings={showSettings}
           onToggleSettings={handleToggleSettings}
-          onAddBot={() => setShowGenesis(true)}
+          onAddBot={() => { if (!isLocked) setShowGenesis(true); }}
           api={api}
           showGenesis={showGenesis}
           onCloseGenesis={() => { setShowGenesis(false); setDragCreateContext(null); }}
@@ -334,6 +359,8 @@ function CanvasInner() {
           }
           loaded={loaded}
           onNodeContextMenu={handleTreeNodeContextMenu}
+          onOpenPinModal={(mode) => setPinModalMode(mode)}
+          isReadOnly={isLocked}
         />
         {contextMenu && (
           <ContextMenu
@@ -354,6 +381,7 @@ function CanvasInner() {
                 ? (nodes.find((n) => n.id === contextMenu.nodeId)?.data as NanobotNodeData | undefined)?.identity?.shortcuts
                 : undefined
             }
+            isReadOnly={isLocked}
             onClose={handleContextMenuClose}
             onDelete={handleContextMenuDelete}
             onAddBot={handleContextMenuAddBot}
@@ -366,6 +394,13 @@ function CanvasInner() {
             onClose={() => setDeleteConfirm(null)}
           />
         )}
+        {pinModalMode && activeAreaId && (
+          <PinModal
+            areaId={activeAreaId}
+            mode={pinModalMode}
+            onClose={() => setPinModalMode(null)}
+          />
+        )}
       </>
     );
   }
@@ -373,7 +408,8 @@ function CanvasInner() {
   // ─── Desktop layout ───
   return (
     <div style={{ width: "100%", height: "100vh", display: "flex", flexDirection: "column" }}>
-      <AreaTabBar onToggleSettings={handleToggleSettings} showSettings={showSettings} onAddBot={() => setShowGenesis(true)} />
+      <AreaTabBar onToggleSettings={handleToggleSettings} showSettings={showSettings} onAddBot={() => { if (!isLocked) setShowGenesis(true); }} isReadOnly={isLocked} />
+      <SecurityBar onOpenPinModal={(mode) => setPinModalMode(mode)} />
       <div style={{ flex: 1, position: "relative" }}>
       {!loaded && (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", zIndex: 100, fontSize: 16, color: "var(--text-muted)" }}>
@@ -386,10 +422,10 @@ function CanvasInner() {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onConnectStart={onConnectStart}
-        onConnectEnd={onConnectEnd}
-        onNodeDragStop={onNodeDragStop}
+        onConnect={isLocked ? undefined : onConnect}
+        onConnectStart={isLocked ? undefined : onConnectStart}
+        onConnectEnd={isLocked ? undefined : onConnectEnd}
+        onNodeDragStop={isLocked ? undefined : onNodeDragStop}
         onViewportChange={saveViewport}
         onPaneClick={handlePaneClick}
         onNodeClick={handleNodeClick}
@@ -397,6 +433,8 @@ function CanvasInner() {
         onPaneContextMenu={handlePaneContextMenu}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        nodesDraggable={!isLocked}
+        nodesConnectable={!isLocked}
         snapToGrid
         snapGrid={[20, 20]}
         fitView={!loaded}
@@ -449,6 +487,7 @@ function CanvasInner() {
               ? (nodes.find((n) => n.id === contextMenu.nodeId)?.data as NanobotNodeData | undefined)?.identity?.shortcuts
               : undefined
           }
+          isReadOnly={isLocked}
           onClose={handleContextMenuClose}
           onDelete={handleContextMenuDelete}
           onAddBot={handleContextMenuAddBot}
@@ -463,6 +502,14 @@ function CanvasInner() {
       )}
 
       <TreeViewDrawer nodes={nodes} edges={edges} onFocusNode={handleFocusNode} onOpenChange={setTreeDrawerOpen} onNodeContextMenu={handleTreeNodeContextMenu} />
+
+      {pinModalMode && activeAreaId && (
+        <PinModal
+          areaId={activeAreaId}
+          mode={pinModalMode}
+          onClose={() => setPinModalMode(null)}
+        />
+      )}
 
       </div>
     </div>

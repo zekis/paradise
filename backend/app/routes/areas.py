@@ -31,6 +31,7 @@ class AreaRead(BaseModel):
     name: str
     sort_order: float
     node_count: int = 0
+    has_pin: bool = False
     created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
@@ -62,6 +63,7 @@ async def list_areas(db: AsyncSession = Depends(get_db)):
             name=area.name,
             sort_order=area.sort_order,
             node_count=count,
+            has_pin=area.pin_hash is not None,
             created_at=area.created_at,
         )
         for area, count in rows
@@ -97,6 +99,7 @@ async def create_area(payload: AreaCreate, db: AsyncSession = Depends(get_db)):
         name=area.name,
         sort_order=area.sort_order,
         node_count=0,
+        has_pin=area.pin_hash is not None,
         created_at=area.created_at,
     )
 
@@ -124,6 +127,7 @@ async def update_area(area_id: UUID, payload: AreaUpdate, db: AsyncSession = Dep
         name=area.name,
         sort_order=area.sort_order,
         node_count=node_count,
+        has_pin=area.pin_hash is not None,
         created_at=area.created_at,
     )
 

@@ -16,8 +16,8 @@ describe("areaStore", () => {
 
   it("setAreas sets areas and selects first", () => {
     const areas = [
-      { id: "a1", name: "Main", sort_order: 0, node_count: 2 },
-      { id: "a2", name: "Dev", sort_order: 1, node_count: 0 },
+      { id: "a1", name: "Main", sort_order: 0, node_count: 2, has_pin: false },
+      { id: "a2", name: "Dev", sort_order: 1, node_count: 0, has_pin: false },
     ];
     useAreaStore.getState().setAreas(areas);
     const state = useAreaStore.getState();
@@ -28,7 +28,7 @@ describe("areaStore", () => {
 
   it("setActiveAreaId updates active area", () => {
     useAreaStore.getState().setAreas([
-      { id: "a1", name: "Main", sort_order: 0, node_count: 0 },
+      { id: "a1", name: "Main", sort_order: 0, node_count: 0, has_pin: false },
     ]);
     useAreaStore.getState().setActiveAreaId("a1");
     expect(useAreaStore.getState().activeAreaId).toBe("a1");
@@ -36,16 +36,16 @@ describe("areaStore", () => {
 
   it("addArea appends to areas list", () => {
     useAreaStore.getState().setAreas([
-      { id: "a1", name: "Main", sort_order: 0, node_count: 0 },
+      { id: "a1", name: "Main", sort_order: 0, node_count: 0, has_pin: false },
     ]);
-    useAreaStore.getState().addArea({ id: "a2", name: "New", sort_order: 1, node_count: 0 });
+    useAreaStore.getState().addArea({ id: "a2", name: "New", sort_order: 1, node_count: 0, has_pin: false });
     expect(useAreaStore.getState().areas).toHaveLength(2);
     expect(useAreaStore.getState().areas[1].name).toBe("New");
   });
 
   it("updateArea patches area properties", () => {
     useAreaStore.getState().setAreas([
-      { id: "a1", name: "Main", sort_order: 0, node_count: 0 },
+      { id: "a1", name: "Main", sort_order: 0, node_count: 0, has_pin: false },
     ]);
     useAreaStore.getState().updateArea("a1", { name: "Renamed" });
     expect(useAreaStore.getState().areas[0].name).toBe("Renamed");
@@ -53,8 +53,8 @@ describe("areaStore", () => {
 
   it("removeArea removes area and switches active if needed", () => {
     useAreaStore.getState().setAreas([
-      { id: "a1", name: "Main", sort_order: 0, node_count: 0 },
-      { id: "a2", name: "Dev", sort_order: 1, node_count: 0 },
+      { id: "a1", name: "Main", sort_order: 0, node_count: 0, has_pin: false },
+      { id: "a2", name: "Dev", sort_order: 1, node_count: 0, has_pin: false },
     ]);
     useAreaStore.getState().setActiveAreaId("a1");
     useAreaStore.getState().removeArea("a1");
@@ -64,8 +64,8 @@ describe("areaStore", () => {
 
   it("removeArea keeps activeAreaId when removing non-active", () => {
     useAreaStore.getState().setAreas([
-      { id: "a1", name: "Main", sort_order: 0, node_count: 0 },
-      { id: "a2", name: "Dev", sort_order: 1, node_count: 0 },
+      { id: "a1", name: "Main", sort_order: 0, node_count: 0, has_pin: false },
+      { id: "a2", name: "Dev", sort_order: 1, node_count: 0, has_pin: false },
     ]);
     useAreaStore.getState().setActiveAreaId("a1");
     useAreaStore.getState().removeArea("a2");
