@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, Text, func, select, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, relationship
@@ -24,11 +24,23 @@ class Base(DeclarativeBase):
     pass
 
 
+class Area(Base):
+    __tablename__ = "areas"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(Text, nullable=False, default="Area 1")
+    sort_order = Column(Float, nullable=False, default=0.0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    nodes = relationship("Node", back_populates="area")
+
+
 class Node(Base):
     __tablename__ = "nodes"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(Text, nullable=False, default="new-nanobot")
+    area_id = Column(UUID(as_uuid=True), ForeignKey("areas.id", ondelete="SET NULL"), nullable=True, index=True)
     container_id = Column(String(80), nullable=True)
     container_status = Column(String(20), nullable=True, default="pending")
     position_x = Column(Float, nullable=False, default=0.0)
@@ -48,6 +60,7 @@ class Node(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    area = relationship("Area", back_populates="nodes")
     edges_out = relationship("Edge", foreign_keys="Edge.source_id", back_populates="source", cascade="all, delete-orphan")
     edges_in = relationship("Edge", foreign_keys="Edge.target_id", back_populates="target", cascade="all, delete-orphan")
 
@@ -129,7 +142,6 @@ async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     # Migrate existing tables (add columns that may not exist yet)
-    from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS identity JSONB"))
         await conn.execute(text("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS agent_status VARCHAR(20)"))
@@ -149,6 +161,9 @@ async def create_tables():
         await conn.execute(text(
             "ALTER TABLE nodes ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE"
         ))
+        await conn.execute(text(
+            "ALTER TABLE nodes ADD COLUMN IF NOT EXISTS area_id UUID REFERENCES areas(id) ON DELETE SET NULL"
+        ))
         # Migrate timestamp columns from String to TIMESTAMPTZ
         for table, cols in [
             ("nodes", ["created_at", "updated_at"]),
@@ -161,6 +176,40 @@ async def create_tables():
                     f"ALTER TABLE {table} ALTER COLUMN {col} TYPE TIMESTAMPTZ "
                     f"USING {col}::timestamptz"
                 ))
+
+    # Ensure at least one area exists; migrate orphan nodes and singleton canvas state
+    async with async_session() as db:
+        result = await db.execute(select(Area))
+        existing_area = result.scalars().first()
+        if not existing_area:
+            default_area = Area(name="Area 1", sort_order=0.0)
+            db.add(default_area)
+            await db.flush()
+
+            # Assign all existing nodes to the default area
+            await db.execute(
+                text("UPDATE nodes SET area_id = :aid WHERE area_id IS NULL"),
+                {"aid": default_area.id},
+            )
+
+            # Migrate singleton CanvasState("default") to be keyed by area id
+            old_state = await db.get(CanvasState, "default")
+            if old_state:
+                new_state = CanvasState(
+                    id=str(default_area.id),
+                    viewport_x=old_state.viewport_x,
+                    viewport_y=old_state.viewport_y,
+                    zoom=old_state.zoom,
+                    default_nanobot_config=old_state.default_nanobot_config,
+                    default_agent_templates=old_state.default_agent_templates,
+                )
+                await db.delete(old_state)
+                db.add(new_state)
+            else:
+                db.add(CanvasState(id=str(default_area.id)))
+
+            await db.commit()
+            logger.info("Created default area '%s' (id=%s)", default_area.name, default_area.id)
 
 
 async def get_db():

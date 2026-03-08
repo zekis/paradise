@@ -18,6 +18,7 @@ export interface ApiNode {
   gauge_warn_threshold?: number | null;
   gauge_critical_threshold?: number | null;
   archived?: boolean;
+  area_id?: string | null;
 }
 
 /**
@@ -49,6 +50,7 @@ export function mapApiNodeToNodeData(
     gaugeWarnThreshold: apiNode.gauge_warn_threshold ?? null,
     gaugeCriticalThreshold: apiNode.gauge_critical_threshold ?? null,
     archived: apiNode.archived || false,
+    areaId: apiNode.area_id || null,
     ...overrides,
   };
 }

@@ -3,8 +3,6 @@
 import {
   ReactFlow,
   Background,
-  Controls,
-  MiniMap,
   BackgroundVariant,
   ReactFlowProvider,
   useReactFlow,
@@ -15,12 +13,12 @@ import { NanobotNode } from "./NanobotNode";
 import { DeletableEdge } from "./DeletableEdge";
 import { DefaultConfigPanel } from "./DefaultConfigPanel";
 import { GenesisModal, type GenesisResult } from "./GenesisModal";
-import { CanvasToolbar } from "./CanvasToolbar";
 import { NodeDrawer } from "./NodeDrawer";
 import { ContextMenu } from "./ContextMenu";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
 import { TreeViewDrawer } from "./TreeViewDrawer";
 import { useCanvasStore } from "@/store/canvasStore";
+import { useAreaStore } from "@/store/areaStore";
 import { useCanvasSync } from "@/hooks/useCanvasSync";
 import { useEventLogStore } from "@/store/eventLogStore";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -28,6 +26,8 @@ import { generateBotName } from "@/lib/names";
 import type { NanobotNodeData, Recommendation } from "@/types";
 import { mapApiNodeToFlowNode, mapApiNodeToNodeData, createPlaceholderFlowNode } from "@/lib/mappers";
 import { MobileLayout } from "./MobileLayout";
+import { AreaTabBar } from "./AreaTabBar";
+import { API_URL } from "@/lib/api";
 
 let placeholderSeq = 0;
 function makeTempId(prefix = "placeholder") {
@@ -68,6 +68,16 @@ function CanvasInner() {
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
   const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
   const { screenToFlowPosition, setCenter } = useReactFlow();
+
+  const activeAreaId = useAreaStore((s) => s.activeAreaId);
+
+  // Fetch areas on mount
+  useEffect(() => {
+    fetch(`${API_URL}/api/areas`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => useAreaStore.getState().setAreas(data))
+      .catch((err) => console.warn("Failed to fetch areas:", err));
+  }, []);
 
   // Ref-stabilized callback for useCanvasSync to avoid circular dependency
   const handleDragToEmptyRef = useRef<((sourceNodeId: string, sourceHandleId: string, screenPosition: { x: number; y: number }) => void) | undefined>(undefined);
@@ -264,10 +274,11 @@ function CanvasInner() {
       const tempId = makeTempId("placeholder");
       setNodes((nds) => [...nds, createPlaceholderFlowNode(tempId, name, pos)]);
 
+      const currentAreaId = useAreaStore.getState().activeAreaId;
       const res = await fetch(`${api}/api/nodes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, position_x: pos.x, position_y: pos.y }),
+        body: JSON.stringify({ name, position_x: pos.x, position_y: pos.y, area_id: currentAreaId }),
       });
 
       if (!res.ok) {
@@ -361,7 +372,9 @@ function CanvasInner() {
 
   // ─── Desktop layout ───
   return (
-    <div style={{ width: "100%", height: "100vh", position: "relative" }}>
+    <div style={{ width: "100%", height: "100vh", display: "flex", flexDirection: "column" }}>
+      <AreaTabBar onToggleSettings={handleToggleSettings} showSettings={showSettings} onAddBot={() => setShowGenesis(true)} />
+      <div style={{ flex: 1, position: "relative" }}>
       {!loaded && (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", zIndex: 100, fontSize: 16, color: "var(--text-muted)" }}>
           Loading Paradise...
@@ -391,11 +404,7 @@ function CanvasInner() {
         defaultEdgeOptions={{ type: "smoothstep", style: { stroke: "var(--border)", strokeWidth: 1.5 }, animated: true }}
       >
         <Background variant={BackgroundVariant.Dots} color="var(--dots)" gap={20} />
-        <Controls style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }} />
-        <MiniMap style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }} nodeColor="var(--accent)" maskColor="var(--shadow-md)" />
       </ReactFlow>
-
-      <CanvasToolbar showSettings={showSettings} onToggleSettings={handleToggleSettings} onAddBot={() => setShowGenesis(true)} />
 
       {showSettings && <DefaultConfigPanel api={api} onClose={() => setShowSettings(false)} onFocusNode={handleFocusNode} />}
       {selectedNodeData && (
@@ -455,6 +464,7 @@ function CanvasInner() {
 
       <TreeViewDrawer nodes={nodes} edges={edges} onFocusNode={handleFocusNode} onOpenChange={setTreeDrawerOpen} onNodeContextMenu={handleTreeNodeContextMenu} />
 
+      </div>
     </div>
   );
 }

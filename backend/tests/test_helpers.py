@@ -37,6 +37,7 @@ class FakeNode:
         self.identity = kwargs.get("identity", None)
         self.agent_status = kwargs.get("agent_status", None)
         self.agent_status_message = kwargs.get("agent_status_message", None)
+        self.area_id = kwargs.get("area_id", None)
 
 
 class FakeEdge:
@@ -45,6 +46,7 @@ class FakeEdge:
         self.source_id = kwargs.get("source_id", uuid.uuid4())
         self.target_id = kwargs.get("target_id", uuid.uuid4())
         self.edge_type = kwargs.get("edge_type", "connection")
+        self.chat_enabled = kwargs.get("chat_enabled", False)
 
 
 class FakeCanvasState:

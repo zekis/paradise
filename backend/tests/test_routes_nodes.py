@@ -76,10 +76,11 @@ class TestNodeReadModel:
             gauge_warn_threshold = None
             gauge_critical_threshold = None
             archived = False
+            area_id = None
             created_at = datetime.now(timezone.utc)
             updated_at = datetime.now(timezone.utc)
 
-        nr = NodeRead.model_validate(FakeObj, from_attributes=True)
+        nr = NodeRead.model_validate(FakeObj(), from_attributes=True)
         assert nr.name == "test"
         assert nr.container_id == "c123"
 
@@ -156,6 +157,7 @@ class FakeNode:
         self.gauge_label = kwargs.get("gauge_label", None)
         self.gauge_unit = kwargs.get("gauge_unit", None)
         self.archived = kwargs.get("archived", False)
+        self.area_id = kwargs.get("area_id", None)
         self.created_at = kwargs.get("created_at", datetime.now(timezone.utc))
         self.updated_at = kwargs.get("updated_at", datetime.now(timezone.utc))
 
@@ -167,6 +169,10 @@ class TestCreateNode:
         db.add = MagicMock()
         db.commit = AsyncMock()
         db.refresh = AsyncMock()
+        # Mock db.execute for area_id resolution (select(Area).order_by(...).limit(1))
+        fake_area_result = MagicMock()
+        fake_area_result.scalars.return_value.first.return_value = MagicMock(id=uuid.uuid4())
+        db.execute = AsyncMock(return_value=fake_area_result)
 
         payload = NodeCreate(name="my-bot")
 
@@ -186,6 +192,10 @@ class TestCreateNode:
         db.add = MagicMock()
         db.commit = AsyncMock()
         db.refresh = AsyncMock()
+        # Mock db.execute for area_id resolution (select(Area).order_by(...).limit(1))
+        fake_area_result = MagicMock()
+        fake_area_result.scalars.return_value.first.return_value = MagicMock(id=uuid.uuid4())
+        db.execute = AsyncMock(return_value=fake_area_result)
 
         payload = NodeCreate(name="failing-bot")
 

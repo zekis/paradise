@@ -17,6 +17,8 @@ from app.routes.canvas import (
     update_canvas,
 )
 
+TEST_AREA_ID = uuid.uuid4()
+
 
 # ---------------------------------------------------------------------------
 # Pydantic model tests
@@ -77,7 +79,7 @@ class TestGetCanvas:
         db = AsyncMock()
         db.get = AsyncMock(return_value=state)
 
-        result = await get_canvas(db=db)
+        result = await get_canvas(area_id=TEST_AREA_ID, db=db)
 
         assert result.viewport_x == 10.0
         assert result.viewport_y == 20.0
@@ -96,7 +98,7 @@ class TestGetCanvas:
             obj.zoom = 1.0
         db.refresh = fake_refresh
 
-        result = await get_canvas(db=db)
+        result = await get_canvas(area_id=TEST_AREA_ID, db=db)
 
         db.add.assert_called_once()
         assert result.viewport_x == 0.0
@@ -112,7 +114,7 @@ class TestUpdateCanvas:
         db.commit = AsyncMock()
 
         payload = CanvasViewport(viewport_x=99.0, viewport_y=-10.0, zoom=3.0)
-        result = await update_canvas(payload=payload, db=db)
+        result = await update_canvas(payload=payload, area_id=TEST_AREA_ID, db=db)
 
         assert state.viewport_x == 99.0
         assert state.viewport_y == -10.0
@@ -127,7 +129,7 @@ class TestUpdateCanvas:
         db.commit = AsyncMock()
 
         payload = CanvasViewport(viewport_x=5.0, viewport_y=5.0, zoom=0.5)
-        result = await update_canvas(payload=payload, db=db)
+        result = await update_canvas(payload=payload, area_id=TEST_AREA_ID, db=db)
 
         db.add.assert_called_once()
         assert result == payload
@@ -140,7 +142,7 @@ class TestGetDefaultConfig:
         db = AsyncMock()
         db.get = AsyncMock(return_value=state)
 
-        result = await get_default_config(db=db)
+        result = await get_default_config(area_id=TEST_AREA_ID, db=db)
         assert result == {"config": {"model": "gpt-4"}}
 
     @pytest.mark.asyncio
@@ -148,7 +150,7 @@ class TestGetDefaultConfig:
         db = AsyncMock()
         db.get = AsyncMock(return_value=None)
 
-        result = await get_default_config(db=db)
+        result = await get_default_config(area_id=TEST_AREA_ID, db=db)
         assert result == {"config": None}
 
 
@@ -161,7 +163,7 @@ class TestSetDefaultConfig:
         db.commit = AsyncMock()
 
         request = DefaultConfigRequest(config={"model": "claude"})
-        result = await set_default_config(request=request, db=db)
+        result = await set_default_config(request=request, area_id=TEST_AREA_ID, db=db)
 
         assert state.default_nanobot_config == {"model": "claude"}
         assert result == {"ok": True}
@@ -174,7 +176,7 @@ class TestSetDefaultConfig:
         db.commit = AsyncMock()
 
         request = DefaultConfigRequest(config={"model": "claude"})
-        result = await set_default_config(request=request, db=db)
+        result = await set_default_config(request=request, area_id=TEST_AREA_ID, db=db)
 
         db.add.assert_called_once()
         assert result == {"ok": True}
@@ -187,7 +189,7 @@ class TestGetDefaultTemplates:
         db = AsyncMock()
         db.get = AsyncMock(return_value=state)
 
-        result = await get_default_templates(db=db)
+        result = await get_default_templates(area_id=TEST_AREA_ID, db=db)
         assert result == {"templates": {"SOUL.md": "# Custom"}}
 
     @pytest.mark.asyncio
@@ -196,7 +198,7 @@ class TestGetDefaultTemplates:
         db = AsyncMock()
         db.get = AsyncMock(return_value=state)
 
-        result = await get_default_templates(db=db)
+        result = await get_default_templates(area_id=TEST_AREA_ID, db=db)
         assert result == {"templates": None}
 
     @pytest.mark.asyncio
@@ -204,7 +206,7 @@ class TestGetDefaultTemplates:
         db = AsyncMock()
         db.get = AsyncMock(return_value=None)
 
-        result = await get_default_templates(db=db)
+        result = await get_default_templates(area_id=TEST_AREA_ID, db=db)
         assert result == {"templates": None}
 
 
@@ -217,7 +219,7 @@ class TestSetDefaultTemplates:
         db.commit = AsyncMock()
 
         request = DefaultTemplatesRequest(templates={"SOUL.md": "# New Soul"})
-        result = await set_default_templates(request=request, db=db)
+        result = await set_default_templates(request=request, area_id=TEST_AREA_ID, db=db)
 
         assert state.default_agent_templates == {"SOUL.md": "# New Soul"}
         assert result == {"ok": True}
@@ -230,7 +232,7 @@ class TestSetDefaultTemplates:
         db.commit = AsyncMock()
 
         request = DefaultTemplatesRequest(templates=None)
-        result = await set_default_templates(request=request, db=db)
+        result = await set_default_templates(request=request, area_id=TEST_AREA_ID, db=db)
 
         assert state.default_agent_templates is None
         assert result == {"ok": True}

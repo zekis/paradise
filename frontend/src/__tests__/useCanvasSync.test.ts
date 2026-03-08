@@ -38,6 +38,7 @@ vi.mock("@/store/canvasStore", () => {
     setSetNodeRebuilding: vi.fn(),
     setSetNodeArchived: vi.fn(),
     setReplaceNode: vi.fn(),
+    setUpdateEdgeChatEnabled: vi.fn(),
     getState: () => state,
   };
   const useCanvasStore = Object.assign(
@@ -45,6 +46,17 @@ vi.mock("@/store/canvasStore", () => {
     { getState: () => state },
   );
   return { useCanvasStore };
+});
+
+vi.mock("@/store/areaStore", () => {
+  const state = {
+    activeAreaId: "area-1",
+  };
+  const useAreaStore = Object.assign(
+    (selector?: (s: typeof state) => unknown) => (selector ? selector(state) : state),
+    { getState: () => state },
+  );
+  return { useAreaStore };
 });
 
 vi.spyOn(global, "fetch").mockResolvedValue({

@@ -177,13 +177,14 @@ async def create_child_node(
             parts.append(f"Parent settings: {settings_content}")
     enriched_prompt = "\n".join(parts)
 
-    # Create child node
+    # Create child node (inherits parent's area)
     node_id = uuid4()
     node = Node(
         id=node_id,
         name=payload.name,
         position_x=pos_x,
         position_y=pos_y,
+        area_id=parent.area_id,
     )
 
     try:

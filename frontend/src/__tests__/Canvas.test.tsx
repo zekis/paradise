@@ -41,12 +41,47 @@ vi.mock("@/store/canvasStore", () => {
     setAddNode: vi.fn(),
     setAddEdge: vi.fn(),
     setSetNodeRebuilding: vi.fn(),
+    setSetNodeArchived: vi.fn(),
+    setReplaceNode: vi.fn(),
+    setUpdateEdgeChatEnabled: vi.fn(),
+    resetForAreaSwitch: vi.fn(),
+    checkedNodeIds: new Set(),
+    clearCheckedNodes: vi.fn(),
   };
   const useCanvasStore = Object.assign(
     (selector?: (s: typeof state) => unknown) => (selector ? selector(state) : state),
     { getState: () => state },
   );
   return { useCanvasStore };
+});
+
+vi.mock("@/store/themeStore", () => {
+  const state = {
+    mode: "dark" as string,
+    resolved: "dark" as string,
+    cycleTheme: vi.fn(),
+    initTheme: vi.fn(),
+  };
+  const useThemeStore = Object.assign(
+    (selector?: (s: typeof state) => unknown) => (selector ? selector(state) : state),
+    { getState: () => state },
+  );
+  return { useThemeStore };
+});
+
+vi.mock("@/store/areaStore", () => {
+  const state = {
+    areas: [{ id: "area-1", name: "Area 1", sort_order: 0, node_count: 0 }],
+    activeAreaId: "area-1",
+    loaded: true,
+    setAreas: vi.fn(),
+    setActiveAreaId: vi.fn(),
+  };
+  const useAreaStore = Object.assign(
+    (selector?: (s: typeof state) => unknown) => (selector ? selector(state) : state),
+    { getState: () => state },
+  );
+  return { useAreaStore };
 });
 
 vi.spyOn(global, "fetch").mockResolvedValue({

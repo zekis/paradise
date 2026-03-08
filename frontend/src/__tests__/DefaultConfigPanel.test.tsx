@@ -3,6 +3,13 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { DefaultConfigPanel } from "@/components/DefaultConfigPanel";
 import { TEST_API } from "./test-utils";
 
+vi.mock("@/store/areaStore", () => ({
+  useAreaStore: (selector?: (s: any) => any) => {
+    const state = { activeAreaId: "area-1" };
+    return selector ? selector(state) : state;
+  },
+}));
+
 describe("DefaultConfigPanel", () => {
   beforeEach(() => {
     vi.spyOn(global, "fetch").mockResolvedValue({
