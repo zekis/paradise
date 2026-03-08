@@ -153,6 +153,7 @@ export function ChatTab({
   onGenesisComplete,
   onIdentityUpdate,
   onThinkingChange,
+  isReadOnly,
 }: {
   nodeId: string;
   api: string;
@@ -161,6 +162,7 @@ export function ChatTab({
   onGenesisComplete?: () => void;
   onIdentityUpdate?: (identity: Record<string, unknown>) => void;
   onThinkingChange?: (thinking: boolean) => void;
+  isReadOnly?: boolean;
 }) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -341,8 +343,9 @@ export function ChatTab({
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="Type a message..."
+          onKeyDown={(e) => e.key === "Enter" && !isReadOnly && send()}
+          placeholder={isReadOnly ? "Locked — read only" : "Type a message..."}
+          disabled={isReadOnly}
           style={{
             flex: 1,
             background: "var(--overlay-light)",
@@ -352,18 +355,21 @@ export function ChatTab({
             color: "var(--text)",
             fontSize: 12,
             outline: "none",
+            opacity: isReadOnly ? 0.5 : 1,
           }}
         />
         <button
           onClick={send}
+          disabled={isReadOnly}
           style={{
             background: "var(--accent)",
             color: "var(--text)",
             border: "none",
             borderRadius: 4,
             padding: "6px 12px",
-            cursor: "pointer",
+            cursor: isReadOnly ? "not-allowed" : "pointer",
             fontSize: 12,
+            opacity: isReadOnly ? 0.5 : 1,
           }}
         >
           Send

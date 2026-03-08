@@ -28,6 +28,7 @@ function NodeCard({
   onToggleCheck,
   onItemClick,
   onContextMenu,
+  isReadOnly,
 }: {
   node: Node;
   selectedNodeId: string | null;
@@ -35,6 +36,7 @@ function NodeCard({
   onToggleCheck: (id: string) => void;
   onItemClick: (id: string) => void;
   onContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
+  isReadOnly?: boolean;
 }) {
   const data = node.data as NanobotNodeData;
   const isSelected = node.id === selectedNodeId;
@@ -46,7 +48,7 @@ function NodeCard({
 
   return (
     <div
-      onClick={() => onItemClick(node.id)}
+      onClick={() => { if (!isReadOnly) onItemClick(node.id); }}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e, node.id); }}
       onMouseOver={(e) => {
         if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--overlay-light)";
@@ -59,7 +61,7 @@ function NodeCard({
         borderRadius: 6,
         margin: "1px 4px",
         padding: "4px 6px",
-        cursor: "pointer",
+        cursor: isReadOnly ? "default" : "pointer",
         borderLeft: isSelected ? "2px solid var(--accent)" : "2px solid transparent",
         fontSize: 12,
         opacity: isArchived ? 0.45 : 1,
@@ -68,7 +70,8 @@ function NodeCard({
     >
       {/* Line 1: Checkbox + Icon + Label + Status dot */}
       <div style={{ display: "flex", alignItems: "center", gap: 4, minHeight: 20 }}>
-        {/* Checkbox for multi-select */}
+        {/* Checkbox for multi-select (hidden when read-only) */}
+        {!isReadOnly && (
         <input
           type="checkbox"
           checked={checkedNodeIds.has(node.id)}
@@ -83,6 +86,7 @@ function NodeCard({
             margin: 0,
           }}
         />
+        )}
 
         {/* Icon badge */}
         {resolvedIcon ? (
@@ -153,9 +157,10 @@ interface TreeViewDrawerProps {
   onFocusNode: (nodeId: string) => void;
   onOpenChange?: (open: boolean) => void;
   onNodeContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
+  isReadOnly?: boolean;
 }
 
-export function TreeViewDrawer({ nodes, onFocusNode, onOpenChange, onNodeContextMenu }: TreeViewDrawerProps) {
+export function TreeViewDrawer({ nodes, onFocusNode, onOpenChange, onNodeContextMenu, isReadOnly }: TreeViewDrawerProps) {
   const [expanded, setExpanded] = useState(true);
   const [pinned, setPinned] = useState(true);
   const [showMessageModal, setShowMessageModal] = useState(false);
@@ -263,6 +268,7 @@ export function TreeViewDrawer({ nodes, onFocusNode, onOpenChange, onNodeContext
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {!isReadOnly && (
             <input
               type="checkbox"
               checked={allChecked}
@@ -279,6 +285,7 @@ export function TreeViewDrawer({ nodes, onFocusNode, onOpenChange, onNodeContext
               }}
               title={allChecked ? "Deselect all" : "Select all"}
             />
+            )}
             <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", opacity: 0.6, letterSpacing: 2 }}>
               PARADISE
             </span>
@@ -320,13 +327,14 @@ export function TreeViewDrawer({ nodes, onFocusNode, onOpenChange, onNodeContext
                 onToggleCheck={toggleCheckedNode}
                 onItemClick={handleItemClick}
                 onContextMenu={onNodeContextMenu}
+                isReadOnly={isReadOnly}
               />
             ))
           )}
         </div>
 
-        {/* Network command bar (visible when nodes are checked) */}
-        {checkedNodeIds.size > 0 && (
+        {/* Network command bar (visible when nodes are checked, hidden when read-only) */}
+        {checkedNodeIds.size > 0 && !isReadOnly && (
           <NetworkCommandBar
             nodes={nodes}
             onMessageAll={() => setShowMessageModal(true)}
@@ -351,7 +359,7 @@ export function TreeViewDrawer({ nodes, onFocusNode, onOpenChange, onNodeContext
       </div>
     </div>
 
-    {showMessageModal && (
+    {showMessageModal && !isReadOnly && (
       <MessageAllModal
         nodes={nodes}
         onClose={() => setShowMessageModal(false)}

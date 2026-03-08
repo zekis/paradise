@@ -161,13 +161,14 @@ function CanvasInner() {
   }, [api, isMobile, eventLogEnabled]);
 
   const handleFocusNode = useCallback((nodeId: string) => {
+    if (isLocked) return;
     const node = nodes.find((n) => n.id === nodeId);
     if (!node) return;
     setSelectedNodeId(nodeId);
     setShowSettings(false);
     // Center on node (nodes are 80x92, offset to center)
     setCenter(node.position.x + 40, node.position.y + 46, { zoom: 1.5, duration: 400 });
-  }, [nodes, setSelectedNodeId, setCenter]);
+  }, [nodes, setSelectedNodeId, setCenter, isLocked]);
 
   const handlePaneClick = useCallback(() => {
     setSelectedNodeId(null);
@@ -175,9 +176,13 @@ function CanvasInner() {
   }, [setSelectedNodeId]);
 
   const handleNodeClick = useCallback(() => {
+    if (isLocked) {
+      setSelectedNodeId(null);
+      return;
+    }
     setShowSettings(false);
     setContextMenu(null);
-  }, []);
+  }, [isLocked, setSelectedNodeId]);
 
   const handleNodeContextMenu = useCallback((e: React.MouseEvent, node: { id: string }) => {
     e.preventDefault();
@@ -339,7 +344,7 @@ function CanvasInner() {
           nodes={nodes}
           edges={edges}
           selectedNodeData={selectedNodeData}
-          onSelectNode={(nodeId) => { setSelectedNodeId(nodeId); setShowSettings(false); }}
+          onSelectNode={(nodeId) => { if (!isLocked) { setSelectedNodeId(nodeId); setShowSettings(false); } }}
           onDeselectNode={() => setSelectedNodeId(null)}
           showSettings={showSettings}
           onToggleSettings={handleToggleSettings}
@@ -446,7 +451,7 @@ function CanvasInner() {
 
       {showSettings && <DefaultConfigPanel api={api} onClose={() => setShowSettings(false)} onFocusNode={handleFocusNode} />}
       {selectedNodeData && (
-        <NodeDrawer data={selectedNodeData} onClose={() => setSelectedNodeId(null)} />
+        <NodeDrawer data={selectedNodeData} onClose={() => setSelectedNodeId(null)} isReadOnly={isLocked} />
       )}
       {showGenesis && (
         <GenesisModal
@@ -501,7 +506,7 @@ function CanvasInner() {
         />
       )}
 
-      <TreeViewDrawer nodes={nodes} edges={edges} onFocusNode={handleFocusNode} onOpenChange={setTreeDrawerOpen} onNodeContextMenu={handleTreeNodeContextMenu} />
+      <TreeViewDrawer nodes={nodes} edges={edges} onFocusNode={handleFocusNode} onOpenChange={setTreeDrawerOpen} onNodeContextMenu={handleTreeNodeContextMenu} isReadOnly={isLocked} />
 
       {pinModalMode && activeAreaId && (
         <PinModal

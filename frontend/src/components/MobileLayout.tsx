@@ -78,9 +78,9 @@ export function MobileLayout({
       />
 
       {showCard ? (
-        <NodeDrawer data={selectedNodeData} onClose={onDeselectNode} isMobile />
+        <NodeDrawer data={selectedNodeData} onClose={onDeselectNode} isMobile isReadOnly={isReadOnly} />
       ) : (
-        <MobileTreeView nodes={nodes} edges={edges} onSelectNode={onSelectNode} onNodeContextMenu={onNodeContextMenu} />
+        <MobileTreeView nodes={nodes} edges={edges} onSelectNode={onSelectNode} onNodeContextMenu={onNodeContextMenu} isReadOnly={isReadOnly} />
       )}
 
       {showSettings && <DefaultConfigPanel api={api} onClose={onToggleSettings} isMobile />}

@@ -20,6 +20,7 @@ function MobileNodeCard({
   onToggleCheck,
   onItemClick,
   onContextMenu,
+  isReadOnly,
 }: {
   node: Node;
   selectedNodeId: string | null;
@@ -27,6 +28,7 @@ function MobileNodeCard({
   onToggleCheck: (id: string) => void;
   onItemClick: (id: string) => void;
   onContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
+  isReadOnly?: boolean;
 }) {
   const data = node.data as NanobotNodeData;
   const isSelected = node.id === selectedNodeId;
@@ -38,7 +40,7 @@ function MobileNodeCard({
 
   return (
     <div
-      onClick={() => onItemClick(node.id)}
+      onClick={() => { if (!isReadOnly) onItemClick(node.id); }}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e, node.id); }}
       style={{
         background: isSelected ? "rgba(99, 102, 241, 0.10)" : "var(--overlay-subtle)",
@@ -46,7 +48,7 @@ function MobileNodeCard({
         margin: "2px 8px",
         padding: "8px 10px",
         minHeight: 44,
-        cursor: "pointer",
+        cursor: isReadOnly ? "default" : "pointer",
         borderLeft: isSelected ? "3px solid var(--accent)" : "3px solid transparent",
         fontSize: 14,
         opacity: isArchived ? 0.45 : 1,
@@ -55,7 +57,8 @@ function MobileNodeCard({
     >
       {/* Line 1: Checkbox + Icon + Label + Status dot */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 28 }}>
-        {/* Checkbox for multi-select */}
+        {/* Checkbox for multi-select (hidden when read-only) */}
+        {!isReadOnly && (
         <input
           type="checkbox"
           checked={checkedNodeIds.has(node.id)}
@@ -70,6 +73,7 @@ function MobileNodeCard({
             margin: 0,
           }}
         />
+        )}
 
         {/* Icon */}
         {resolvedIcon ? (
@@ -140,9 +144,10 @@ interface MobileTreeViewProps {
   edges?: unknown[];
   onSelectNode: (nodeId: string) => void;
   onNodeContextMenu?: (e: React.MouseEvent, nodeId: string) => void;
+  isReadOnly?: boolean;
 }
 
-export function MobileTreeView({ nodes, onSelectNode, onNodeContextMenu }: MobileTreeViewProps) {
+export function MobileTreeView({ nodes, onSelectNode, onNodeContextMenu, isReadOnly }: MobileTreeViewProps) {
   const [showMessageModal, setShowMessageModal] = useState(false);
   const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
   const checkedNodeIds = useCanvasStore((s) => s.checkedNodeIds);
@@ -191,6 +196,7 @@ export function MobileTreeView({ nodes, onSelectNode, onNodeContextMenu }: Mobil
           flexShrink: 0,
         }}
       >
+        {!isReadOnly && (
         <input
           type="checkbox"
           checked={allChecked}
@@ -206,6 +212,7 @@ export function MobileTreeView({ nodes, onSelectNode, onNodeContextMenu }: Mobil
           }}
           title={allChecked ? "Deselect all" : "Select all"}
         />
+        )}
         <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
           Nanobots
         </span>
@@ -241,13 +248,14 @@ export function MobileTreeView({ nodes, onSelectNode, onNodeContextMenu }: Mobil
               onToggleCheck={toggleCheckedNode}
               onItemClick={onSelectNode}
               onContextMenu={onNodeContextMenu}
+              isReadOnly={isReadOnly}
             />
           ))
         )}
       </div>
 
-      {/* Network command bar (visible when nodes are checked) */}
-      {checkedNodeIds.size > 0 && (
+      {/* Network command bar (visible when nodes are checked, hidden when read-only) */}
+      {checkedNodeIds.size > 0 && !isReadOnly && (
         <NetworkCommandBar
           nodes={nodes}
           onMessageAll={() => setShowMessageModal(true)}
@@ -255,7 +263,7 @@ export function MobileTreeView({ nodes, onSelectNode, onNodeContextMenu }: Mobil
       )}
     </div>
 
-    {showMessageModal && (
+    {showMessageModal && !isReadOnly && (
       <MessageAllModal
         nodes={nodes}
         onClose={() => setShowMessageModal(false)}
